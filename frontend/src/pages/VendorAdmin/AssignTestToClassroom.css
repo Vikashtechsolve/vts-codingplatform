@@ -1,0 +1,254 @@
+.assign-test-classroom {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+}
+
+.page-subtitle {
+  color: var(--text-secondary);
+  margin-top: 5px;
+  font-size: 0.95em;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+}
+
+.section-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 28px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  animation: fadeInUp 0.5s ease;
+}
+
+.section-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #007bff, #6f42c1);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.section-card:hover::before {
+  opacity: 1;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.section-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.3em;
+  font-weight: 700;
+}
+
+.tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.test-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px;
+  background-color: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  animation: slideInRight 0.5s ease;
+}
+
+.test-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--border-color);
+  transition: all 0.3s ease;
+}
+
+.test-item:hover {
+  border-color: #007bff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateX(4px);
+}
+
+.test-item:hover::before {
+  background: linear-gradient(180deg, #007bff, #0056b3);
+}
+
+.test-item.assigned {
+  border-color: #28a745;
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.08), rgba(30, 126, 52, 0.05));
+}
+
+.test-item.assigned::before {
+  background: linear-gradient(180deg, #28a745, #1e7e34);
+}
+
+.test-info {
+  flex: 1;
+}
+
+.test-info h4 {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 1.1em;
+}
+
+.test-meta {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 8px;
+}
+
+.test-type {
+  padding: 6px 12px;
+  background: var(--primary-gradient);
+  color: white;
+  border-radius: 8px;
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  box-shadow: 0 2px 4px rgba(237, 3, 49, 0.2);
+  transition: all 0.3s ease;
+}
+
+.test-type:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(237, 3, 49, 0.3);
+}
+
+.test-duration {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+.test-description {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  margin: 8px 0 0 0;
+  line-height: 1.4;
+}
+
+.assignment-date {
+  color: var(--text-secondary);
+  font-size: 0.85em;
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background-color: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.9em;
+}
+
+.empty-state-small {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--primary-gradient);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-secondary);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .test-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+}
+

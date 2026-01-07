@@ -1,0 +1,139 @@
+.analytics-page {
+  max-width: 1600px;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 25px;
+  margin-bottom: 30px;
+}
+
+.chart-card {
+  min-height: 400px;
+}
+
+.classrooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.classroom-card {
+  background-color: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.classroom-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border-color: var(--primary-color);
+}
+
+.classroom-card-header h3 {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 1.3em;
+}
+
+.classroom-description {
+  margin: 0 0 15px 0;
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+.classroom-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.classroom-stats .stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 6px;
+}
+
+.classroom-stats .stat-label {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+.classroom-stats .stat-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 1em;
+}
+
+.classroom-stats .stat-value.highlight {
+  color: var(--primary-color);
+  font-size: 1.1em;
+}
+
+.classroom-card-footer {
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.student-details-modal {
+  max-width: 100%;
+}
+
+.modal-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.stat-box {
+  background-color: var(--bg-secondary);
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+}
+
+.stat-box .stat-label {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.85em;
+  margin-bottom: 8px;
+}
+
+.stat-box .stat-value-large {
+  display: block;
+  color: var(--primary-color);
+  font-size: 1.8em;
+  font-weight: bold;
+}
+
+.status-badge.warning {
+  background-color: rgba(255, 193, 7, 0.1);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .classrooms-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+

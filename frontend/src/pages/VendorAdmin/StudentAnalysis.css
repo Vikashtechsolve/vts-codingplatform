@@ -1,0 +1,244 @@
+.student-analysis-page {
+  animation: fadeIn 0.5s ease;
+}
+
+.student-analysis-page .page-title {
+  margin-bottom: 10px;
+  font-size: 36px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: fadeInDown 0.5s ease;
+}
+
+.student-info-subtitle {
+  color: var(--text-secondary);
+  margin-top: 8px;
+  font-size: 1.1em;
+  animation: fadeInDown 0.6s ease;
+}
+
+.stats-grid-modern {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+  animation: fadeInUp 0.6s ease;
+}
+
+.stat-card-analysis {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 20px;
+  padding: 32px 24px;
+  text-align: center;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: visible;
+  animation: fadeInUp 0.6s ease;
+  z-index: 1;
+}
+
+.stat-card-analysis::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #007bff, #6f42c1);
+  transform: scaleX(0);
+  transition: transform 0.4s ease;
+  z-index: 0;
+}
+
+.stat-card-analysis:hover {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: 0 20px 40px rgba(0, 123, 255, 0.15);
+  border-color: #007bff;
+  z-index: 2;
+}
+
+.stat-card-analysis:hover::before {
+  transform: scaleX(1);
+}
+
+.stat-card-analysis.tests {
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.05), rgba(0, 86, 179, 0.02));
+}
+
+.stat-card-analysis.average {
+  background: linear-gradient(135deg, rgba(111, 66, 193, 0.05), rgba(90, 50, 163, 0.02));
+}
+
+.stat-card-analysis.total {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.05), rgba(30, 126, 52, 0.02));
+}
+
+.stat-card-analysis.status {
+  background: linear-gradient(135deg, rgba(17, 122, 184, 0.05), rgba(13, 110, 253, 0.02));
+}
+
+.stat-card-analysis h3 {
+  margin: 0 0 16px 0;
+  font-size: 0.9em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+}
+
+.stat-number-analysis {
+  font-size: 2.5em;
+  font-weight: 800;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.stat-card-analysis.tests .stat-number-analysis {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-card-analysis.average .stat-number-analysis {
+  background: linear-gradient(135deg, #6f42c1, #5a32a3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-card-analysis.total .stat-number-analysis {
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.performance-section {
+  margin-top: 40px;
+  animation: fadeInUp 0.8s ease;
+}
+
+.section-title-analysis {
+  font-size: 1.8em;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 3px solid var(--border-color);
+}
+
+.performance-table-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 20px;
+  padding: 28px;
+  margin-bottom: 30px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.performance-table-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #007bff, #6f42c1);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.performance-table-card:hover::before {
+  opacity: 1;
+}
+
+.performance-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.performance-table thead th {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.5px;
+  padding: 16px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.performance-table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.performance-table tbody tr:hover {
+  background-color: var(--bg-secondary);
+  transform: scale(1.01);
+}
+
+.performance-table tbody td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.score-badge {
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9em;
+  display: inline-block;
+}
+
+.score-badge.excellent {
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  color: white;
+}
+
+.score-badge.good {
+  background: linear-gradient(135deg, #ffc107, #e0a800);
+  color: white;
+}
+
+.score-badge.poor {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+}
+
+.empty-state-analysis {
+  text-align: center;
+  padding: 60px 40px;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  border-radius: 20px;
+  border: 3px dashed var(--border-color);
+  animation: fadeInUp 0.6s ease;
+}
+
+.empty-state-analysis p {
+  color: var(--text-secondary);
+  font-size: 1.1em;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .stats-grid-modern {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .performance-table-card {
+    overflow-x: auto;
+  }
+}
+

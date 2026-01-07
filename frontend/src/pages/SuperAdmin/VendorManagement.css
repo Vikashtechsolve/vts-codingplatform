@@ -1,0 +1,62 @@
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  animation: fadeInDown 0.5s ease;
+}
+
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.status-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.status-badge.active {
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  color: white;
+}
+
+.status-badge.inactive {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+}
+
+.error {
+  background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(200, 35, 51, 0.05));
+  color: #dc3545;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 2px solid #dc3545;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.1);
+  animation: fadeInDown 0.5s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.success {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(30, 126, 52, 0.05));
+  color: #28a745;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 2px solid #28a745;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.1);
+  animation: fadeInDown 0.5s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: pre-line;
+}
+
