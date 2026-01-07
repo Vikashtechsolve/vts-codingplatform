@@ -19,9 +19,6 @@ import TestList from './pages/VendorAdmin/TestList';
 import StudentManagement from './pages/VendorAdmin/StudentManagement';
 import CreateCodingQuestion from './pages/VendorAdmin/CreateCodingQuestion';
 import CreateMCQQuestion from './pages/VendorAdmin/CreateMCQQuestion';
-// Reuse same components for global questions (they detect route automatically)
-const CreateGlobalCodingQuestion = CreateCodingQuestion;
-const CreateGlobalMCQQuestion = CreateMCQQuestion;
 import QuestionList from './pages/VendorAdmin/QuestionList';
 import Analytics from './pages/VendorAdmin/Analytics';
 import VendorSettings from './pages/VendorAdmin/Settings';
@@ -40,6 +37,10 @@ import TestTaking from './pages/Student/TestTaking';
 import TestResult from './pages/Student/TestResult';
 
 import './App.css';
+
+// Reuse same components for global questions (they detect route automatically)
+const CreateGlobalCodingQuestion = CreateCodingQuestion;
+const CreateGlobalMCQQuestion = CreateMCQQuestion;
 
 function App() {
   return (
