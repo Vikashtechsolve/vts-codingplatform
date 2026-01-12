@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import PrivateRoute from './components/PrivateRoute';
 import Navbar from './components/Layout/Navbar';
@@ -41,6 +41,29 @@ import './App.css';
 // Reuse same components for global questions (they detect route automatically)
 const CreateGlobalCodingQuestion = CreateCodingQuestion;
 const CreateGlobalMCQQuestion = CreateMCQQuestion;
+
+// Root route component that redirects based on authentication
+const RootRedirect = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (user) {
+    // Redirect authenticated users to their dashboard
+    if (user.role === 'super_admin') {
+      return <Navigate to="/super-admin/dashboard" replace />;
+    } else if (user.role === 'vendor_admin') {
+      return <Navigate to="/vendor-admin/dashboard" replace />;
+    } else if (user.role === 'student') {
+      return <Navigate to="/student/dashboard" replace />;
+    }
+  }
+
+  // Redirect unauthenticated users to login
+  return <Navigate to="/login" replace />;
+};
 
 function App() {
   return (
@@ -307,7 +330,7 @@ function App() {
                 }
               />
 
-              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/" element={<RootRedirect />} />
             </Routes>
           </div>
         </Router>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './Auth.css';
@@ -8,8 +8,21 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === 'super_admin') {
+        navigate('/super-admin/dashboard', { replace: true });
+      } else if (user.role === 'vendor_admin') {
+        navigate('/vendor-admin/dashboard', { replace: true });
+      } else if (user.role === 'student') {
+        navigate('/student/dashboard', { replace: true });
+      }
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,6 +48,22 @@ const Login = () => {
 
     setLoading(false);
   };
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="auth-container">
+        <div className="auth-card">
+          <div className="loading">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render login form if already logged in (will redirect)
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="auth-container">

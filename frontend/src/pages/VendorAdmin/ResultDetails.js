@@ -72,6 +72,38 @@ const ResultDetails = () => {
           <strong>Time Spent:</strong>
           <span>{Math.floor(result.timeSpent / 60)} minutes {result.timeSpent % 60} seconds</span>
         </div>
+        {result.violationCount > 0 && (
+          <>
+            <div className="info-item">
+              <strong>Violations:</strong>
+              <span style={{ color: result.violationCount >= 3 ? '#ff4444' : '#ff9800', fontWeight: 'bold' }}>
+                {result.violationCount}
+              </span>
+            </div>
+            {result.autoSubmitted && (
+              <div className="info-item">
+                <strong>Status:</strong>
+                <span style={{ color: '#ff4444', fontWeight: 'bold' }}>Auto-submitted due to violations</span>
+              </div>
+            )}
+          </>
+        )}
+        {result.violations && result.violations.length > 0 && (
+          <div className="info-item" style={{ gridColumn: '1 / -1', marginTop: '20px' }}>
+            <strong>Violation Details:</strong>
+            <div style={{ marginTop: '10px', padding: '15px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
+              {result.violations.map((violation, idx) => (
+                <div key={idx} style={{ padding: '8px', background: 'white', borderRadius: '5px', marginBottom: '8px', fontSize: '0.9em' }}>
+                  <strong>{violation.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>
+                  {violation.details && <span style={{ color: '#666', marginLeft: '10px' }}>- {violation.details}</span>}
+                  <span style={{ float: 'right', color: '#999' }}>
+                    {new Date(violation.timestamp).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="info-card-modern">

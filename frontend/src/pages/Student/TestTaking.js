@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
+import { useExamSecurity } from '../../hooks/useExamSecurity';
 import './TestTaking.css';
 
 const TestTaking = () => {
@@ -15,13 +16,37 @@ const TestTaking = () => {
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [timeExpired, setTimeExpired] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('python');
   
   // Modal states
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  
+  // Exam security - initialize after result is loaded
+  const handleMaxViolations = async () => {
+    showModal('Auto-Submission', `You have reached the maximum number of violations. Your test will be automatically submitted.`, 'error');
+    setTimeout(async () => {
+      await handleSubmitTest();
+    }, 2000);
+  };
+  
+  const handleViolationWarning = (currentViolations, maxViolations) => {
+    showModal(
+      'Violation Warning', 
+      `Warning: You have ${currentViolations} violation(s). After ${maxViolations} violations, your test will be automatically submitted. Please follow the exam rules.`, 
+      'warning'
+    );
+  };
+  
+  const { violations } = useExamSecurity(
+    result?._id || null,
+    handleMaxViolations,
+    handleViolationWarning
+  );
   const [codeExecutionResult, setCodeExecutionResult] = useState(null);
   const [testCaseResults, setTestCaseResults] = useState([]); // For visible test case execution results
-  const [hiddenTestCaseResults, setHiddenTestCaseResults] = useState([]); // For hidden test case results
+  // eslint-disable-next-line no-unused-vars
+  const [hiddenTestCaseResults, setHiddenTestCaseResults] = useState([]); // For hidden test case results (used in submission summary)
   const [isRunningTests, setIsRunningTests] = useState(false);
   const [submissionSummary, setSubmissionSummary] = useState(null);
   
@@ -80,25 +105,34 @@ const TestTaking = () => {
     };
   }, [isResizing]);
 
-  const handleSubmitTest = async () => {
+  const handleSubmitTest = async (skipConfirmation = false) => {
     if (!result) {
       showModal('Error', 'Test session not found', 'error');
       return;
     }
     
-    if (window.confirm('Are you sure you want to submit the test? You cannot change your answers after submission.')) {
-      try {
-        setLoading(true);
-        console.log('📤 Submitting test:', result._id);
-        await axiosInstance.post(`/results/${result._id}/submit`);
-        console.log('✅ Test submitted successfully');
-        navigate(`/student/result/${result._id}`);
-      } catch (error) {
-        setLoading(false);
-        console.error('❌ Error submitting test:', error);
-        const errorMsg = error.response?.data?.message || error.message || 'Error submitting test';
-        showModal('Error', errorMsg, 'error');
-      }
+    // Show confirmation modal instead of browser confirm
+    if (!skipConfirmation) {
+      showModal(
+        'Confirm Submission', 
+        'Are you sure you want to submit the test? You cannot change your answers after submission.', 
+        'warning'
+      );
+      return;
+    }
+    
+    // Actually submit the test
+    try {
+      setLoading(true);
+      console.log('📤 Submitting test:', result._id);
+      await axiosInstance.post(`/results/${result._id}/submit`);
+      console.log('✅ Test submitted successfully');
+      navigate(`/student/result/${result._id}`);
+    } catch (error) {
+      setLoading(false);
+      console.error('❌ Error submitting test:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Error submitting test';
+      showModal('Error', errorMsg, 'error');
     }
   };
 
@@ -108,20 +142,28 @@ const TestTaking = () => {
       const elapsed = Date.now() - new Date(result.startedAt).getTime();
       const remaining = Math.max(0, duration - elapsed);
       setTimeRemaining(remaining);
+      
+      // Check if time already expired
+      if (remaining <= 0) {
+        setTimeExpired(true);
+      }
 
       const timer = setInterval(() => {
         setTimeRemaining(prev => {
-          if (prev <= 1000) {
-            handleSubmitTest();
+          const newTime = prev - 1000;
+          if (newTime <= 0 && !timeExpired) {
+            setTimeExpired(true);
+            // Don't auto-submit, just mark as expired
+            // User can still continue but will see time expired message
             return 0;
           }
-          return prev - 1000;
+          return Math.max(0, newTime);
         });
       }, 1000);
 
       return () => clearInterval(timer);
     }
-  }, [result, test]);
+  }, [result, test, timeExpired]);
 
   // Organize questions into sections
   useEffect(() => {
@@ -249,10 +291,7 @@ const TestTaking = () => {
     if (!question || !question.questionId || question.type !== 'coding') return;
     
     const questionId = question.questionId._id;
-    const currentCode = answers[questionId]?.code || '';
     const starterCode = question.questionId.starterCode?.[newLanguage] || '';
-    const oldLanguage = selectedLanguage;
-    const oldStarterCode = question.questionId.starterCode?.[oldLanguage] || '';
     
     // Always update to new starter code when language changes
     // This ensures boilerplate code changes properly
@@ -599,21 +638,6 @@ const TestTaking = () => {
     }
   };
 
-  const confirmSubmit = async () => {
-    closeModal();
-    try {
-      setLoading(true);
-      console.log('📤 Submitting test:', result._id);
-      await axiosInstance.post(`/results/${result._id}/submit`);
-      console.log('✅ Test submitted successfully');
-      navigate(`/student/result/${result._id}`);
-    } catch (error) {
-      setLoading(false);
-      console.error('❌ Error submitting test:', error);
-      const errorMsg = error.response?.data?.message || error.message || 'Error submitting test';
-      showModal('Error', errorMsg, 'error');
-    }
-  };
 
   const navigateToQuestion = (sectionIdx, questionIdx) => {
     setCurrentSectionIndex(sectionIdx);
@@ -733,7 +757,10 @@ const TestTaking = () => {
             <p>{modal.message}</p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-              <button className="btn btn-primary" onClick={confirmSubmit}>Submit</button>
+              <button className="btn btn-primary" onClick={() => {
+                closeModal();
+                handleSubmitTest(true);
+              }}>Submit</button>
             </div>
           </div>
         ) : submissionSummary ? (
@@ -819,12 +846,35 @@ const TestTaking = () => {
           <span className="test-type-badge">{test.type}</span>
         </div>
         <div className="test-header-right">
-          <div className="timer">
-            <span className="timer-icon">⏱️</span>
-            <span>{formatTime(timeRemaining)}</span>
+          <div className="violations-indicator" style={{ 
+            marginRight: '15px', 
+            padding: '8px 15px', 
+            background: violations >= 2 ? '#ff4444' : violations >= 1 ? '#ffaa00' : '#4CAF50',
+            color: 'white',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}>
+            Violations: {violations}/3
           </div>
+          <div className={`timer ${timeExpired ? 'timer-expired' : ''}`}>
+            <span className="timer-icon">⏱️</span>
+            <span>{timeExpired ? 'Time Expired' : formatTime(timeRemaining)}</span>
+          </div>
+          {timeExpired && (
+            <div style={{ 
+              padding: '8px 15px', 
+              background: '#ff9800', 
+              color: 'white', 
+              borderRadius: '8px',
+              fontSize: '12px',
+              marginRight: '10px'
+            }}>
+              You can still attempt, but time is up
+            </div>
+          )}
           <button 
-            onClick={() => showModal('Confirm Submission', 'Are you sure you want to submit the test? You cannot change your answers after submission.', 'warning')} 
+            onClick={() => handleSubmitTest(false)} 
             className="btn btn-danger btn-sm"
           >
             Submit Test
@@ -1107,7 +1157,7 @@ const TestTaking = () => {
             </button>
           ) : (
             <button 
-              onClick={() => showModal('Confirm Submission', 'Are you sure you want to submit the test? You cannot change your answers after submission.', 'warning')} 
+              onClick={() => handleSubmitTest(false)} 
               className="btn btn-danger"
             >
               Submit Test

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import Editor from '@monaco-editor/react';
 import axiosInstance from '../../utils/axios';
 import './TestResult.css';
 
@@ -8,9 +9,11 @@ const TestResult = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [questionsData, setQuestionsData] = useState({}); // Store question details
 
   useEffect(() => {
     fetchResult();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultId, testId]);
 
   const fetchResult = async () => {
@@ -33,6 +36,11 @@ const TestResult = () => {
       
       console.log('✅ Result fetched:', response.data);
       setResult(response.data);
+      
+      // Fetch question details for MCQ questions to show correct answers
+      if (response.data.answers) {
+        await fetchQuestionDetails(response.data.answers);
+      }
     } catch (error) {
       console.error('❌ Error fetching result:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Failed to load result';
@@ -40,6 +48,34 @@ const TestResult = () => {
       console.error('Error details:', errorMsg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchQuestionDetails = async (answers) => {
+    try {
+      const mcqQuestionIds = answers
+        .filter(a => a.questionType === 'mcq' && a.questionId)
+        .map(a => a.questionId);
+      
+      if (mcqQuestionIds.length === 0) return;
+      
+      // Fetch MCQ questions in parallel
+      const questionPromises = mcqQuestionIds.map(id => 
+        axiosInstance.get(`/questions/mcq/${id}`).catch(() => null)
+      );
+      
+      const questionResponses = await Promise.all(questionPromises);
+      const questionsMap = {};
+      
+      questionResponses.forEach((response, index) => {
+        if (response && response.data) {
+          questionsMap[mcqQuestionIds[index]] = response.data;
+        }
+      });
+      
+      setQuestionsData(questionsMap);
+    } catch (error) {
+      console.error('Error fetching question details:', error);
     }
   };
 
@@ -90,8 +126,10 @@ const TestResult = () => {
         {result.answers?.map((answer, index) => {
           const isCorrect = answer.questionType === 'mcq' ? answer.isCorrect : 
                            (answer.testCasesPassed === answer.totalTestCases);
+          const questionData = questionsData[answer.questionId];
+          
           return (
-            <div key={index} className={`question-result-card ${isCorrect ? 'correct' : 'incorrect'}`}>
+            <div key={index} className={`question-result-card ${isCorrect ? 'correct' : 'incorrect'}`} style={{ marginBottom: '30px' }}>
               <div className="question-result-header">
                 <h4>Question {index + 1}</h4>
                 <span className={`question-type-badge-result ${answer.questionType}`}>
@@ -104,9 +142,16 @@ const TestResult = () => {
                   <strong>Points:</strong> {answer.points} / {answer.maxPoints}
                 </div>
                 {answer.questionType === 'coding' && (
-                  <div className="points-item">
-                    <strong>Test Cases:</strong> {answer.testCasesPassed} / {answer.totalTestCases} passed
-                  </div>
+                  <>
+                    <div className="points-item">
+                      <strong>Test Cases:</strong> {answer.testCasesPassed || 0} / {answer.totalTestCases || 0} passed
+                    </div>
+                    {answer.language && (
+                      <div className="points-item">
+                        <strong>Language:</strong> {answer.language.toUpperCase()}
+                      </div>
+                    )}
+                  </>
                 )}
                 {answer.questionType === 'mcq' && (
                   <div className={`status-indicator ${answer.isCorrect ? 'correct' : 'incorrect'}`}>
@@ -114,6 +159,95 @@ const TestResult = () => {
                   </div>
                 )}
               </div>
+
+              {/* Show submitted code for coding questions */}
+              {answer.questionType === 'coding' && answer.answer && (
+                <div style={{ marginTop: '20px' }}>
+                  <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Your Submitted Code:</h5>
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <Editor
+                      height="300px"
+                      language={answer.language || 'python'}
+                      value={answer.answer}
+                      theme={localStorage.getItem('theme') === 'dark' ? 'vs-dark' : 'light'}
+                      options={{
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        wordWrap: 'on',
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Show MCQ answer details */}
+              {answer.questionType === 'mcq' && questionData && (
+                <div style={{ marginTop: '20px' }}>
+                  <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Question:</h5>
+                  <p style={{ marginBottom: '15px', padding: '10px', background: 'var(--bg-secondary)', borderRadius: '5px' }}>
+                    {questionData.question}
+                  </p>
+                  
+                  <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Options:</h5>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {questionData.options?.map((option, optIndex) => {
+                      const isSelected = answer.answer !== undefined && parseInt(answer.answer) === optIndex;
+                      const isCorrectOption = option.isCorrect;
+                      
+                      return (
+                        <div
+                          key={optIndex}
+                          style={{
+                            padding: '12px',
+                            borderRadius: '8px',
+                            border: '2px solid',
+                            borderColor: isCorrectOption 
+                              ? '#4CAF50' 
+                              : isSelected 
+                                ? '#ff4444' 
+                                : 'var(--border-color)',
+                            background: isCorrectOption 
+                              ? '#e8f5e9' 
+                              : isSelected 
+                                ? '#ffebee' 
+                                : 'var(--bg-secondary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px'
+                          }}
+                        >
+                          <span style={{ 
+                            fontWeight: 'bold',
+                            color: isCorrectOption ? '#4CAF50' : isSelected ? '#ff4444' : 'var(--text-secondary)'
+                          }}>
+                            {String.fromCharCode(65 + optIndex)}.
+                          </span>
+                          <span style={{ flex: 1 }}>{option.text}</span>
+                          {isCorrectOption && (
+                            <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>✓ Correct Answer</span>
+                          )}
+                          {isSelected && !isCorrectOption && (
+                            <span style={{ color: '#ff4444', fontWeight: 'bold' }}>Your Answer</span>
+                          )}
+                          {isSelected && isCorrectOption && (
+                            <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>✓ Your Answer (Correct)</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {questionData.explanation && (
+                    <div style={{ marginTop: '15px', padding: '12px', background: '#e3f2fd', borderRadius: '8px', border: '1px solid #2196F3' }}>
+                      <strong style={{ color: '#1976D2' }}>Explanation:</strong>
+                      <p style={{ marginTop: '5px', marginBottom: 0 }}>{questionData.explanation}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

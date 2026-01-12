@@ -12,25 +12,85 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  // Restore user from localStorage immediately for instant UI
+  const getStoredUser = () => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch (error) {
+      console.error('Error parsing stored user:', error);
+      return null;
+    }
+  };
+
+  const [user, setUser] = useState(getStoredUser());
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem('token'));
 
+  // Initialize: Restore user from localStorage and validate token
   useEffect(() => {
-    if (token) {
-      fetchUser();
-    } else {
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUser = getStoredUser();
+
+      if (storedToken && storedUser) {
+        // Set user immediately from localStorage for instant UI
+        setUser(storedUser);
+        setToken(storedToken);
+        
+        // Then validate token with backend
+        try {
+          const response = await axiosInstance.get('/auth/me');
+          setUser(response.data);
+          // Update localStorage with fresh user data
+          localStorage.setItem('user', JSON.stringify(response.data));
+        } catch (error) {
+          // Token is invalid, clear everything
+          console.error('Token validation failed:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
+        }
+      }
+      
       setLoading(false);
-    }
-  }, [token]);
+    };
+
+    initializeAuth();
+  }, []);
+
+  // Cross-tab synchronization: Listen for storage changes
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' || e.key === 'user') {
+        const newToken = localStorage.getItem('token');
+        const newUser = getStoredUser();
+        
+        if (newToken && newUser) {
+          setToken(newToken);
+          setUser(newUser);
+        } else {
+          setToken(null);
+          setUser(null);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const fetchUser = async () => {
     try {
       const response = await axiosInstance.get('/auth/me');
       setUser(response.data);
+      localStorage.setItem('user', JSON.stringify(response.data));
     } catch (error) {
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       setToken(null);
+      setUser(null);
     } finally {
       setLoading(false);
     }
