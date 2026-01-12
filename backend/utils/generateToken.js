@@ -8,10 +8,12 @@ const generateToken = (userId) => {
     throw new Error('JWT_SECRET is required');
   }
 
+  // Use very long expiration (1 year) for persistent sessions
+  // User can still logout manually, but won't be logged out automatically
   const token = jwt.sign(
     { userId },
     secret,
-    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    { expiresIn: process.env.JWT_EXPIRE || '365d' }
   );
 
   console.log('🎫 Token generated for userId:', userId);

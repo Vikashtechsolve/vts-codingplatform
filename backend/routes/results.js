@@ -317,6 +317,71 @@ router.get('/:resultId', auth, async (req, res) => {
   }
 });
 
+// Track violation
+router.post('/:resultId/violation', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const result = await Result.findOne({
+      _id: req.params.resultId,
+      studentId: req.user._id,
+      status: 'in_progress'
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: 'Result not found' });
+    }
+
+    const { type, details } = req.body;
+    const MAX_VIOLATIONS = parseInt(process.env.MAX_VIOLATIONS || '3', 10);
+
+    // Add violation
+    result.violations.push({
+      type,
+      details: details || '',
+      timestamp: new Date()
+    });
+
+    result.violationCount = result.violations.length;
+
+    // Auto-submit if max violations reached
+    if (result.violationCount >= MAX_VIOLATIONS) {
+      // Calculate final score
+      result.totalScore = result.answers.reduce((sum, a) => sum + (a.points || 0), 0);
+      result.percentage = Math.round((result.totalScore / result.maxScore) * 100);
+      result.submittedAt = new Date();
+      result.timeSpent = Math.floor((result.submittedAt - result.startedAt) / 1000);
+      result.status = 'completed';
+      result.autoSubmitted = true;
+
+      // Update student enrollment status
+      const student = await User.findById(req.user._id);
+      const enrollment = student.enrolledTests.find(
+        et => et.testId.toString() === result.testId.toString()
+      );
+      if (enrollment) {
+        enrollment.status = 'completed';
+        enrollment.completedAt = new Date();
+        await student.save();
+      }
+    }
+
+    await result.save();
+
+    res.json({
+      violationCount: result.violationCount,
+      maxViolations: MAX_VIOLATIONS,
+      autoSubmitted: result.autoSubmitted,
+      status: result.status
+    });
+  } catch (error) {
+    console.error('❌ Error tracking violation:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get student results
 router.get('/student/:studentId', [
   auth,
