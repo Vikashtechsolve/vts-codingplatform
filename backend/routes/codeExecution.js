@@ -48,9 +48,24 @@ router.post('/execute', [
     
     const tempDir = path.join(__dirname, '../temp');
     
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-      console.log('📁 Created temp directory:', tempDir);
+    // Ensure temp directory exists and has write permissions
+    try {
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+        console.log('📁 Created temp directory:', tempDir);
+      }
+      // Test write permissions
+      const testFile = path.join(tempDir, '.write-test');
+      fs.writeFileSync(testFile, 'test');
+      fs.unlinkSync(testFile);
+    } catch (err) {
+      console.error('❌ Temp directory error:', err);
+      return res.status(500).json({
+        success: false,
+        output: '',
+        error: `File system error: ${err.message}. Please check server configuration.`,
+        executionTime: 0
+      });
     }
 
     const timestamp = Date.now();
@@ -122,8 +137,14 @@ function executePython(code, input, tempDir, timestamp) {
     let timeoutId;
     
     // Try python3 first, fallback to python
+    // In deployment, python3 should be available (installed via Dockerfile)
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    const pythonProcess = spawn(pythonCmd, [filePath]);
+    
+    // Spawn Python process to execute the code
+    const pythonProcess = spawn(pythonCmd, [filePath], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: tempDir
+    });
 
     let output = '';
     let error = '';
@@ -178,7 +199,8 @@ function executePython(code, input, tempDir, timestamp) {
       }
     });
 
-    // Timeout after 5 seconds
+    // Timeout - use environment variable or default to 5 seconds
+    const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
     timeoutId = setTimeout(() => {
       pythonProcess.kill('SIGKILL');
       try {
@@ -188,8 +210,8 @@ function executePython(code, input, tempDir, timestamp) {
       } catch (cleanupErr) {
         console.error('Error cleaning up Python file:', cleanupErr);
       }
-      reject(new Error('Execution timeout (5 seconds exceeded)'));
-    }, 5000);
+      reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
+    }, timeout);
   });
 }
 
@@ -334,12 +356,16 @@ function executeJava(code, input, tempDir, timestamp) {
         }
         
         if (err.code === 'ENOENT') {
-          reject(new Error(`Java runtime not found. Please install Java.`));
+          const errorMsg = `Java runtime not found. Please install Java on the server. ` +
+                          `For deployment, ensure Java JRE/JDK is installed and java is in PATH.`;
+          console.error('❌', errorMsg);
+          reject(new Error(errorMsg));
         } else {
           reject(new Error(`Failed to execute Java: ${err.message}`));
         }
       });
 
+      const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
       timeoutId = setTimeout(() => {
         runProcess.kill('SIGKILL');
         // Clean up directory
@@ -353,8 +379,8 @@ function executeJava(code, input, tempDir, timestamp) {
             console.error('Error cleaning up:', cleanupErr);
           }
         }
-        reject(new Error('Execution timeout (5 seconds exceeded)'));
-      }, 5000);
+        reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
+      }, timeout);
     });
 
     compileProcess.on('error', (err) => {
@@ -371,7 +397,10 @@ function executeJava(code, input, tempDir, timestamp) {
       }
       
       if (err.code === 'ENOENT') {
-        reject(new Error(`Java compiler (javac) not found. Please install Java JDK.`));
+        const errorMsg = `Java compiler (javac) not found. Please install Java JDK on the server. ` +
+                        `For deployment, ensure Java JDK is installed and javac is in PATH.`;
+        console.error('❌', errorMsg);
+        reject(new Error(errorMsg));
       } else {
         reject(new Error(`Failed to compile Java: ${err.message}`));
       }
@@ -395,6 +424,18 @@ function executeCpp(code, input, tempDir, timestamp) {
       compileError += data.toString();
     });
 
+    compileProcess.on('error', (err) => {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      if (err.code === 'ENOENT') {
+        const errorMsg = `G++ compiler not found. Please install G++ on the server. ` +
+                        `For deployment, ensure G++ is installed: sudo apt-get install g++`;
+        console.error('❌', errorMsg);
+        reject(new Error(errorMsg));
+      } else {
+        reject(new Error(`Failed to compile C++: ${err.message}`));
+      }
+    });
+
     compileProcess.on('close', (compileCode) => {
       if (compileCode !== 0) {
         fs.unlinkSync(filePath);
@@ -424,10 +465,17 @@ function executeCpp(code, input, tempDir, timestamp) {
         error += data.toString();
       });
 
+      let runTimeoutId;
+      
       runProcess.on('close', (runCode) => {
+        clearTimeout(runTimeoutId);
         const executionTime = Date.now() - startTime;
-        fs.unlinkSync(filePath);
-        if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up C++ files:', cleanupErr);
+        }
 
         resolve({
           success: runCode === 0,
@@ -438,17 +486,27 @@ function executeCpp(code, input, tempDir, timestamp) {
       });
 
       runProcess.on('error', (err) => {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        clearTimeout(runTimeoutId);
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up C++ files:', cleanupErr);
+        }
         reject(err);
       });
 
-      setTimeout(() => {
-        runProcess.kill();
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        reject(new Error('Execution timeout'));
-      }, 5000);
+      const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
+      runTimeoutId = setTimeout(() => {
+        runProcess.kill('SIGKILL');
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up C++ files:', cleanupErr);
+        }
+        reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
+      }, timeout);
     });
   });
 }
@@ -469,6 +527,18 @@ function executeC(code, input, tempDir, timestamp) {
       compileError += data.toString();
     });
 
+    compileProcess.on('error', (err) => {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      if (err.code === 'ENOENT') {
+        const errorMsg = `GCC compiler not found. Please install GCC on the server. ` +
+                        `For deployment, ensure GCC is installed: sudo apt-get install gcc`;
+        console.error('❌', errorMsg);
+        reject(new Error(errorMsg));
+      } else {
+        reject(new Error(`Failed to compile C: ${err.message}`));
+      }
+    });
+
     compileProcess.on('close', (compileCode) => {
       if (compileCode !== 0) {
         fs.unlinkSync(filePath);
@@ -498,10 +568,17 @@ function executeC(code, input, tempDir, timestamp) {
         error += data.toString();
       });
 
+      let runTimeoutId;
+      
       runProcess.on('close', (runCode) => {
+        clearTimeout(runTimeoutId);
         const executionTime = Date.now() - startTime;
-        fs.unlinkSync(filePath);
-        if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up C files:', cleanupErr);
+        }
 
         resolve({
           success: runCode === 0,
@@ -512,17 +589,27 @@ function executeC(code, input, tempDir, timestamp) {
       });
 
       runProcess.on('error', (err) => {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        clearTimeout(runTimeoutId);
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up C files:', cleanupErr);
+        }
         reject(err);
       });
 
-      setTimeout(() => {
-        runProcess.kill();
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        reject(new Error('Execution timeout'));
-      }, 5000);
+      const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
+      runTimeoutId = setTimeout(() => {
+        runProcess.kill('SIGKILL');
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up C files:', cleanupErr);
+        }
+        reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
+      }, timeout);
     });
   });
 }
