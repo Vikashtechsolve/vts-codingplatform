@@ -31,8 +31,6 @@ const MockInterviewRoom = () => {
   const submittedRef = useRef(false);
   const isListeningRef = useRef(false);
   const shouldListenRef = useRef(false);
-  const submittingAnswerRef = useRef(false);
-  const lastSpokenQuestionRef = useRef('');
 
   const [interview, setInterview] = useState(null);
   const [sessionId, setSessionId] = useState(null);
@@ -129,8 +127,6 @@ const MockInterviewRoom = () => {
     if (isSubmitting || !isInterviewActive || submittedRef.current) return;
     const finalAnswer = (textOverride != null ? textOverride : (transcriptRef.current || '').trim() || (interimRef.current || '').trim()).trim();
     if (!finalAnswer || finalAnswer.length < MIN_TRANSCRIPT_LENGTH) return;
-    if (submittingAnswerRef.current) return;
-    submittingAnswerRef.current = true;
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -149,23 +145,11 @@ const MockInterviewRoom = () => {
         navigate(`/student/interviews/feedback/${sessionId}`);
         return;
       }
-      const next = response.data.nextQuestion;
-      if (next) {
-        lastSpokenQuestionRef.current = '';
-        setCurrentQuestion(next);
-      }
+      setCurrentQuestion(response.data.nextQuestion);
     } catch (error) {
-      const status = error.response?.status;
-      const data = error.response?.data;
-      const isConflict = status === 409 || data?.code === 'VERSION_CONFLICT';
-      if (isConflict && data?.nextQuestion) {
-        lastSpokenQuestionRef.current = '';
-        setCurrentQuestion(data.nextQuestion);
-      }
-      showModal(isConflict ? 'Continue' : 'Error', data?.message || 'Failed to submit answer', isConflict ? 'info' : 'error');
+      showModal('Error', error.response?.data?.message || 'Failed to submit answer', 'error');
     } finally {
       setIsSubmitting(false);
-      submittingAnswerRef.current = false;
     }
   }, [sessionId, isInterviewActive, isSubmitting, navigate, showModal]);
 
@@ -265,75 +249,36 @@ const MockInterviewRoom = () => {
     setIsListening(false);
   }, []);
 
-  const getVoicesForSpeak = useCallback(() => {
-    const list = window.speechSynthesis?.getVoices?.() || [];
-    return list.length ? list : availableVoices;
-  }, [availableVoices]);
-
-  const pickBestVoice = useCallback((voicesList) => {
-    const list = voicesList?.length ? voicesList : getVoicesForSpeak();
-    if (!list.length) return null;
+  const pickBestVoice = () => {
+    if (!availableVoices.length) return null;
     const preferred = ['Google UK English Male', 'Google US English', 'Microsoft David', 'Microsoft Mark', 'David', 'Mark', 'Male'];
-    const en = list.filter(v => v.lang?.startsWith('en'));
-    return en.find(v => preferred.some(n => v.name?.toLowerCase().includes(n.toLowerCase())) || v.name?.toLowerCase().includes('male'))
-      || en.find(v => /en-us|en-gb/i.test(v.lang)) || list[0];
-  }, [getVoicesForSpeak]);
-
-  const isChrome = useCallback(() => {
-    return /Chrome\//.test(navigator.userAgent) && !/Edge|Edg\//.test(navigator.userAgent);
-  }, []);
+    const en = availableVoices.filter(v => v.lang?.startsWith('en'));
+    return en.find(v => preferred.some(n => v.name.toLowerCase().includes(n.toLowerCase())) || v.name.toLowerCase().includes('male'))
+      || en.find(v => /en-us|en-gb/i.test(v.lang)) || availableVoices[0];
+  };
 
   const speakQuestion = useCallback((text) => {
     if (!window.speechSynthesis || !text?.trim()) return;
-    const doSpeak = () => {
-      window.speechSynthesis.cancel();
-      const voicesNow = getVoicesForSpeak();
-      const voice = pickBestVoice(voicesNow);
-      const createUtterance = (content, vol = 1) => {
-        const u = new SpeechSynthesisUtterance(content);
-        u.lang = voice?.lang || 'en-US';
-        u.rate = 0.9;
-        u.pitch = 1;
-        u.volume = vol;
-        if (voice) {
-          try {
-            u.voice = voice;
-          } catch (e) {}
-        }
-        return u;
-      };
-      const mainUtterance = createUtterance(text.trim());
-      mainUtterance.onstart = () => setIsAiSpeaking(true);
-      mainUtterance.onend = () => {
-        setIsAiSpeaking(false);
-        if (shouldListenRef.current) startRecognition();
-      };
-      mainUtterance.onerror = () => setIsAiSpeaking(false);
-      if (typeof window.speechSynthesis.resume === 'function') {
-        window.speechSynthesis.resume();
-      }
-      if (isChrome()) {
-        const warmUp = createUtterance('.', 0.01);
-        warmUp.onend = () => {
-          window.speechSynthesis.speak(mainUtterance);
-        };
-        warmUp.onerror = () => {
-          window.speechSynthesis.speak(mainUtterance);
-        };
-        window.speechSynthesis.speak(warmUp);
-      } else {
-        window.speechSynthesis.speak(mainUtterance);
-      }
+    const voice = pickBestVoice();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = voice?.lang || 'en-US';
+    if (voice) utterance.voice = voice;
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.onstart = () => setIsAiSpeaking(true);
+    utterance.onend = () => {
+      setIsAiSpeaking(false);
+      if (shouldListenRef.current) startRecognition();
     };
-    setTimeout(doSpeak, 0);
-  }, [getVoicesForSpeak, pickBestVoice, startRecognition, isChrome]);
+    utterance.onerror = () => setIsAiSpeaking(false);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }, [availableVoices, startRecognition]);
 
   useEffect(() => {
-    const q = (currentQuestion?.questionText || '').trim();
-    if (!q || !isInterviewActive) return;
-    if (lastSpokenQuestionRef.current === q) return;
-    lastSpokenQuestionRef.current = q;
-    speakQuestion(q);
+    if (currentQuestion?.questionText && isInterviewActive) {
+      speakQuestion(currentQuestion.questionText);
+    }
   }, [currentQuestion?.questionText, isInterviewActive, speakQuestion]);
 
   const handleStartInterview = useCallback(async () => {
