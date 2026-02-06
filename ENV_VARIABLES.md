@@ -66,6 +66,32 @@
 - **Default**: `5000` (5 seconds)
 - **Example**: `5000`
 
+#### `MAX_VIOLATIONS`
+- **Description**: Maximum number of exam violations allowed before auto-submission
+- **Default**: `3`
+- **Example**: `3`
+- **Note**: Violations include tab switching, copy-paste attempts, shortcut keys, fullscreen exit, etc.
+
+#### `OPENAI_API_KEY`
+- **Description**: API key for OpenAI (ChatGPT) evaluation
+- **Default**: None (required for theory AI evaluation)
+- **Example**: `sk-...`
+
+#### `OPENAI_BASE_URL`
+- **Description**: Base URL for OpenAI API
+- **Default**: `https://api.openai.com/v1`
+- **Example**: `https://api.openai.com/v1`
+
+#### `OPENAI_EVAL_MODEL`
+- **Description**: Chat model for concept/depth evaluation
+- **Default**: `gpt-4.1-mini`
+- **Example**: `gpt-4.1-mini`
+
+#### `OPENAI_EMBEDDING_MODEL`
+- **Description**: Embedding model for semantic similarity
+- **Default**: `text-embedding-3-small`
+- **Example**: `text-embedding-3-small`
+
 ---
 
 ## Frontend Environment Variables
@@ -86,6 +112,12 @@
 - **Options**: `development`, `production`
 - **Example**: `development`
 
+#### `REACT_APP_MAX_VIOLATIONS`
+- **Description**: Maximum number of exam violations allowed before auto-submission (frontend)
+- **Default**: `3`
+- **Example**: `3`
+- **Note**: Should match backend `MAX_VIOLATIONS` value
+
 ---
 
 ## Setup Instructions
@@ -99,7 +131,7 @@
 
 2. Copy the example file:
    ```bash
-   cp .env.example .env
+   cp ENV.sample .env
    ```
 
 3. Edit `.env` and update the values:
@@ -185,6 +217,10 @@ JWT_SECRET=dev-secret-key-change-in-production
 JWT_EXPIRE=7d
 SUPER_ADMIN_EMAIL=admin@platform.com
 SUPER_ADMIN_PASSWORD=admin123
+OPENAI_API_KEY=sk-your-api-key
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_EVAL_MODEL=gpt-4.1-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 ### Production Backend (.env)
