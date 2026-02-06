@@ -6,6 +6,7 @@ import '../VendorAdmin/VendorAdminCommon.css';
 const GlobalQuestions = () => {
   const [codingQuestions, setCodingQuestions] = useState([]);
   const [mcqQuestions, setMcqQuestions] = useState([]);
+  const [aptitudeQuestions, setAptitudeQuestions] = useState([]);
   const [activeTab, setActiveTab] = useState('coding');
   const [loading, setLoading] = useState(true);
 
@@ -15,12 +16,14 @@ const GlobalQuestions = () => {
 
   const fetchQuestions = async () => {
     try {
-      const [codingRes, mcqRes] = await Promise.all([
+      const [codingRes, mcqRes, aptitudeRes] = await Promise.all([
         axiosInstance.get('/super-admin/global-questions/coding'),
-        axiosInstance.get('/super-admin/global-questions/mcq')
+        axiosInstance.get('/super-admin/global-questions/mcq'),
+        axiosInstance.get('/super-admin/global-questions/aptitude')
       ]);
       setCodingQuestions(codingRes.data);
       setMcqQuestions(mcqRes.data);
+      setAptitudeQuestions(aptitudeRes.data);
     } catch (error) {
       console.error('Error fetching global questions:', error);
     } finally {
@@ -57,6 +60,9 @@ const GlobalQuestions = () => {
           <Link to="/super-admin/global-questions/mcq/create" className="btn btn-primary">
             Create Global MCQ Question
           </Link>
+          <Link to="/super-admin/global-questions/aptitude/create" className="btn btn-primary">
+            Create Global Aptitude Question
+          </Link>
         </div>
       </div>
 
@@ -72,6 +78,12 @@ const GlobalQuestions = () => {
           className={`btn ${activeTab === 'mcq' ? 'btn-primary' : 'btn-secondary'}`}
         >
           MCQ Questions ({mcqQuestions.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('aptitude')}
+          className={`btn ${activeTab === 'aptitude' ? 'btn-primary' : 'btn-secondary'}`}
+        >
+          Aptitude Questions ({aptitudeQuestions.length})
         </button>
       </div>
 
@@ -180,6 +192,66 @@ const GlobalQuestions = () => {
                           </Link>
                           <button
                             onClick={() => handleDelete(q._id, 'mcq')}
+                            className="btn btn-sm btn-danger"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'aptitude' && (
+        <div className="card">
+          <div className="card-header">
+            <h2>Global Aptitude Questions</h2>
+          </div>
+          {aptitudeQuestions.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">🧠</div>
+              <h2>No Global Aptitude Questions Yet</h2>
+              <p>Create global questions that all vendors can use.</p>
+              <Link to="/super-admin/global-questions/aptitude/create" className="btn btn-primary">
+                Create Global Aptitude Question
+              </Link>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Question</th>
+                    <th>Created By</th>
+                    <th>Section</th>
+                    <th>Type</th>
+                    <th>Difficulty</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aptitudeQuestions.map(q => (
+                    <tr key={q._id}>
+                      <td>{q.question}</td>
+                      <td>{q.createdBy?.name || 'N/A'}</td>
+                      <td>{q.section}</td>
+                      <td>{q.questionType}</td>
+                      <td><span className="status-badge active">{q.difficulty}</span></td>
+                      <td>
+                        <div className="btn-group">
+                          <Link
+                            to={`/super-admin/global-questions/aptitude/edit/${q._id}`}
+                            className="btn btn-sm btn-secondary"
+                          >
+                            Edit
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(q._id, 'aptitude')}
                             className="btn btn-sm btn-danger"
                           >
                             Delete

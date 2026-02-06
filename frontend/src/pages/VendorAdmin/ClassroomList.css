@@ -155,6 +155,13 @@
   font-size: 1.1em;
 }
 
+.stat-sublabel {
+  color: var(--text-secondary);
+  font-size: 0.75em;
+  font-weight: normal;
+  margin-left: 2px;
+}
+
 .classroom-card-footer {
   display: flex;
   gap: 10px;

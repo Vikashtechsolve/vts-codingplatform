@@ -1,0 +1,97 @@
+.create-aptitude-question .question-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.create-aptitude-question .form-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.create-aptitude-question .section-title {
+  font-size: 18px;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.create-aptitude-question .form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.create-aptitude-question .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.create-aptitude-question .form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.create-aptitude-question .form-input,
+.create-aptitude-question .form-select,
+.create-aptitude-question .form-textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.create-aptitude-question .options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-aptitude-question .option-card {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  padding: 12px;
+}
+
+.create-aptitude-question .option-card.option-correct {
+  border-color: #4CAF50;
+  background: rgba(76, 175, 80, 0.08);
+}
+
+.create-aptitude-question .option-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.create-aptitude-question .option-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.create-aptitude-question .correct-checkbox,
+.create-aptitude-question .correct-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.create-aptitude-question .option-textarea {
+  min-height: 70px;
+}
+
+.create-aptitude-question .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+

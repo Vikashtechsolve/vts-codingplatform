@@ -8,6 +8,7 @@ const ResultDetails = () => {
   const { resultId } = useParams();
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [manualUpdates, setManualUpdates] = useState({});
 
   useEffect(() => {
     fetchResult();
@@ -17,10 +18,41 @@ const ResultDetails = () => {
     try {
       const response = await axiosInstance.get(`/results/${resultId}`);
       setResult(response.data);
+      const initialManual = {};
+      (response.data?.answers || []).forEach(answer => {
+        initialManual[answer._id] = {
+          score: answer.manualOverride?.score ?? answer.points ?? 0,
+          feedback: answer.manualOverride?.feedback || ''
+        };
+      });
+      setManualUpdates(initialManual);
     } catch (error) {
       console.error('Error fetching result:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualChange = (answerId, field, value) => {
+    setManualUpdates(prev => ({
+      ...prev,
+      [answerId]: {
+        ...prev[answerId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleManualSubmit = async (answerId) => {
+    try {
+      const payload = manualUpdates[answerId];
+      await axiosInstance.patch(`/results/${resultId}/answers/${answerId}/manual-score`, {
+        score: Number(payload?.score || 0),
+        feedback: payload?.feedback || ''
+      });
+      await fetchResult();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to update score');
     }
   };
 
@@ -33,7 +65,10 @@ const ResultDetails = () => {
   }
 
   const isCorrect = (answer) => {
-    if (answer.questionType === 'mcq') return answer.isCorrect;
+    if (answer.questionType === 'mcq' || answer.questionType === 'aptitude') return answer.isCorrect;
+    if (answer.questionType === 'theory') {
+      return (answer.points || 0) >= (answer.maxPoints || 1) * 0.6;
+    }
     return answer.testCasesPassed === answer.totalTestCases;
   };
 
@@ -160,7 +195,77 @@ const ResultDetails = () => {
                     <strong>Selected:</strong> {answer.answer !== undefined ? `Option ${answer.answer + 1}` : 'Not answered'}
                   </div>
                 )}
+                {answer.questionType === 'aptitude' && (
+                  <div className="detail-item">
+                    <strong>Answer:</strong> {Array.isArray(answer.answer) ? answer.answer.map(val => val + 1).join(', ') : answer.answer ?? 'Not answered'}
+                  </div>
+                )}
+                {answer.questionType === 'theory' && (
+                  <div className="detail-item">
+                    <strong>Answer:</strong> {answer.answer ? `${answer.answer.slice(0, 120)}...` : 'Not answered'}
+                  </div>
+                )}
               </div>
+
+              {answer.questionType === 'theory' && (
+                <div style={{ marginTop: '12px', padding: '12px', background: '#f5f5f5', borderRadius: '8px' }}>
+                  <strong>AI Evaluation:</strong>
+                  <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
+                    <div>Similarity: {(answer.evaluation?.similarityScore || 0).toFixed(2)}</div>
+                    <div>Concept Coverage: {(answer.evaluation?.conceptScore || 0).toFixed(2)}</div>
+                    <div>Depth & Clarity: {(answer.evaluation?.depthScore || 0).toFixed(2)}</div>
+                    {answer.evaluation?.penalty > 0 && (
+                      <div>Penalty: -{answer.evaluation.penalty.toFixed(2)}</div>
+                    )}
+                  </div>
+                  {answer.evaluation?.feedback && (
+                    <div style={{ marginTop: '8px' }}>
+                      <strong>Feedback:</strong>
+                      <p style={{ marginTop: '4px' }}>{answer.evaluation.feedback}</p>
+                    </div>
+                  )}
+                  {answer.evaluation?.missingConcepts?.length > 0 && (
+                    <div style={{ marginTop: '6px' }}>
+                      <strong>Missing Concepts:</strong> {answer.evaluation.missingConcepts.join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {answer.questionType === 'theory' && (
+                <div style={{ marginTop: '12px', padding: '12px', background: '#fff8e1', borderRadius: '8px', border: '1px solid #ffecb3' }}>
+                  <strong>Manual Override</strong>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max={answer.maxPoints || 10}
+                      value={manualUpdates[answer._id]?.score ?? ''}
+                      onChange={(e) => handleManualChange(answer._id, 'score', e.target.value)}
+                      style={{ width: '120px' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Feedback (optional)"
+                      value={manualUpdates[answer._id]?.feedback ?? ''}
+                      onChange={(e) => handleManualChange(answer._id, 'feedback', e.target.value)}
+                      style={{ flex: 1, minWidth: '200px' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => handleManualSubmit(answer._id)}
+                    >
+                      Update Score
+                    </button>
+                  </div>
+                  {answer.manualOverride?.isManual && (
+                    <p style={{ marginTop: '6px', fontSize: '0.85em' }}>
+                      Manual override applied on {new Date(answer.manualOverride.updatedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )}
               
               {answer.questionType === 'coding' && answer.answer && (
                 <div className="code-block">

@@ -88,9 +88,66 @@
   color: white;
 }
 
+.test-type-badge-modern.aptitude {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+  color: white;
+}
+
 .test-type-badge-modern.mixed {
   background: linear-gradient(135deg, #17a2b8, #138496);
   color: white;
+}
+
+.test-type-badge-modern.theory {
+  background: linear-gradient(135deg, #6c757d, #495057);
+  color: white;
+}
+
+.test-type-badge-modern.interview {
+  background: linear-gradient(135deg, #e91e63, #9c27b0);
+  color: white;
+}
+
+.test-type-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 20px 0 10px;
+}
+
+.test-type-filter-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.3s ease;
+}
+
+.test-type-filter-card:hover {
+  transform: translateY(-4px);
+  border-color: #007bff;
+}
+
+.test-type-filter-card.active {
+  border-color: #007bff;
+  box-shadow: 0 10px 20px rgba(0, 123, 255, 0.15);
+}
+
+.filter-title {
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.filter-count {
+  font-size: 1.5em;
+  font-weight: 800;
+  color: var(--text-primary);
 }
 
 .status-badge-modern {

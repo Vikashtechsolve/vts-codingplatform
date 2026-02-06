@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './CreateTest.css';
@@ -16,8 +16,12 @@ const CreateTest = () => {
   });
   const [codingQuestions, setCodingQuestions] = useState([]);
   const [mcqQuestions, setMcqQuestions] = useState([]);
+  const [aptitudeQuestions, setAptitudeQuestions] = useState([]);
   const [filteredCoding, setFilteredCoding] = useState([]);
   const [filteredMcq, setFilteredMcq] = useState([]);
+  const [filteredAptitude, setFilteredAptitude] = useState([]);
+  const [theoryQuestions, setTheoryQuestions] = useState([]);
+  const [filteredTheory, setFilteredTheory] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTab, setSelectedTab] = useState('coding');
   const [questionSource, setQuestionSource] = useState('my'); // 'my' or 'global'
@@ -25,10 +29,26 @@ const CreateTest = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const typeParam = new URLSearchParams(location.search).get('type');
+  const lockedType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(typeParam) ? typeParam : null;
 
   useEffect(() => {
     fetchQuestions();
   }, []);
+
+  useEffect(() => {
+    if (lockedType) {
+      setFormData(prev => ({ ...prev, type: lockedType }));
+      setSelectedTab(lockedType === 'mixed' ? 'coding' : lockedType);
+    }
+  }, [lockedType]);
+
+  useEffect(() => {
+    if (formData.type !== 'mixed' && selectedTab !== formData.type) {
+      setSelectedTab(formData.type);
+    }
+  }, [formData.type, selectedTab]);
 
   useEffect(() => {
     // Filter questions based on search term and source
@@ -39,6 +59,12 @@ const CreateTest = () => {
       questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
     );
     const sourceFilteredMcq = mcqQuestions.filter(q => 
+      questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
+    );
+    const sourceFilteredAptitude = aptitudeQuestions.filter(q =>
+      questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
+    );
+    const sourceFilteredTheory = theoryQuestions.filter(q =>
       questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
     );
     
@@ -56,7 +82,21 @@ const CreateTest = () => {
         q.difficulty?.toLowerCase().includes(term)
       )
     );
-  }, [searchTerm, codingQuestions, mcqQuestions, questionSource]);
+    setFilteredAptitude(
+      sourceFilteredAptitude.filter(q =>
+        q.question.toLowerCase().includes(term) ||
+        q.section?.toLowerCase().includes(term) ||
+        q.subCategory?.toLowerCase().includes(term)
+      )
+    );
+    setFilteredTheory(
+      sourceFilteredTheory.filter(q =>
+        q.questionText.toLowerCase().includes(term) ||
+        q.subjectId?.name?.toLowerCase().includes(term) ||
+        q.topicId?.name?.toLowerCase().includes(term)
+      )
+    );
+  }, [searchTerm, codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions, questionSource]);
 
   const fetchQuestions = async () => {
     try {
@@ -64,18 +104,26 @@ const CreateTest = () => {
       setError('');
       console.log('📥 Fetching questions...');
       
-      const [codingRes, mcqRes] = await Promise.all([
+      const [codingRes, mcqRes, aptitudeRes, theoryRes] = await Promise.all([
         axiosInstance.get('/questions/coding'),
-        axiosInstance.get('/questions/mcq')
+        axiosInstance.get('/questions/mcq'),
+        axiosInstance.get('/questions/aptitude'),
+        axiosInstance.get('/questions/theory')
       ]);
       
       console.log('✅ Coding questions:', codingRes.data?.length || 0);
       console.log('✅ MCQ questions:', mcqRes.data?.length || 0);
+      console.log('✅ Aptitude questions:', aptitudeRes.data?.length || 0);
+      console.log('✅ Theory questions:', theoryRes.data?.length || 0);
       
       setCodingQuestions(codingRes.data || []);
       setMcqQuestions(mcqRes.data || []);
+      setAptitudeQuestions(aptitudeRes.data || []);
       setFilteredCoding(codingRes.data || []);
       setFilteredMcq(mcqRes.data || []);
+      setFilteredAptitude(aptitudeRes.data || []);
+      setTheoryQuestions(theoryRes.data || []);
+      setFilteredTheory(theoryRes.data || []);
     } catch (error) {
       console.error('❌ Error fetching questions:', error);
       const errorMsg = error.response?.data?.message || 'Failed to load questions. Please try again.';
@@ -83,8 +131,12 @@ const CreateTest = () => {
       // Set empty arrays on error
       setCodingQuestions([]);
       setMcqQuestions([]);
+      setAptitudeQuestions([]);
       setFilteredCoding([]);
       setFilteredMcq([]);
+      setFilteredAptitude([]);
+      setTheoryQuestions([]);
+      setFilteredTheory([]);
     } finally {
       setLoading(false);
     }
@@ -98,6 +150,10 @@ const CreateTest = () => {
   };
 
   const handleAddQuestion = (questionId, type, questionData) => {
+    if (formData.type !== 'mixed' && type !== formData.type) {
+      alert(`This test only supports ${formData.type.toUpperCase()} questions.`);
+      return;
+    }
     // Check if question already added
     if (formData.questions.some(q => q.questionId === questionId)) {
       alert('This question is already added to the test');
@@ -180,15 +236,29 @@ const CreateTest = () => {
     // Validate test type matches questions
     const hasCoding = formData.questions.some(q => q.type === 'coding');
     const hasMcq = formData.questions.some(q => q.type === 'mcq');
+    const hasAptitude = formData.questions.some(q => q.type === 'aptitude');
+    const hasTheory = formData.questions.some(q => q.type === 'theory');
 
-    if (formData.type === 'coding' && hasMcq) {
-      setError('Coding test cannot contain MCQ questions');
+    if (formData.type === 'coding' && (hasMcq || hasAptitude || hasTheory)) {
+      setError('Coding test cannot contain other question types');
       setSubmitting(false);
       return;
     }
 
-    if (formData.type === 'mcq' && hasCoding) {
-      setError('MCQ test cannot contain coding questions');
+    if (formData.type === 'mcq' && (hasCoding || hasAptitude || hasTheory)) {
+      setError('MCQ test cannot contain other question types');
+      setSubmitting(false);
+      return;
+    }
+
+    if (formData.type === 'aptitude' && (hasCoding || hasMcq || hasTheory)) {
+      setError('Aptitude test cannot contain other question types');
+      setSubmitting(false);
+      return;
+    }
+
+    if (formData.type === 'theory' && (hasCoding || hasMcq || hasAptitude)) {
+      setError('Theory test cannot contain other question types');
       setSubmitting(false);
       return;
     }
@@ -224,10 +294,17 @@ const CreateTest = () => {
     if (type === 'coding') {
       const q = codingQuestions.find(q => q._id === questionId);
       return q?.title || 'Coding Question';
-    } else {
+    }
+    if (type === 'mcq') {
       const q = mcqQuestions.find(q => q._id === questionId);
       return q?.question || 'MCQ Question';
     }
+    if (type === 'theory') {
+      const q = theoryQuestions.find(q => q._id === questionId);
+      return q?.questionText || 'Theory Question';
+    }
+    const q = aptitudeQuestions.find(q => q._id === questionId);
+    return q?.question || 'Aptitude Question';
   };
 
   if (loading) {
@@ -291,10 +368,12 @@ const CreateTest = () => {
           <div className="form-row">
             <div className="form-group">
               <label>Test Type *</label>
-              <select name="type" value={formData.type} onChange={handleChange} required>
+              <select name="type" value={formData.type} onChange={handleChange} required disabled={!!lockedType}>
                 <option value="coding">Coding Only (DSA Questions)</option>
                 <option value="mcq">MCQ Only</option>
-                <option value="mixed">Mixed (Coding + MCQ)</option>
+                <option value="aptitude">Aptitude Only</option>
+                <option value="theory">Theory Only</option>
+                <option value="mixed">Mixed (All Types)</option>
               </select>
             </div>
             <div className="form-group">
@@ -324,10 +403,12 @@ const CreateTest = () => {
                 <span>Total: {formData.questions.length}</span>
                 <span>Coding: {formData.questions.filter(q => q.type === 'coding').length}</span>
                 <span>MCQ: {formData.questions.filter(q => q.type === 'mcq').length}</span>
+                <span>Aptitude: {formData.questions.filter(q => q.type === 'aptitude').length}</span>
+                <span>Theory: {formData.questions.filter(q => q.type === 'theory').length}</span>
               </div>
             </div>
 
-            {codingQuestions.length === 0 && mcqQuestions.length === 0 ? (
+            {codingQuestions.length === 0 && mcqQuestions.length === 0 && aptitudeQuestions.length === 0 && theoryQuestions.length === 0 ? (
               <div className="no-questions">
                 <p>No questions available. Create questions first!</p>
                 <div style={{ marginTop: '20px' }}>
@@ -336,6 +417,12 @@ const CreateTest = () => {
                   </Link>
                   <Link to="/vendor-admin/questions/mcq/create" className="btn btn-primary">
                     Create MCQ Question
+                  </Link>
+                  <Link to="/vendor-admin/questions/aptitude/create" className="btn btn-primary" style={{ marginLeft: '10px' }}>
+                    Create Aptitude Question
+                  </Link>
+                  <Link to="/vendor-admin/questions/theory/create" className="btn btn-primary" style={{ marginLeft: '10px' }}>
+                    Create Theory Question
                   </Link>
                 </div>
               </div>
@@ -349,7 +436,7 @@ const CreateTest = () => {
                     className={`btn ${questionSource === 'my' ? 'btn-primary' : 'btn-secondary'}`}
                     style={{ flex: 1 }}
                   >
-                    🏢 My Questions ({codingQuestions.filter(q => q.source === 'vendor').length + mcqQuestions.filter(q => q.source === 'vendor').length})
+                    🏢 My Questions ({codingQuestions.filter(q => q.source === 'vendor').length + mcqQuestions.filter(q => q.source === 'vendor').length + aptitudeQuestions.filter(q => q.source === 'vendor').length + theoryQuestions.filter(q => q.source === 'vendor').length})
                   </button>
                   <button
                     type="button"
@@ -357,7 +444,7 @@ const CreateTest = () => {
                     className={`btn ${questionSource === 'global' ? 'btn-primary' : 'btn-secondary'}`}
                     style={{ flex: 1 }}
                   >
-                    🌐 Global Questions ({codingQuestions.filter(q => q.source === 'global').length + mcqQuestions.filter(q => q.source === 'global').length})
+                    🌐 Global Questions ({codingQuestions.filter(q => q.source === 'global').length + mcqQuestions.filter(q => q.source === 'global').length + aptitudeQuestions.filter(q => q.source === 'global').length + theoryQuestions.filter(q => q.source === 'global').length})
                   </button>
                 </div>
 
@@ -372,20 +459,42 @@ const CreateTest = () => {
                 </div>
 
                 <div className="question-tabs">
-                  <button
-                    type="button"
-                    className={`tab-btn ${selectedTab === 'coding' ? 'active' : ''}`}
-                    onClick={() => setSelectedTab('coding')}
-                  >
-                    Coding Questions ({filteredCoding.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`tab-btn ${selectedTab === 'mcq' ? 'active' : ''}`}
-                    onClick={() => setSelectedTab('mcq')}
-                  >
-                    MCQ Questions ({filteredMcq.length})
-                  </button>
+                  {(formData.type === 'mixed' || formData.type === 'coding') && (
+                    <button
+                      type="button"
+                      className={`tab-btn ${selectedTab === 'coding' ? 'active' : ''}`}
+                      onClick={() => setSelectedTab('coding')}
+                    >
+                      Coding Questions ({filteredCoding.length})
+                    </button>
+                  )}
+                  {(formData.type === 'mixed' || formData.type === 'mcq') && (
+                    <button
+                      type="button"
+                      className={`tab-btn ${selectedTab === 'mcq' ? 'active' : ''}`}
+                      onClick={() => setSelectedTab('mcq')}
+                    >
+                      MCQ Questions ({filteredMcq.length})
+                    </button>
+                  )}
+                  {(formData.type === 'mixed' || formData.type === 'aptitude') && (
+                    <button
+                      type="button"
+                      className={`tab-btn ${selectedTab === 'aptitude' ? 'active' : ''}`}
+                      onClick={() => setSelectedTab('aptitude')}
+                    >
+                      Aptitude Questions ({filteredAptitude.length})
+                    </button>
+                  )}
+                  {(formData.type === 'mixed' || formData.type === 'theory') && (
+                    <button
+                      type="button"
+                      className={`tab-btn ${selectedTab === 'theory' ? 'active' : ''}`}
+                      onClick={() => setSelectedTab('theory')}
+                    >
+                      Theory Questions ({filteredTheory.length})
+                    </button>
+                  )}
                 </div>
 
                 <div className="questions-grid">
@@ -457,6 +566,82 @@ const CreateTest = () => {
                             <button
                               type="button"
                               onClick={() => handleAddQuestion(q._id, 'mcq', q)}
+                              className="btn btn-primary btn-sm"
+                              disabled={formData.questions.some(added => added.questionId === q._id)}
+                            >
+                              {formData.questions.some(added => added.questionId === q._id) ? 'Added' : 'Add Question'}
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {selectedTab === 'aptitude' && (
+                    <div className="question-list">
+                      {filteredAptitude.length === 0 ? (
+                        <div className="empty-state">
+                          {searchTerm ? 'No questions match your search' : `No ${questionSource === 'my' ? 'my' : 'global'} aptitude questions available`}
+                          {questionSource === 'my' && (
+                            <Link to="/vendor-admin/questions/aptitude/create" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block' }}>
+                              Create Aptitude Question
+                            </Link>
+                          )}
+                        </div>
+                      ) : (
+                        filteredAptitude.map(q => (
+                          <div key={q._id} className="question-card">
+                            <div className="question-header">
+                              <h4>{q.question}</h4>
+                              <span className={`difficulty-badge ${q.difficulty}`}>
+                                {q.difficulty || 'medium'}
+                              </span>
+                            </div>
+                            <div className="question-meta">
+                              <span>Section: {q.section}</span>
+                              <span>Type: {q.questionType}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddQuestion(q._id, 'aptitude', q)}
+                              className="btn btn-primary btn-sm"
+                              disabled={formData.questions.some(added => added.questionId === q._id)}
+                            >
+                              {formData.questions.some(added => added.questionId === q._id) ? 'Added' : 'Add Question'}
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {selectedTab === 'theory' && (
+                    <div className="question-list">
+                      {filteredTheory.length === 0 ? (
+                        <div className="empty-state">
+                          {searchTerm ? 'No questions match your search' : `No ${questionSource === 'my' ? 'my' : 'global'} theory questions available`}
+                          {questionSource === 'my' && (
+                            <Link to="/vendor-admin/questions/theory/create" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block' }}>
+                              Create Theory Question
+                            </Link>
+                          )}
+                        </div>
+                      ) : (
+                        filteredTheory.map(q => (
+                          <div key={q._id} className="question-card">
+                            <div className="question-header">
+                              <h4>{q.questionText}</h4>
+                              <span className={`difficulty-badge ${q.difficulty}`}>
+                                {q.difficulty || 'medium'}
+                              </span>
+                            </div>
+                            <div className="question-meta">
+                              <span>Subject: {q.subjectId?.name || 'N/A'}</span>
+                              <span>Marks: {q.maxMarks || 10}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddQuestion(q._id, 'theory', q)}
                               className="btn btn-primary btn-sm"
                               disabled={formData.questions.some(added => added.questionId === q._id)}
                             >

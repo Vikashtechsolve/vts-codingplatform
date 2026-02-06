@@ -170,6 +170,8 @@ const TestTaking = () => {
     if (test && test.questions) {
       const codingQuestions = test.questions.filter(q => q.type === 'coding');
       const mcqQuestions = test.questions.filter(q => q.type === 'mcq');
+      const aptitudeQuestions = test.questions.filter(q => q.type === 'aptitude');
+      const theoryQuestions = test.questions.filter(q => q.type === 'theory');
       
       const newSections = [];
       if (codingQuestions.length > 0) {
@@ -184,6 +186,20 @@ const TestTaking = () => {
           type: 'mcq',
           title: 'Section 2: MCQ Questions',
           questions: mcqQuestions
+        });
+      }
+      if (aptitudeQuestions.length > 0) {
+        newSections.push({
+          type: 'aptitude',
+          title: `Section ${newSections.length + 1}: Aptitude Questions`,
+          questions: aptitudeQuestions
+        });
+      }
+      if (theoryQuestions.length > 0) {
+        newSections.push({
+          type: 'theory',
+          title: `Section ${newSections.length + 1}: Theory Questions`,
+          questions: theoryQuestions
         });
       }
       setSections(newSections);
@@ -252,6 +268,32 @@ const TestTaking = () => {
             selectedOption: existingAnswer?.answer !== undefined ? existingAnswer.answer : null,
             attempted: existingAnswer?.answer !== undefined
           };
+        } else if (q.type === 'aptitude') {
+          const questionType = q.questionId.questionType;
+          if (questionType === 'numeric') {
+            const numericValue = existingAnswer?.answer !== undefined ? existingAnswer.answer : '';
+            initialAnswers[q.questionId._id] = {
+              numericAnswer: numericValue,
+              attempted: numericValue !== '' && numericValue !== null && numericValue !== undefined
+            };
+          } else if (questionType === 'multi') {
+            const selectedOptions = Array.isArray(existingAnswer?.answer) ? existingAnswer.answer : [];
+            initialAnswers[q.questionId._id] = {
+              selectedOptions,
+              attempted: selectedOptions.length > 0
+            };
+          } else {
+            initialAnswers[q.questionId._id] = {
+              selectedOption: existingAnswer?.answer !== undefined ? existingAnswer.answer : null,
+              attempted: existingAnswer?.answer !== undefined
+            };
+          }
+        } else if (q.type === 'theory') {
+          const theoryAnswer = existingAnswer?.answer || '';
+          initialAnswers[q.questionId._id] = {
+            textAnswer: theoryAnswer,
+            attempted: theoryAnswer.trim().length > 0
+          };
         }
       });
       setAnswers(initialAnswers);
@@ -282,7 +324,13 @@ const TestTaking = () => {
   const getQuestionStatus = (questionId) => {
     if (!result || !result.answers) return 'not-attempted';
     const answer = result.answers.find(a => a.questionId.toString() === questionId.toString());
-    if (!answer || !answer.answer) return 'not-attempted';
+    if (!answer || answer.answer === undefined || answer.answer === null) return 'not-attempted';
+    if (Array.isArray(answer.answer)) {
+      return answer.answer.length > 0 ? 'attempted' : 'not-attempted';
+    }
+    if (typeof answer.answer === 'string' && answer.answer.trim() === '') {
+      return 'not-attempted';
+    }
     return 'attempted';
   };
 
@@ -335,6 +383,63 @@ const TestTaking = () => {
         ...answers[question.questionId._id],
         selectedOption: optionIndex,
         attempted: true
+      }
+    });
+  };
+
+  const handleAptitudeSingle = (optionIndex) => {
+    const question = getCurrentQuestion();
+    if (!question || !question.questionId) return;
+    setAnswers({
+      ...answers,
+      [question.questionId._id]: {
+        ...answers[question.questionId._id],
+        selectedOption: optionIndex,
+        attempted: true
+      }
+    });
+  };
+
+  const handleAptitudeMulti = (optionIndex) => {
+    const question = getCurrentQuestion();
+    if (!question || !question.questionId) return;
+    const current = answers[question.questionId._id]?.selectedOptions || [];
+    const exists = current.includes(optionIndex);
+    const updated = exists
+      ? current.filter(idx => idx !== optionIndex)
+      : [...current, optionIndex];
+    setAnswers({
+      ...answers,
+      [question.questionId._id]: {
+        ...answers[question.questionId._id],
+        selectedOptions: updated,
+        attempted: updated.length > 0
+      }
+    });
+  };
+
+  const handleAptitudeNumeric = (value) => {
+    const question = getCurrentQuestion();
+    if (!question || !question.questionId) return;
+    setAnswers({
+      ...answers,
+      [question.questionId._id]: {
+        ...answers[question.questionId._id],
+        numericAnswer: value,
+        attempted: value !== '' && value !== null && value !== undefined
+      }
+    });
+  };
+
+  const handleTheoryAnswerChange = (value) => {
+    const question = getCurrentQuestion();
+    if (!question || !question.questionId) return;
+    setAnswers({
+      ...answers,
+      [question.questionId._id]: {
+        ...answers[question.questionId._id],
+        textAnswer: value,
+        attempted: value.trim().length > 0
       }
     });
   };
@@ -612,20 +717,73 @@ const TestTaking = () => {
         // Refresh result to get updated answers
         const updatedResult = await axiosInstance.get(`/results/${result._id}`);
         setResult(updatedResult.data);
-      } else {
-        if (answers[questionId]?.selectedOption === undefined) {
+      } else if (question.type === 'mcq') {
+        if (answers[questionId]?.selectedOption === undefined || answers[questionId]?.selectedOption === null) {
           showModal('Warning', 'Please select an answer', 'warning');
           setLoading(false);
           return;
         }
-        
+
         await axiosInstance.post(`/results/${result._id}/answer`, {
           questionId,
           answer: answers[questionId]?.selectedOption
         });
-        
+
         showModal('Success', 'Answer saved successfully!', 'success');
-        // Refresh result to get updated answers
+        const updatedResult = await axiosInstance.get(`/results/${result._id}`);
+        setResult(updatedResult.data);
+      } else if (question.type === 'aptitude') {
+        const questionType = question.questionId.questionType;
+        if (questionType === 'numeric') {
+          const numericValue = answers[questionId]?.numericAnswer;
+          if (numericValue === '' || numericValue === null || numericValue === undefined) {
+            showModal('Warning', 'Please enter a numeric answer', 'warning');
+            setLoading(false);
+            return;
+          }
+          await axiosInstance.post(`/results/${result._id}/answer`, {
+            questionId,
+            answer: numericValue
+          });
+        } else if (questionType === 'multi') {
+          const selectedOptions = answers[questionId]?.selectedOptions || [];
+          if (!selectedOptions.length) {
+            showModal('Warning', 'Please select at least one option', 'warning');
+            setLoading(false);
+            return;
+          }
+          await axiosInstance.post(`/results/${result._id}/answer`, {
+            questionId,
+            answer: selectedOptions
+          });
+        } else {
+          const selectedOption = answers[questionId]?.selectedOption;
+          if (selectedOption === undefined || selectedOption === null) {
+            showModal('Warning', 'Please select an answer', 'warning');
+            setLoading(false);
+            return;
+          }
+          await axiosInstance.post(`/results/${result._id}/answer`, {
+            questionId,
+            answer: selectedOption
+          });
+        }
+
+        showModal('Success', 'Answer saved successfully!', 'success');
+        const updatedResult = await axiosInstance.get(`/results/${result._id}`);
+        setResult(updatedResult.data);
+      } else if (question.type === 'theory') {
+        const textAnswer = answers[questionId]?.textAnswer || '';
+        if (!textAnswer.trim()) {
+          showModal('Warning', 'Please enter your answer', 'warning');
+          setLoading(false);
+          return;
+        }
+        await axiosInstance.post(`/results/${result._id}/answer`, {
+          questionId,
+          answer: textAnswer
+        });
+        showModal('Success', 'Answer saved successfully!', 'success');
         const updatedResult = await axiosInstance.get(`/results/${result._id}`);
         setResult(updatedResult.data);
       }
@@ -1109,6 +1267,126 @@ const TestTaking = () => {
                 </div>
               </div>
             </>
+          ) : currentQuestion.type === 'theory' ? (
+            <div className="question-panel full-width">
+              <div className="question-header">
+                <h3>{currentSection.title} - Question {currentQuestionIndex + 1}</h3>
+                <div className="question-badges">
+                  <span className={`difficulty-badge ${questionData.difficulty || 'medium'}`}>
+                    {questionData.difficulty || 'Medium'}
+                  </span>
+                  {questionData.subjectId?.name && (
+                    <span className="section-badge">{questionData.subjectId.name}</span>
+                  )}
+                  {questionData.topicId?.name && (
+                    <span className="section-badge">{questionData.topicId.name}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="question-description">
+                <h4>{questionData.questionText}</h4>
+              </div>
+
+              <div className="form-group">
+                <label>Your Answer</label>
+                <textarea
+                  rows="8"
+                  value={answers[questionData._id]?.textAnswer || ''}
+                  onChange={(e) => handleTheoryAnswerChange(e.target.value)}
+                  placeholder="Type your detailed answer here..."
+                />
+                <div style={{ marginTop: '8px', fontSize: '0.85em', color: 'var(--text-secondary)' }}>
+                  Word count: {(answers[questionData._id]?.textAnswer || '').trim().split(/\s+/).filter(Boolean).length}
+                  {questionData.expectedAnswerLength ? ` · Expected: ~${questionData.expectedAnswerLength} words` : ''}
+                </div>
+              </div>
+
+              <div className="question-actions">
+                <button onClick={handleSubmitAnswer} className="btn btn-primary" disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Answer'}
+                </button>
+              </div>
+            </div>
+          ) : currentQuestion.type === 'aptitude' ? (
+            <div className="question-panel full-width">
+              <div className="question-header">
+                <h3>{currentSection.title} - Question {currentQuestionIndex + 1}</h3>
+                <div className="question-badges">
+                  <span className={`difficulty-badge ${questionData.difficulty || 'medium'}`}>
+                    {questionData.difficulty || 'Medium'}
+                  </span>
+                  <span className="section-badge">{questionData.section}</span>
+                  {questionData.subCategory && (
+                    <span className="section-badge">{questionData.subCategory}</span>
+                  )}
+                </div>
+              </div>
+
+              {questionData.caseStudy && (
+                <div className="case-study-block">
+                  <h4>Case Study</h4>
+                  <p>{questionData.caseStudy}</p>
+                </div>
+              )}
+
+              <div className="question-description">
+                <h4>{questionData.question}</h4>
+              </div>
+
+              {questionData.questionType === 'numeric' ? (
+                <div className="numeric-answer">
+                  <label>Enter your answer:</label>
+                  <input
+                    type="number"
+                    value={answers[questionData._id]?.numericAnswer ?? ''}
+                    onChange={(e) => handleAptitudeNumeric(e.target.value)}
+                    className="numeric-input"
+                  />
+                  {questionData.numericTolerance > 0 && (
+                    <p className="numeric-hint">Tolerance: ±{questionData.numericTolerance}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="mcq-options">
+                  {questionData.options && questionData.options.length > 0 ? (
+                    questionData.options.map((option, index) => {
+                      const isMulti = questionData.questionType === 'multi';
+                      const selectedMulti = answers[questionData._id]?.selectedOptions || [];
+                      const isSelected = isMulti
+                        ? selectedMulti.includes(index)
+                        : answers[questionData._id]?.selectedOption === index;
+
+                      return (
+                        <label key={index} className={`mcq-option ${isSelected ? 'selected' : ''}`}>
+                          <input
+                            type={isMulti ? 'checkbox' : 'radio'}
+                            name={`question-${questionData._id}`}
+                            checked={isSelected}
+                            onChange={() => {
+                              if (isMulti) {
+                                handleAptitudeMulti(index);
+                              } else {
+                                handleAptitudeSingle(index);
+                              }
+                            }}
+                          />
+                          <span className="option-text">{option.text}</span>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <p>No options available for this question.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="question-actions">
+                <button onClick={handleSubmitAnswer} className="btn btn-primary" disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Answer'}
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="question-panel full-width">
               <div className="question-header">

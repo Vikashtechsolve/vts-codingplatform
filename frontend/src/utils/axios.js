@@ -10,7 +10,7 @@ console.log('🔧 Type:', typeof process.env.REACT_APP_API_URL);
 
 // Fallback to default if not set or empty
 if (!API_URL || API_URL.trim() === '' || API_URL === 'undefined') {
-  API_URL = 'http://localhost:5500/api';
+  API_URL = 'http://localhost:5000/api';
   console.log('⚠️ Using default API URL:', API_URL);
 } else {
   console.log('✅ Using API URL from .env:', API_URL);
@@ -19,7 +19,7 @@ if (!API_URL || API_URL.trim() === '' || API_URL === 'undefined') {
 // Ensure API_URL is a valid full URL
 if (!API_URL.startsWith('http://') && !API_URL.startsWith('https://')) {
   console.error('❌ Invalid API_URL format. Must start with http:// or https://');
-  API_URL = 'http://localhost:5500/api';
+  API_URL = 'http://localhost:5000/api';
 }
 
 // Ensure API_URL ends with /api (but don't double it)
@@ -36,7 +36,7 @@ console.log('🔧 Final API Base URL:', API_URL);
 // Validate the URL
 if (!API_URL || API_URL === 'undefined' || API_URL.length < 10) {
   console.error('❌ CRITICAL: API_URL is invalid!', API_URL);
-  API_URL = 'http://localhost:5500/api';
+  API_URL = 'http://localhost:5000/api';
   console.log('🔧 Forced to use:', API_URL);
 }
 

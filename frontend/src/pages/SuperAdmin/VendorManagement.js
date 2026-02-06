@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './VendorManagement.css';
 
@@ -136,9 +137,14 @@ const VendorManagement = () => {
     <div className="container">
       <div className="page-header">
         <h1 className="page-title">Vendor Management</h1>
-        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-          {showForm ? 'Cancel' : 'Create Vendor'}
-        </button>
+        <div className="page-header-actions">
+          <Link to="/super-admin/interview-credits" className="btn btn-secondary">
+            Assign Interview Credits
+          </Link>
+          <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+            {showForm ? 'Cancel' : 'Create Vendor'}
+          </button>
+        </div>
       </div>
 
       {showForm && (

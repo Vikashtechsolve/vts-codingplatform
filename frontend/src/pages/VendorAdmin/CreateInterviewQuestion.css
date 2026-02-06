@@ -1,0 +1,48 @@
+.create-interview-question .question-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.create-interview-question .form-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.create-interview-question .section-title {
+  margin: 0 0 12px;
+}
+
+.create-interview-question .form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.create-interview-question input,
+.create-interview-question textarea,
+.create-interview-question select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.rubric-card {
+  display: grid;
+  grid-template-columns: 2fr 3fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}

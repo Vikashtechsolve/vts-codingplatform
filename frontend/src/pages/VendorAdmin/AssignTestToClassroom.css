@@ -4,6 +4,67 @@
   padding: 20px;
 }
 
+.assign-section {
+  margin-bottom: 36px;
+}
+
+.section-title-page {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 1.25em;
+  font-weight: 700;
+  padding-bottom: 8px;
+}
+
+.test-type-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.filter-chip {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-chip:hover {
+  border-color: var(--primary, #007bff);
+  background: var(--bg-secondary);
+}
+
+.filter-chip.active {
+  background: var(--primary-gradient, linear-gradient(135deg, #007bff, #6f42c1));
+  color: white;
+  border-color: transparent;
+}
+
+.test-type-badge {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.test-type-badge.coding { background: #0d6efd; color: white; }
+.test-type-badge.mcq { background: #198754; color: white; }
+.test-type-badge.aptitude { background: #fd7e14; color: white; }
+.test-type-badge.theory { background: #6f42c1; color: white; }
+.test-type-badge.mixed { background: #6c757d; color: white; }
+.test-type-badge.interview { background: linear-gradient(135deg, #e91e63, #9c27b0); color: white; }
+
+.interview-item .test-type-badge.interview {
+  margin-right: 8px;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -142,13 +203,6 @@
   font-size: 0.8em;
   font-weight: 600;
   text-transform: uppercase;
-  box-shadow: 0 2px 4px rgba(237, 3, 49, 0.2);
-  transition: all 0.3s ease;
-}
-
-.test-type:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(237, 3, 49, 0.3);
 }
 
 .test-duration {

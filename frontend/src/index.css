@@ -133,6 +133,10 @@ code {
   background: linear-gradient(135deg, #28a745, #1e7e34);
 }
 
+.question-type-badge.aptitude {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+}
+
 .question-type-badge.mixed {
   background: linear-gradient(135deg, #6c757d, #545b62);
 }

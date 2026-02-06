@@ -95,9 +95,135 @@
   color: white;
 }
 
+.test-type-badge-modern.aptitude {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+  color: white;
+}
+
 .test-type-badge-modern.mixed {
   background: linear-gradient(135deg, #17a2b8, #138496);
   color: white;
+}
+
+.test-type-badge-modern.interview {
+  background: linear-gradient(135deg, #e91e63, #9c27b0);
+  color: white;
+}
+
+.dashboard-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.summary-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-card h3 {
+  margin: 0;
+  font-size: 1em;
+  color: var(--text-secondary);
+}
+
+.summary-value {
+  font-size: 1.8em;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.summary-subtext {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+
+.test-section {
+  margin-bottom: 30px;
+}
+
+.test-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.test-section-title {
+  font-size: 1.3em;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.test-section-badge {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 4px 10px;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+}
+
+.test-type-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+.test-type-nav-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 18px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.test-type-nav-card:hover {
+  transform: translateY(-4px);
+  border-color: #007bff;
+  box-shadow: 0 10px 20px rgba(0, 123, 255, 0.12);
+}
+
+.test-type-nav-title {
+  font-size: 0.95em;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.test-type-nav-icon {
+  font-size: 1.1em;
+}
+
+.test-type-nav-count {
+  font-size: 1.6em;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.test-type-nav-cta {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+
+.test-type-nav-subtext {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .test-meta {

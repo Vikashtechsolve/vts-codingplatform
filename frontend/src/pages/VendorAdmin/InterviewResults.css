@@ -1,0 +1,5 @@
+.interview-results .table {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  overflow: hidden;
+}

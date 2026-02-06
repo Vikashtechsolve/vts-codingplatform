@@ -37,9 +37,8 @@ const TestResult = () => {
       console.log('✅ Result fetched:', response.data);
       setResult(response.data);
       
-      // Fetch question details for MCQ questions to show correct answers
-      if (response.data.answers) {
-        await fetchQuestionDetails(response.data.answers);
+      if (response.data._id) {
+        await fetchQuestionDetails(response.data._id);
       }
     } catch (error) {
       console.error('❌ Error fetching result:', error);
@@ -51,29 +50,10 @@ const TestResult = () => {
     }
   };
 
-  const fetchQuestionDetails = async (answers) => {
+  const fetchQuestionDetails = async (resultIdToFetch) => {
     try {
-      const mcqQuestionIds = answers
-        .filter(a => a.questionType === 'mcq' && a.questionId)
-        .map(a => a.questionId);
-      
-      if (mcqQuestionIds.length === 0) return;
-      
-      // Fetch MCQ questions in parallel
-      const questionPromises = mcqQuestionIds.map(id => 
-        axiosInstance.get(`/questions/mcq/${id}`).catch(() => null)
-      );
-      
-      const questionResponses = await Promise.all(questionPromises);
-      const questionsMap = {};
-      
-      questionResponses.forEach((response, index) => {
-        if (response && response.data) {
-          questionsMap[mcqQuestionIds[index]] = response.data;
-        }
-      });
-      
-      setQuestionsData(questionsMap);
+      const response = await axiosInstance.get(`/results/${resultIdToFetch}/questions`);
+      setQuestionsData(response.data || {});
     } catch (error) {
       console.error('Error fetching question details:', error);
     }
@@ -124,8 +104,13 @@ const TestResult = () => {
       <div className="questions-results-section">
         <h2 className="section-title-modern">Question-wise Results</h2>
         {result.answers?.map((answer, index) => {
-          const isCorrect = answer.questionType === 'mcq' ? answer.isCorrect : 
-                           (answer.testCasesPassed === answer.totalTestCases);
+          const isCorrect = answer.questionType === 'mcq'
+            ? answer.isCorrect
+            : answer.questionType === 'aptitude'
+              ? answer.isCorrect
+              : answer.questionType === 'theory'
+                ? (answer.points || 0) >= (answer.maxPoints || 1) * 0.6
+                : (answer.testCasesPassed === answer.totalTestCases);
           const questionData = questionsData[answer.questionId];
           
           return (
@@ -158,6 +143,11 @@ const TestResult = () => {
                     {answer.isCorrect ? '✓ Correct' : '✗ Incorrect'}
                   </div>
                 )}
+              {answer.questionType === 'aptitude' && (
+                <div className={`status-indicator ${answer.isCorrect ? 'correct' : 'incorrect'}`}>
+                  {answer.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                </div>
+              )}
               </div>
 
               {/* Show submitted code for coding questions */}
@@ -244,6 +234,151 @@ const TestResult = () => {
                     <div style={{ marginTop: '15px', padding: '12px', background: '#e3f2fd', borderRadius: '8px', border: '1px solid #2196F3' }}>
                       <strong style={{ color: '#1976D2' }}>Explanation:</strong>
                       <p style={{ marginTop: '5px', marginBottom: 0 }}>{questionData.explanation}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {answer.questionType === 'aptitude' && questionData && (
+                <div style={{ marginTop: '20px' }}>
+                  <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Question:</h5>
+                  {questionData.caseStudy && (
+                    <div style={{ marginBottom: '12px', padding: '10px', background: 'var(--bg-secondary)', borderRadius: '5px' }}>
+                      <strong>Case Study:</strong>
+                      <p style={{ marginTop: '6px' }}>{questionData.caseStudy}</p>
+                    </div>
+                  )}
+                  <p style={{ marginBottom: '15px', padding: '10px', background: 'var(--bg-secondary)', borderRadius: '5px' }}>
+                    {questionData.question}
+                  </p>
+
+                  {questionData.questionType === 'numeric' ? (
+                    <div style={{ padding: '10px', background: 'var(--bg-secondary)', borderRadius: '5px' }}>
+                      <strong>Your Answer:</strong> {answer.answer}
+                      <div style={{ marginTop: '8px' }}>
+                        <strong>Correct Answer:</strong> {questionData.numericAnswer}
+                      </div>
+                      {questionData.numericTolerance > 0 && (
+                        <div style={{ marginTop: '6px', fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+                          Tolerance: ±{questionData.numericTolerance}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Options:</h5>
+                      <div style={{ display: 'grid', gap: '10px' }}>
+                        {questionData.options?.map((option, optIndex) => {
+                          const selectedOptions = Array.isArray(answer.answer) ? answer.answer : [answer.answer];
+                          const isSelected = selectedOptions.includes(optIndex);
+                          const isCorrectOption = (questionData.correctOptions || []).includes(optIndex);
+                          return (
+                            <div
+                              key={optIndex}
+                              style={{
+                                padding: '12px',
+                                borderRadius: '8px',
+                                border: '2px solid',
+                                borderColor: isCorrectOption
+                                  ? '#4CAF50'
+                                  : isSelected
+                                    ? '#ff4444'
+                                    : 'var(--border-color)',
+                                background: isCorrectOption
+                                  ? '#e8f5e9'
+                                  : isSelected
+                                    ? '#ffebee'
+                                    : 'var(--bg-secondary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px'
+                              }}
+                            >
+                              <span style={{
+                                fontWeight: 'bold',
+                                color: isCorrectOption ? '#4CAF50' : isSelected ? '#ff4444' : 'var(--text-secondary)'
+                              }}>
+                                {String.fromCharCode(65 + optIndex)}.
+                              </span>
+                              <span style={{ flex: 1 }}>{option.text}</span>
+                              {isCorrectOption && (
+                                <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>✓ Correct Answer</span>
+                              )}
+                              {isSelected && !isCorrectOption && (
+                                <span style={{ color: '#ff4444', fontWeight: 'bold' }}>Your Answer</span>
+                              )}
+                              {isSelected && isCorrectOption && (
+                                <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>✓ Your Answer (Correct)</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {questionData.explanation && (
+                    <div style={{ marginTop: '15px', padding: '12px', background: '#e3f2fd', borderRadius: '8px', border: '1px solid #2196F3' }}>
+                      <strong style={{ color: '#1976D2' }}>Explanation:</strong>
+                      <p style={{ marginTop: '5px', marginBottom: 0 }}>{questionData.explanation}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {answer.questionType === 'theory' && (
+                <div style={{ marginTop: '20px' }}>
+                  <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Question:</h5>
+                  <p style={{ marginBottom: '15px', padding: '10px', background: 'var(--bg-secondary)', borderRadius: '5px' }}>
+                    {questionData?.questionText || 'Theory question'}
+                  </p>
+
+                  <div style={{ padding: '10px', background: 'var(--bg-secondary)', borderRadius: '5px' }}>
+                    <strong>Your Answer:</strong>
+                    <p style={{ marginTop: '6px', whiteSpace: 'pre-wrap' }}>{answer.answer || '—'}</p>
+                  </div>
+
+                  {questionData?.referenceAnswer && (
+                    <div className="theory-reference">
+                      <strong>Reference Answer:</strong>
+                      <p>{questionData.referenceAnswer}</p>
+                    </div>
+                  )}
+
+                  {answer.evaluation && (
+                    <div className="theory-evaluation">
+                      <strong>AI Evaluation Breakdown:</strong>
+                      <div className="theory-evaluation-grid">
+                        <div>Similarity: {(answer.evaluation.similarityScore || 0).toFixed(2)}</div>
+                        <div>Concept Coverage: {(answer.evaluation.conceptScore || 0).toFixed(2)}</div>
+                        <div>Depth & Clarity: {(answer.evaluation.depthScore || 0).toFixed(2)}</div>
+                        {answer.evaluation.penalty > 0 && (
+                          <div>Penalty: -{answer.evaluation.penalty.toFixed(2)}</div>
+                        )}
+                      </div>
+                      {answer.evaluation.feedback && (
+                        <div className="theory-feedback">
+                          <strong>Feedback:</strong>
+                          <p>{answer.evaluation.feedback}</p>
+                        </div>
+                      )}
+                      {answer.evaluation.missingConcepts?.length > 0 && (
+                        <div className="theory-missing">
+                          <strong>Missing Concepts:</strong> {answer.evaluation.missingConcepts.join(', ')}
+                        </div>
+                      )}
+                      {answer.evaluation.strengths?.length > 0 && (
+                        <div className="theory-strengths">
+                          <strong>Strengths:</strong> {answer.evaluation.strengths.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {answer.manualOverride?.isManual && (
+                    <div className="theory-manual">
+                      <strong>Manual Review:</strong>
+                      <p>{answer.manualOverride.feedback || 'Score adjusted by instructor.'}</p>
                     </div>
                   )}
                 </div>

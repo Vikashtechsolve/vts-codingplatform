@@ -65,7 +65,7 @@ const VendorSettings = () => {
         <h2>Logo</h2>
         {vendor?.logo && (
           <img 
-            src={`http://localhost:5000${vendor.logo}`} 
+            src={`${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}${vendor.logo}`} 
             alt="Logo" 
             className="logo-preview"
           />

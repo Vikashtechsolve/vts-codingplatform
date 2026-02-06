@@ -189,6 +189,11 @@
   color: white;
 }
 
+.question-type-badge-result.aptitude {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+  color: white;
+}
+
 .points-display {
   display: flex;
   gap: 20px;
@@ -294,6 +299,77 @@
 .back-btn-modern:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(0, 123, 255, 0.3);
+}
+
+.theory-reference {
+  margin-top: 12px;
+  padding: 10px;
+  background: #e8f5e9;
+  border-radius: 5px;
+  border: 1px solid #4CAF50;
+}
+
+.theory-reference strong {
+  color: #2e7d32;
+}
+
+.theory-evaluation {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.theory-manual {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff3cd;
+  border-radius: 8px;
+  border: 1px solid #ffc107;
+}
+
+.theory-reference p,
+.theory-evaluation p,
+.theory-manual p {
+  margin-top: 6px;
+  margin-bottom: 0;
+  white-space: pre-wrap;
+}
+
+.theory-evaluation-grid {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.theory-feedback,
+.theory-missing,
+.theory-strengths {
+  margin-top: 8px;
+}
+
+[data-theme="dark"] .theory-reference {
+  background: #1f2a1f;
+  border-color: #2e7d32;
+}
+
+[data-theme="dark"] .theory-reference strong {
+  color: #81c784;
+}
+
+[data-theme="dark"] .theory-reference p {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .theory-evaluation {
+  background: #2a2a2a;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .theory-manual {
+  background: #3a2f16;
+  border-color: #ffc107;
+  color: var(--text-primary);
 }
 
 @media (max-width: 768px) {

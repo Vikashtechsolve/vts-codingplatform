@@ -81,6 +81,17 @@
   background: linear-gradient(135deg, rgba(17, 122, 184, 0.05), rgba(13, 110, 253, 0.02));
 }
 
+.stat-card-analysis.interviews {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.05), rgba(30, 126, 52, 0.02));
+}
+
+.stat-card-analysis.interviews .stat-number-analysis {
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .stat-card-analysis h3 {
   margin: 0 0 16px 0;
   font-size: 0.9em;
@@ -192,6 +203,19 @@
 .performance-table tbody td {
   padding: 16px;
   border-bottom: 1px solid var(--border-color);
+}
+
+.question-type-badge {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.85em;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.question-type-badge.interview {
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  color: white;
 }
 
 .score-badge {

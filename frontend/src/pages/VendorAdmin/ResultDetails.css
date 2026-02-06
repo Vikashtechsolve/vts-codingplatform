@@ -145,6 +145,11 @@
   color: white;
 }
 
+.question-type-badge-detail.aptitude {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+  color: white;
+}
+
 .breakdown-details {
   display: flex;
   flex-wrap: wrap;

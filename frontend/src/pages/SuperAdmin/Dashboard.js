@@ -51,6 +51,14 @@ const SuperAdminDashboard = () => {
           <h3>Total Results</h3>
           <p className="stat-number">{stats?.totalResults || 0}</p>
         </div>
+        <div className="stat-card">
+          <h3>Mock Interview Sessions</h3>
+          <p className="stat-number">{stats?.totalInterviewSessions ?? 0}</p>
+        </div>
+        <div className="stat-card">
+          <h3>Completed Interviews</h3>
+          <p className="stat-number">{stats?.completedInterviewSessions ?? 0}</p>
+        </div>
       </div>
 
       <div className="action-buttons">
@@ -59,6 +67,15 @@ const SuperAdminDashboard = () => {
         </Link>
         <Link to="/super-admin/global-questions" className="btn btn-primary">
           Global Question Bank
+        </Link>
+        <Link to="/super-admin/interview-questions" className="btn btn-primary">
+          Interview Question Bank
+        </Link>
+        <Link to="/super-admin/interview-credits" className="btn btn-primary">
+          Interview Credits
+        </Link>
+        <Link to="/super-admin/interview-ai-settings" className="btn btn-primary">
+          AI Interview Settings
         </Link>
       </div>
     </div>

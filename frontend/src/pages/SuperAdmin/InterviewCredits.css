@@ -1,0 +1,66 @@
+.credits-note {
+  margin: 0 0 20px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.credits-empty-state {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+}
+
+.credits-empty-state p {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.interview-credits .credits-table {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.interview-credits .table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.interview-credits .table th,
+.interview-credits .table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.interview-credits .table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.credits-action {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.credits-input,
+.credits-action input {
+  width: 100px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.credits-action .btn {
+  white-space: nowrap;
+}

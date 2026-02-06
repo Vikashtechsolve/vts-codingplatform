@@ -31,6 +31,10 @@ const MockInterviewRoom = () => {
   const submittedRef = useRef(false);
   const isListeningRef = useRef(false);
   const shouldListenRef = useRef(false);
+  const lastSpokenQuestionRef = useRef('');
+  const isAiSpeakingRef = useRef(false);
+  const isSubmittingRef = useRef(false);
+  const leaveSubmitHandledRef = useRef(false);
 
   const [interview, setInterview] = useState(null);
   const [sessionId, setSessionId] = useState(null);
@@ -50,8 +54,6 @@ const MockInterviewRoom = () => {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [errorStarting, setErrorStarting] = useState(null);
 
-  const interviewerImage = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=320&h=320&fit=crop';
-
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
@@ -61,6 +63,12 @@ const MockInterviewRoom = () => {
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+  useEffect(() => {
+    isAiSpeakingRef.current = isAiSpeaking;
+  }, [isAiSpeaking]);
+  useEffect(() => {
+    isSubmittingRef.current = isSubmitting;
+  }, [isSubmitting]);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +87,10 @@ const MockInterviewRoom = () => {
         setTimeRemaining((sessionRes.data.timeLimit || interviewRes.data.duration || 20) * 60);
       } catch (error) {
         if (cancelled) return;
+        if (error.response?.status === 403 && error.response?.data?.alreadyAttempted && error.response?.data?.lastSessionId) {
+          window.location.href = `/student/interviews/feedback/${error.response.data.lastSessionId}`;
+          return;
+        }
         const msg = error.response?.data?.message || 'Failed to start interview';
         setErrorStarting(msg);
         setModal({ isOpen: true, title: 'Cannot start', message: msg, type: 'error' });
@@ -115,6 +127,19 @@ const MockInterviewRoom = () => {
   }, []);
   const closeModal = useCallback(() => setModal({ isOpen: false, title: '', message: '', type: 'info' }), []);
 
+  const stopListening = useCallback(() => {
+    isListeningRef.current = false;
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  }, []);
+
   useEffect(() => {
     if (!window.speechSynthesis) return;
     const loadVoices = () => setAvailableVoices(window.speechSynthesis.getVoices() || []);
@@ -123,10 +148,13 @@ const MockInterviewRoom = () => {
     return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
-  const autoSubmitAnswer = useCallback(async (textOverride) => {
+  const autoSubmitAnswer = useCallback(async (textOverride, allowEmpty = false) => {
     if (isSubmitting || !isInterviewActive || submittedRef.current) return;
-    const finalAnswer = (textOverride != null ? textOverride : (transcriptRef.current || '').trim() || (interimRef.current || '').trim()).trim();
-    if (!finalAnswer || finalAnswer.length < MIN_TRANSCRIPT_LENGTH) return;
+    if (isAiSpeakingRef.current) return;
+    const raw = textOverride != null ? String(textOverride).trim() : ((transcriptRef.current || '').trim() + ' ' + (interimRef.current || '').trim()).trim();
+    const finalAnswer = raw;
+    if (!allowEmpty && (!finalAnswer || finalAnswer.length < MIN_TRANSCRIPT_LENGTH)) return;
+    stopListening();
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -151,15 +179,21 @@ const MockInterviewRoom = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [sessionId, isInterviewActive, isSubmitting, navigate, showModal]);
+  }, [sessionId, isInterviewActive, isSubmitting, navigate, showModal, stopListening]);
 
   const scheduleAutoSubmit = useCallback(() => {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = setTimeout(() => {
+      if (isAiSpeakingRef.current || isSubmittingRef.current) {
+        silenceTimerRef.current = null;
+        return;
+      }
       const combined = (transcriptRef.current || '').trim() + ' ' + (interimRef.current || '').trim();
       const trimmed = combined.trim();
       if (trimmed.length >= MIN_TRANSCRIPT_LENGTH) {
         autoSubmitAnswer(trimmed);
+      } else {
+        autoSubmitAnswer(trimmed, true);
       }
       silenceTimerRef.current = null;
     }, SILENCE_MS_BEFORE_AUTO_SUBMIT);
@@ -208,14 +242,17 @@ const MockInterviewRoom = () => {
     };
 
     recognition.onend = () => {
+      setIsListening(false);
+      if (isAiSpeakingRef.current || isSubmittingRef.current) return;
       const combined = (transcriptRef.current || '').trim() + ' ' + (interimRef.current || '').trim();
       const trimmed = combined.trim();
       if (trimmed.length >= MIN_TRANSCRIPT_LENGTH) {
         autoSubmitAnswer(trimmed);
+      } else {
+        autoSubmitAnswer(trimmed, true);
       }
       setInterimTranscript('');
       interimRef.current = '';
-      setIsListening(false);
     };
 
     recognition.onerror = (event) => {
@@ -226,28 +263,16 @@ const MockInterviewRoom = () => {
       }
     };
 
+    recognition.onstart = () => setIsListening(true);
+
     recognitionRef.current = recognition;
     try {
       recognition.start();
-      setIsListening(true);
     } catch (e) {
+      setIsListening(false);
       showModal('Microphone', 'Could not start microphone. Please allow access and try again.', 'error');
     }
   }, [scheduleAutoSubmit, autoSubmitAnswer, showModal]);
-
-  const stopListening = useCallback(() => {
-    shouldListenRef.current = false;
-    isListeningRef.current = false;
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) {}
-      recognitionRef.current = null;
-    }
-    setIsListening(false);
-  }, []);
 
   const pickBestVoice = () => {
     if (!availableVoices.length) return null;
@@ -259,6 +284,9 @@ const MockInterviewRoom = () => {
 
   const speakQuestion = useCallback((text) => {
     if (!window.speechSynthesis || !text?.trim()) return;
+    isAiSpeakingRef.current = true;
+    setIsAiSpeaking(true);
+    stopListening();
     const voice = pickBestVoice();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = voice?.lang || 'en-US';
@@ -268,18 +296,61 @@ const MockInterviewRoom = () => {
     utterance.onstart = () => setIsAiSpeaking(true);
     utterance.onend = () => {
       setIsAiSpeaking(false);
-      if (shouldListenRef.current) startRecognition();
+      if (shouldListenRef.current && !isSubmittingRef.current) startRecognition();
     };
     utterance.onerror = () => setIsAiSpeaking(false);
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
-  }, [availableVoices, startRecognition]);
+  }, [availableVoices, startRecognition, stopListening]);
 
   useEffect(() => {
-    if (currentQuestion?.questionText && isInterviewActive) {
-      speakQuestion(currentQuestion.questionText);
-    }
+    if (!currentQuestion?.questionText || !isInterviewActive) return;
+    const text = currentQuestion.questionText.trim();
+    if (lastSpokenQuestionRef.current === text) return;
+    lastSpokenQuestionRef.current = text;
+    speakQuestion(text);
   }, [currentQuestion?.questionText, isInterviewActive, speakQuestion]);
+
+  const requestFullscreen = useCallback(() => {
+    const el = document.documentElement;
+    try {
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen().catch(() => {});
+      else if (el.mozRequestFullScreen) el.mozRequestFullScreen().catch(() => {});
+      else if (el.msRequestFullscreen) el.msRequestFullscreen().catch(() => {});
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    if (!isInterviewActive || !sessionId || submittedRef.current) return;
+    const submitAndLeave = () => {
+      if (leaveSubmitHandledRef.current) return;
+      leaveSubmitHandledRef.current = true;
+      submittedRef.current = true;
+      stopListening();
+      (async () => {
+        try {
+          await axiosInstance.post(`/interview-sessions/${sessionId}/submit`);
+        } catch (e) {}
+        navigate(`/student/interviews/feedback/${sessionId}`);
+      })();
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) return;
+      submitAndLeave();
+    };
+    const handleBlur = () => {
+      setTimeout(() => {
+        if (document.hidden && !leaveSubmitHandledRef.current) submitAndLeave();
+      }, 300);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [isInterviewActive, sessionId, navigate, stopListening]);
 
   const handleStartInterview = useCallback(async () => {
     try {
@@ -289,16 +360,16 @@ const MockInterviewRoom = () => {
       showModal('Microphone', 'Please allow microphone access to start the interview.', 'error');
       return;
     }
+    requestFullscreen();
     shouldListenRef.current = true;
     setIsInterviewActive(true);
-    if (currentQuestion?.questionText) {
-      speakQuestion(currentQuestion.questionText);
-    } else {
+    if (!currentQuestion?.questionText) {
       startRecognition();
     }
-  }, [currentQuestion?.questionText, speakQuestion, startRecognition, showModal]);
+  }, [currentQuestion?.questionText, startRecognition, showModal, requestFullscreen]);
 
   const handleEndInterview = useCallback(async () => {
+    shouldListenRef.current = false;
     stopListening();
     const finalText = (transcriptRef.current || '').trim() || (interimRef.current || '').trim();
     if (finalText.length >= MIN_TRANSCRIPT_LENGTH && sessionId && !submittedRef.current) {
@@ -352,8 +423,8 @@ const MockInterviewRoom = () => {
         <div className="interview-room-error-state">
           <h2>Could not start interview</h2>
           <p>{errorStarting}</p>
-          <button className="btn btn-primary" onClick={() => navigate('/student/interviews')}>
-            Back to Mock Interviews
+          <button className="btn btn-primary" onClick={() => navigate('/student/tests/interview')}>
+            Back to Tests
           </button>
         </div>
       </div>
@@ -372,7 +443,7 @@ const MockInterviewRoom = () => {
 
       <header className="interview-room-header">
         <div className="interview-header-info">
-          <h1>{interview?.title || 'Mock Interview'}</h1>
+          <h1>{interview?.title || 'Interview'}</h1>
           <p>{interview?.interviewType} · {interview?.topic} · {interview?.difficulty}</p>
         </div>
         <div className="interview-header-actions">
@@ -396,9 +467,34 @@ const MockInterviewRoom = () => {
 
       <div className="interview-room-body">
         <section className="interviewer-section">
-          <div className={`interviewer-avatar ${isAiSpeaking ? 'speaking' : ''}`}>
-            <img src={interviewerImage} alt="Interviewer" className="interviewer-img" />
+          <div className={`interviewer-avatar ${isAiSpeaking ? 'speaking' : ''} ${isListening ? 'listening' : ''}`}>
             <div className="avatar-ring" />
+            <svg className="interviewer-avatar-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              {/* Head */}
+              <ellipse cx="100" cy="98" rx="72" ry="78" className="avatar-head" />
+              {/* Neck / shoulders */}
+              <path d="M 55 168 Q 55 185 75 192 L 125 192 Q 145 185 145 168" className="avatar-neck" />
+              {/* Left ear - listening cue */}
+              <ellipse cx="28" cy="98" rx="10" ry="14" className="avatar-ear" />
+              {/* Right ear */}
+              <ellipse cx="172" cy="98" rx="10" ry="14" className="avatar-ear" />
+              {/* Eyes - attentive, looking at viewer */}
+              <ellipse cx="72" cy="88" rx="12" ry="10" className="avatar-eye" />
+              <ellipse cx="128" cy="88" rx="12" ry="10" className="avatar-eye" />
+              <circle cx="72" cy="88" r="4" className="avatar-pupil" />
+              <circle cx="128" cy="88" r="4" className="avatar-pupil" />
+              {/* Mouth - neutral when idle, slight smile when listening */}
+              <path d="M 78 122 Q 100 132 122 122" strokeLinecap="round" className={`avatar-mouth ${isListening ? 'listening' : ''}`} />
+              {/* Listening waves - visible when we are listening to you */}
+              {isListening && (
+                <>
+                  <path d="M 8 98 Q 18 88 28 98 Q 18 108 8 98" className="avatar-wave wave-1" />
+                  <path d="M 172 98 Q 182 88 192 98 Q 182 108 172 98" className="avatar-wave wave-2" />
+                  <path d="M 0 98 Q 12 85 24 98 Q 12 111 0 98" className="avatar-wave wave-3" />
+                  <path d="M 176 98 Q 188 85 200 98 Q 188 111 176 98" className="avatar-wave wave-4" />
+                </>
+              )}
+            </svg>
           </div>
           <h2 className="interviewer-name">Your interviewer</h2>
           <p className="interviewer-hint">Listen to the question, then answer. The mic turns on as soon as the interviewer finishes — you can speak right away. When you pause, your answer is submitted automatically.</p>

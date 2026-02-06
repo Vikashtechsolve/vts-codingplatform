@@ -1,0 +1,70 @@
+.create-interview .interview-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.create-interview .form-section {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-interview input,
+.create-interview textarea,
+.create-interview select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.create-interview .form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.create-interview .section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.create-interview .form-hint {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.toggle-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  color: var(--text-secondary);
+}
+
+.question-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.question-card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--bg-primary);
+}
+
+.selected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

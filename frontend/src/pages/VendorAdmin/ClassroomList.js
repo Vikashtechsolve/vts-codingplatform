@@ -125,8 +125,11 @@ const ClassroomList = () => {
                 </div>
                 <div className="stat-item">
                   <span className="stat-icon">📝</span>
-                  <span className="stat-label">Tests:</span>
-                  <span className="stat-value">{classroom.assignedTests?.length || 0}</span>
+                  <span className="stat-label">Assigned:</span>
+                  <span className="stat-value">
+                    {(classroom.assignedTests?.length || 0) + (classroom.assignedInterviews?.length || 0)}
+                  </span>
+                  <span className="stat-sublabel">tests</span>
                 </div>
               </div>
 

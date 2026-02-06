@@ -326,6 +326,12 @@
   box-shadow: 0 2px 4px rgba(111, 66, 193, 0.2);
 }
 
+.question-type-badge.aptitude {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+  color: white;
+  box-shadow: 0 2px 4px rgba(46, 125, 50, 0.2);
+}
+
 .question-type-badge:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);

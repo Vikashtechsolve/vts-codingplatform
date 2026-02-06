@@ -729,6 +729,62 @@
   cursor: pointer;
 }
 
+.mcq-option input[type="checkbox"] {
+  margin-right: 12px;
+  margin-top: 2px;
+  transform: scale(1.2);
+  cursor: pointer;
+}
+
+.question-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.section-badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.case-study-block {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.case-study-block h4 {
+  margin-bottom: 8px;
+}
+
+.numeric-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.numeric-input {
+  max-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.numeric-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .option-text {
   flex: 1;
   color: var(--text-primary);

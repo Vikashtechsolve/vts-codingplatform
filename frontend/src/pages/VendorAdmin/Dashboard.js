@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
-import { FiFileText, FiUsers, FiBarChart2, FiCheckCircle, FiPlus, FiEye, FiSettings } from 'react-icons/fi';
 import './Dashboard.css';
 
 const VendorAdminDashboard = () => {
@@ -35,6 +34,94 @@ const VendorAdminDashboard = () => {
     }
   };
 
+  const testTypeCards = [
+    {
+      key: 'coding',
+      title: 'Coding Tests',
+      description: 'DSA problems with automated evaluation.',
+      icon: '💻',
+      actions: [
+        { label: 'Create Questions', to: '/vendor-admin/questions/coding/create' },
+        { label: 'Create Test', to: '/vendor-admin/tests/create?type=coding' }
+      ]
+    },
+    {
+      key: 'aptitude',
+      title: 'Aptitude Tests',
+      description: 'Quantitative, logical, and analytical aptitude.',
+      icon: '🧠',
+      actions: [
+        { label: 'Create Questions', to: '/vendor-admin/questions/aptitude/create' },
+        { label: 'Create Test', to: '/vendor-admin/tests/create?type=aptitude' }
+      ]
+    },
+    {
+      key: 'mcq',
+      title: 'MCQ Tests',
+      description: 'Single/multiple correct objective questions.',
+      icon: '❓',
+      actions: [
+        { label: 'Create Questions', to: '/vendor-admin/questions/mcq/create' },
+        { label: 'Create Test', to: '/vendor-admin/tests/create?type=mcq' }
+      ]
+    },
+    {
+      key: 'verbal',
+      title: 'Verbal & English',
+      description: 'Grammar, comprehension, and vocabulary.',
+      icon: '🗣️',
+      comingSoon: true
+    },
+    {
+      key: 'theory',
+      title: 'Core CS / Theoretical',
+      description: 'OS, DBMS, Networks, OOP fundamentals.',
+      icon: '📚',
+      actions: [
+        { label: 'Create Questions', to: '/vendor-admin/questions/theory/create' },
+        { label: 'Create Test', to: '/vendor-admin/tests/create?type=theory' }
+      ]
+    },
+    {
+      key: 'project',
+      title: 'Project Evaluation (AI)',
+      description: 'AI-based project review and scoring.',
+      icon: '🤖',
+      comingSoon: true
+    },
+    {
+      key: 'interview',
+      title: 'Interview',
+      description: 'Voice-based interview tests.',
+      icon: '🎤',
+      actions: [
+        { label: 'Create Test', to: '/vendor-admin/interviews/create' },
+        { label: 'View Tests', to: '/vendor-admin/tests?type=interview' }
+      ]
+    },
+    {
+      key: 'system',
+      title: 'System Design',
+      description: 'Architecture and scalability assessments.',
+      icon: '🏗️',
+      comingSoon: true
+    },
+    {
+      key: 'tools',
+      title: 'Practical Tools',
+      description: 'Git, SQL, Linux and tool-based tasks.',
+      icon: '🧰',
+      comingSoon: true
+    },
+    {
+      key: 'company',
+      title: 'Company Specific',
+      description: 'Company-focused test templates.',
+      icon: '🏢',
+      comingSoon: true
+    }
+  ];
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -59,6 +146,47 @@ const VendorAdminDashboard = () => {
         <div className="stat-card-vendor completed">
           <h3>Completed Results</h3>
           <p className="stat-number-vendor">{stats?.completedResults || 0}</p>
+        </div>
+      </div>
+
+      <div className="test-type-section">
+        <div className="section-header">
+          <h2>Test Types</h2>
+          <Link to="/vendor-admin/tests" className="btn btn-secondary btn-sm">
+            View All Tests
+          </Link>
+        </div>
+        <div className="test-type-grid">
+          {testTypeCards.map(card => (
+            <div key={card.key} className={`test-type-card ${card.comingSoon ? 'coming-soon' : ''}`}>
+              <div className="test-type-card-header">
+                <span className="test-type-icon">{card.icon}</span>
+                <div>
+                  <h3>{card.title}</h3>
+                  {card.comingSoon && <span className="coming-soon-badge">Coming Soon</span>}
+                </div>
+              </div>
+              <p className="test-type-description">{card.description}</p>
+              <div className="test-type-actions">
+                {card.actions ? (
+                  card.actions.map(action => (
+                    <Link key={action.label} to={action.to} className="btn btn-primary btn-sm">
+                      {action.label}
+                    </Link>
+                  ))
+                ) : (
+                  <>
+                    <button className="btn btn-secondary btn-sm" disabled>
+                      Create Questions
+                    </button>
+                    <button className="btn btn-secondary btn-sm" disabled>
+                      Create Test
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

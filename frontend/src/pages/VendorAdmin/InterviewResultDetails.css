@@ -1,0 +1,15 @@
+.interview-result-details.vendor-result-student,
+.interview-result-details .vendor-result-student {
+  margin-top: 8px;
+  font-size: 0.95em;
+  color: var(--text-secondary);
+}
+
+.interview-result-details .answer-card {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.interview-result-details .answer-card:last-child {
+  border-bottom: none;
+}

@@ -11,6 +11,9 @@ import Register from './pages/Auth/Register';
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import VendorManagement from './pages/SuperAdmin/VendorManagement';
 import GlobalQuestions from './pages/SuperAdmin/GlobalQuestions';
+import InterviewQuestions from './pages/SuperAdmin/InterviewQuestions';
+import InterviewCredits from './pages/SuperAdmin/InterviewCredits';
+import InterviewAISettings from './pages/SuperAdmin/InterviewAISettings';
 
 // Vendor Admin
 import VendorAdminDashboard from './pages/VendorAdmin/Dashboard';
@@ -19,6 +22,8 @@ import TestList from './pages/VendorAdmin/TestList';
 import StudentManagement from './pages/VendorAdmin/StudentManagement';
 import CreateCodingQuestion from './pages/VendorAdmin/CreateCodingQuestion';
 import CreateMCQQuestion from './pages/VendorAdmin/CreateMCQQuestion';
+import CreateAptitudeQuestion from './pages/VendorAdmin/CreateAptitudeQuestion';
+import CreateTheoryQuestion from './pages/VendorAdmin/CreateTheoryQuestion';
 import QuestionList from './pages/VendorAdmin/QuestionList';
 import Analytics from './pages/VendorAdmin/Analytics';
 import VendorSettings from './pages/VendorAdmin/Settings';
@@ -30,17 +35,30 @@ import ClassroomList from './pages/VendorAdmin/ClassroomList';
 import CreateClassroom from './pages/VendorAdmin/CreateClassroom';
 import ManageClassroomStudents from './pages/VendorAdmin/ManageClassroomStudents';
 import AssignTestToClassroom from './pages/VendorAdmin/AssignTestToClassroom';
+import InterviewList from './pages/VendorAdmin/InterviewList';
+import CreateInterview from './pages/VendorAdmin/CreateInterview';
+import InterviewQuestionList from './pages/VendorAdmin/InterviewQuestionList';
+import CreateInterviewQuestion from './pages/VendorAdmin/CreateInterviewQuestion';
+import AssignInterview from './pages/VendorAdmin/AssignInterview';
+import InterviewResults from './pages/VendorAdmin/InterviewResults';
+import InterviewResultDetails from './pages/VendorAdmin/InterviewResultDetails';
 
 // Student
 import StudentDashboard from './pages/Student/Dashboard';
 import TestTaking from './pages/Student/TestTaking';
 import TestResult from './pages/Student/TestResult';
+import TestsByType from './pages/Student/TestsByType';
+import MockInterviews from './pages/Student/MockInterviews';
+import MockInterviewRoom from './pages/Student/MockInterviewRoom';
+import MockInterviewFeedback from './pages/Student/MockInterviewFeedback';
 
 import './App.css';
 
 // Reuse same components for global questions (they detect route automatically)
 const CreateGlobalCodingQuestion = CreateCodingQuestion;
 const CreateGlobalMCQQuestion = CreateMCQQuestion;
+const CreateGlobalAptitudeQuestion = CreateAptitudeQuestion;
+const CreateGlobalInterviewQuestion = CreateInterviewQuestion;
 
 // Root route component that redirects based on authentication
 const RootRedirect = () => {
@@ -133,6 +151,62 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route
+                path="/super-admin/interview-questions"
+                element={
+                  <PrivateRoute allowedRoles={['super_admin']}>
+                    <InterviewQuestions />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/super-admin/interview-questions/create"
+                element={
+                  <PrivateRoute allowedRoles={['super_admin']}>
+                    <CreateGlobalInterviewQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/super-admin/interview-questions/edit/:id"
+                element={
+                  <PrivateRoute allowedRoles={['super_admin']}>
+                    <CreateGlobalInterviewQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/super-admin/interview-credits"
+                element={
+                  <PrivateRoute allowedRoles={['super_admin']}>
+                    <InterviewCredits />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/super-admin/interview-ai-settings"
+                element={
+                  <PrivateRoute allowedRoles={['super_admin']}>
+                    <InterviewAISettings />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/super-admin/global-questions/aptitude/create"
+                element={
+                  <PrivateRoute allowedRoles={['super_admin']}>
+                    <CreateGlobalAptitudeQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/super-admin/global-questions/aptitude/edit/:id"
+                element={
+                  <PrivateRoute allowedRoles={['super_admin']}>
+                    <CreateGlobalAptitudeQuestion />
+                  </PrivateRoute>
+                }
+              />
 
               {/* Vendor Admin Routes */}
               <Route
@@ -208,6 +282,70 @@ function App() {
                 }
               />
               <Route
+                path="/vendor-admin/interviews"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <InterviewList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/interviews/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateInterview />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/interviews/results/:sessionId"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <InterviewResultDetails />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/interviews/:interviewId/assign"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <AssignInterview />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/interviews/:interviewId/results"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <InterviewResults />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/interview-questions"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <InterviewQuestionList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/interview-questions/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateInterviewQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/interview-questions/edit/:id"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateInterviewQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/vendor-admin/questions/coding/create"
                 element={
                   <PrivateRoute allowedRoles={['vendor_admin']}>
@@ -236,6 +374,38 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={['vendor_admin']}>
                     <CreateMCQQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/questions/aptitude/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateAptitudeQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/questions/aptitude/edit/:id"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateAptitudeQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/questions/theory/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateTheoryQuestion />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/questions/theory/edit/:id"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateTheoryQuestion />
                   </PrivateRoute>
                 }
               />
@@ -302,6 +472,34 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={['student']}>
                     <StudentDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/tests/:type"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <TestsByType />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/interviews"
+                element={<Navigate to="/student/tests/interview" replace />}
+              />
+              <Route
+                path="/student/interviews/feedback/:sessionId"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <MockInterviewFeedback />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/interviews/:interviewId"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <MockInterviewRoom />
                   </PrivateRoute>
                 }
               />

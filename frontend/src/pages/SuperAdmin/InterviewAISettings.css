@@ -1,0 +1,30 @@
+.interview-ai-settings .ai-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.ai-settings-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-settings-card p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.coming-soon-badge {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #ffe4c7;
+  color: #8a4b00;
+  font-size: 0.8em;
+  font-weight: 600;
+}
