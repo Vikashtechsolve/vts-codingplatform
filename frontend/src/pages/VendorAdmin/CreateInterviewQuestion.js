@@ -31,6 +31,7 @@ const CreateInterviewQuestion = () => {
     if (isEditMode) {
       fetchQuestion();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when id or isEditMode changes
   }, [id, isEditMode]);
 
   const fetchQuestion = async () => {

@@ -270,7 +270,8 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
     isActive.current = true;
     initializationTime.current = Date.now();
     isInitializing.current = true;
-    
+    const pendingViolationsSnapshot = pendingViolations.current;
+
     // End grace period after delay
     setTimeout(() => {
       isInitializing.current = false;
@@ -319,9 +320,11 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
       window.removeEventListener('blur', handleBlur);
       document.removeEventListener('dragstart', handleDragStart);
       document.removeEventListener('drop', handleDrop);
-      // Clear any pending violation timeouts
-      pendingViolations.current.forEach(timeoutId => clearTimeout(timeoutId));
-      pendingViolations.current.clear();
+      // Clear any pending violation timeouts (use snapshot from effect start)
+      if (pendingViolationsSnapshot) {
+        pendingViolationsSnapshot.forEach(timeoutId => clearTimeout(timeoutId));
+        pendingViolationsSnapshot.clear();
+      }
       document.removeEventListener('fullscreenchange', checkFullscreen);
       document.removeEventListener('webkitfullscreenchange', checkFullscreen);
       document.removeEventListener('mozfullscreenchange', checkFullscreen);

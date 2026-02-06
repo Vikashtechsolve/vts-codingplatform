@@ -63,6 +63,7 @@ const TestTaking = () => {
 
   useEffect(() => {
     fetchTest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when testId changes
   }, [testId]);
 
   // Handle resizing

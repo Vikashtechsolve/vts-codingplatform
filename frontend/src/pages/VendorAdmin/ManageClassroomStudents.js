@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
 import './VendorAdminCommon.css';
@@ -7,7 +7,6 @@ import './ManageClassroomStudents.css';
 
 const ManageClassroomStudents = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [classroom, setClassroom] = useState(null);
   const [allStudents, setAllStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +18,7 @@ const ManageClassroomStudents = () => {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when classroom id changes
   }, [id]);
 
   const showModal = (title, message, type = 'info') => {

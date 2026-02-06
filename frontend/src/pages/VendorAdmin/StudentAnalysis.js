@@ -10,10 +10,10 @@ const StudentAnalysis = () => {
   const [interviewSessions, setInterviewSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [interviewSessionsError, setInterviewSessionsError] = useState(null);
-  const [selectedTest, setSelectedTest] = useState(null);
 
   useEffect(() => {
     fetchStudentData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when studentId changes
   }, [studentId]);
 
   const fetchStudentData = async () => {

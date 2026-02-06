@@ -120,6 +120,7 @@ const MockInterviewRoom = () => {
       }
       navigate(`/student/interviews/feedback/${sessionId}`);
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- showModal/stopListening are stable; intentional deps
   }, [timeRemaining, isInterviewActive, sessionId, navigate]);
 
   const showModal = useCallback((title, message, type = 'info') => {
@@ -301,6 +302,7 @@ const MockInterviewRoom = () => {
     utterance.onerror = () => setIsAiSpeaking(false);
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- pickBestVoice is stable
   }, [availableVoices, startRecognition, stopListening]);
 
   useEffect(() => {

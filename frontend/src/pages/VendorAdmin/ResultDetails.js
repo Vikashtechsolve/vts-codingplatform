@@ -12,6 +12,7 @@ const ResultDetails = () => {
 
   useEffect(() => {
     fetchResult();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when resultId changes
   }, [resultId]);
 
   const fetchResult = async () => {

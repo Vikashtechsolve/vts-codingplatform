@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -8,8 +7,6 @@ import {
 import Modal from '../../components/Modal';
 import './VendorAdminCommon.css';
 import './Analytics.css';
-
-const COLORS = ['#ED0331', '#87021C', '#28a745', '#ffc107', '#007bff', '#6c757d'];
 
 const Analytics = () => {
   const [analytics, setAnalytics] = useState(null);

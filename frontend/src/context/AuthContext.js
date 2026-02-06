@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
 
   const [user, setUser] = useState(getStoredUser());
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [, setToken] = useState(localStorage.getItem('token'));
 
   // Initialize: Restore user from localStorage and validate token
   useEffect(() => {
@@ -80,21 +80,6 @@ export const AuthProvider = ({ children }) => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
-
-  const fetchUser = async () => {
-    try {
-      const response = await axiosInstance.get('/auth/me');
-      setUser(response.data);
-      localStorage.setItem('user', JSON.stringify(response.data));
-    } catch (error) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const login = async (email, password) => {
     try {

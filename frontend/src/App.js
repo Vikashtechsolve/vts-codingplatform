@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -48,7 +48,6 @@ import StudentDashboard from './pages/Student/Dashboard';
 import TestTaking from './pages/Student/TestTaking';
 import TestResult from './pages/Student/TestResult';
 import TestsByType from './pages/Student/TestsByType';
-import MockInterviews from './pages/Student/MockInterviews';
 import MockInterviewRoom from './pages/Student/MockInterviewRoom';
 import MockInterviewFeedback from './pages/Student/MockInterviewFeedback';
 

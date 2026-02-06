@@ -8,7 +8,7 @@ import './CreateMCQQuestion.css';
 const CreateMCQQuestion = () => {
   const { id } = useParams();
   const location = useLocation();
-  const { user } = useAuth();
+  useAuth();
   const isEditMode = !!id;
   const isGlobal = location.pathname.includes('/super-admin/global-questions');
   const apiBase = isGlobal ? '/super-admin/global-questions' : '/questions';
@@ -31,6 +31,7 @@ const CreateMCQQuestion = () => {
     if (isEditMode && id) {
       fetchQuestion();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when id or isEditMode changes
   }, [id, isEditMode]);
 
   const fetchQuestion = async () => {

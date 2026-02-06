@@ -13,6 +13,7 @@ const TestResults = () => {
   useEffect(() => {
     fetchResults();
     fetchTest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when testId changes
   }, [testId]);
 
   const fetchResults = async () => {

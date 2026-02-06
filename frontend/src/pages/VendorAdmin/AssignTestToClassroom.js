@@ -18,6 +18,7 @@ const AssignTestToClassroom = () => {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when classroom id changes
   }, [id]);
 
   const showModal = (title, message, type = 'info') => {
@@ -84,8 +85,14 @@ const AssignTestToClassroom = () => {
     }
   };
 
-  const assignedTestIds = classroom?.assignedTests?.map(at => (at.testId?._id || at.testId)?.toString()).filter(Boolean) || [];
-  const assignedInterviewIds = (classroom?.assignedInterviews || []).map(ai => (ai.interviewId?._id || ai.interviewId)?.toString()).filter(Boolean);
+  const assignedTestIds = useMemo(
+    () => classroom?.assignedTests?.map(at => (at.testId?._id || at.testId)?.toString()).filter(Boolean) || [],
+    [classroom?.assignedTests]
+  );
+  const assignedInterviewIds = useMemo(
+    () => (classroom?.assignedInterviews || []).map(ai => (ai.interviewId?._id || ai.interviewId)?.toString()).filter(Boolean),
+    [classroom?.assignedInterviews]
+  );
 
   const assignedItems = useMemo(() => {
     const testItems = tests.filter(t => assignedTestIds.includes(t._id.toString())).map(t => ({ ...t, kind: 'test' }));

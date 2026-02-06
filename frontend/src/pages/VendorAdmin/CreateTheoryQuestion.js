@@ -55,6 +55,7 @@ const CreateTheoryQuestion = () => {
     if (id) {
       fetchQuestion();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when id changes
   }, [id]);
 
   const fetchSubjects = async () => {

@@ -26,6 +26,7 @@ const CreateClassroom = () => {
     if (id) {
       fetchClassroom();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when id changes
   }, [id]);
 
   const fetchClassroom = async () => {

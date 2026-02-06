@@ -9,7 +9,7 @@ import './CreateCodingQuestion.css';
 const CreateCodingQuestion = () => {
   const { id } = useParams();
   const location = useLocation();
-  const { user } = useAuth();
+  useAuth();
   const isEditMode = !!id;
   const isGlobal = location.pathname.includes('/super-admin/global-questions');
   const apiBase = isGlobal ? '/super-admin/global-questions' : '/questions';
@@ -28,13 +28,14 @@ const CreateCodingQuestion = () => {
   const [testCode, setTestCode] = useState({ java: '', cpp: '', c: '', python: '' });
   const [testResults, setTestResults] = useState({}); // Store results for each test case
   const [isTestingAll, setIsTestingAll] = useState(false);
-  const [testingIndex, setTestingIndex] = useState(null);
+  const [, setTestingIndex] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (isEditMode && id) {
       fetchQuestion();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when id or isEditMode changes
   }, [id, isEditMode]);
 
   const fetchQuestion = async () => {
@@ -154,6 +155,7 @@ const CreateCodingQuestion = () => {
       .join('\n');
   };
 
+  // eslint-disable-next-line no-unused-vars -- reserved for single test case UI
   const handleTestSingleTestCase = async (testCaseIndex) => {
     const testCase = formData.testCases[testCaseIndex];
     if (!testCase.input.trim() || !testCase.expectedOutput.trim()) {

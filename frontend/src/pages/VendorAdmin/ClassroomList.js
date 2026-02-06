@@ -13,6 +13,7 @@ const ClassroomList = () => {
 
   useEffect(() => {
     fetchClassrooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   const showModal = (title, message, type = 'info') => {
