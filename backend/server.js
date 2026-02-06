@@ -43,14 +43,20 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/super-admin', require('./routes/superAdmin'));
 app.use('/api/super-admin/global-questions', require('./routes/globalQuestions'));
+app.use('/api/super-admin/interview-questions', require('./routes/superAdminInterviewQuestions'));
 // Register classrooms route BEFORE vendor-admin to ensure proper matching
 app.use('/api/vendor-admin/classrooms', require('./routes/classrooms'));
 app.use('/api/vendor-admin', require('./routes/vendorAdmin'));
 app.use('/api/questions', require('./routes/questions'));
+app.use('/api/interview-questions', require('./routes/interviewQuestions'));
 app.use('/api/tests', require('./routes/tests'));
+app.use('/api/interviews', require('./routes/interviews'));
+app.use('/api/interview-sessions', require('./routes/interviewSessions'));
 app.use('/api/students', require('./routes/students'));
 app.use('/api/results', require('./routes/results'));
 app.use('/api/code-execution', require('./routes/codeExecution'));
+app.use('/api/subjects', require('./routes/subjects'));
+app.use('/api/topics', require('./routes/topics'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const testSchema = new mongoose.Schema({
+const interviewSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
@@ -20,37 +20,34 @@ const testSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  type: {
+  interviewType: {
     type: String,
-    enum: ['coding', 'mcq', 'aptitude', 'theory', 'mixed'],
     required: true
+  },
+  topic: {
+    type: String,
+    required: true
+  },
+  difficulty: {
+    type: String,
+    enum: ['beginner', 'intermediate', 'advanced'],
+    default: 'beginner'
   },
   duration: {
-    type: Number, // in minutes
+    type: Number, // minutes
     required: true
   },
+  questionCount: {
+    type: Number,
+    default: 6
+  },
   questions: [{
-    type: {
-      type: String,
-      enum: ['coding', 'mcq', 'aptitude', 'theory'],
-      required: true
-    },
     questionId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
-      refPath: 'questions.questionType'
-    },
-    questionType: {
-      type: String,
-      enum: ['CodingQuestion', 'MCQQuestion', 'AptitudeQuestion', 'TheoryQuestion']
-    },
-    points: {
-      type: Number,
-      default: 10
+      ref: 'InterviewQuestion'
     },
     order: {
-      type: Number,
-      required: true
+      type: Number
     }
   }],
   isActive: {
@@ -68,14 +65,29 @@ const testSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
-    shuffleQuestions: {
+    allowFollowUps: {
       type: Boolean,
-      default: false
+      default: true
+    },
+    maxFollowUps: {
+      type: Number,
+      default: 2
+    },
+    adaptiveDifficulty: {
+      type: Boolean,
+      default: true
+    },
+    minQuestions: {
+      type: Number,
+      default: 6
+    },
+    maxQuestions: {
+      type: Number,
+      default: 8
     }
   }
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('Test', testSchema);
-
+module.exports = mongoose.model('Interview', interviewSchema);

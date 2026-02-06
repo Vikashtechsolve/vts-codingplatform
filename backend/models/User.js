@@ -49,6 +49,23 @@ const userSchema = new mongoose.Schema({
     },
     startedAt: Date,
     completedAt: Date
+  }],
+  enrolledInterviews: [{
+    interviewId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Interview'
+    },
+    assignedAt: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['assigned', 'in_progress', 'completed'],
+      default: 'assigned'
+    },
+    startedAt: Date,
+    completedAt: Date
   }]
 }, {
   timestamps: true

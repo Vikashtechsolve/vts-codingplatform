@@ -38,6 +38,20 @@ const classroomSchema = new mongoose.Schema({
       ref: 'User'
     }
   }],
+  assignedInterviews: [{
+    interviewId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Interview'
+    },
+    assignedAt: {
+      type: Date,
+      default: Date.now
+    },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }],
   isActive: {
     type: Boolean,
     default: true

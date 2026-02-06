@@ -29,7 +29,7 @@ const resultSchema = new mongoose.Schema({
     },
     questionType: {
       type: String,
-      enum: ['coding', 'mcq'],
+      enum: ['coding', 'mcq', 'aptitude', 'theory'],
       required: true
     },
     answer: mongoose.Schema.Types.Mixed, // Can be code or selected option
@@ -38,7 +38,30 @@ const resultSchema = new mongoose.Schema({
     totalTestCases: Number,
     isCorrect: Boolean,
     points: Number,
-    maxPoints: Number
+    maxPoints: Number,
+    evaluation: {
+      similarityScore: Number,
+      conceptScore: Number,
+      depthScore: Number,
+      penalty: Number,
+      penaltyReasons: [String],
+      missingConcepts: [String],
+      strengths: [String],
+      feedback: String,
+      finalScore: Number,
+      finalMarks: Number,
+      preprocessing: {
+        normalizedLength: Number,
+        detectedLanguage: String
+      }
+    },
+    manualOverride: {
+      isManual: { type: Boolean, default: false },
+      score: Number,
+      feedback: String,
+      updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      updatedAt: Date
+    }
   }],
   totalScore: {
     type: Number,

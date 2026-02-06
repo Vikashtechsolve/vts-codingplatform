@@ -6,6 +6,8 @@ const tenantMiddleware = require('../middleware/tenant');
 const Test = require('../models/Test');
 const CodingQuestion = require('../models/CodingQuestion');
 const MCQQuestion = require('../models/MCQQuestion');
+const AptitudeQuestion = require('../models/AptitudeQuestion');
+const TheoryQuestion = require('../models/TheoryQuestion');
 const User = require('../models/User');
 const Result = require('../models/Result');
 
@@ -15,7 +17,7 @@ router.post('/', [
   authorize('vendor_admin'),
   tenantMiddleware,
   body('title').trim().notEmpty().withMessage('Title is required'),
-  body('type').isIn(['coding', 'mcq', 'mixed']).withMessage('Invalid test type'),
+  body('type').isIn(['coding', 'mcq', 'aptitude', 'theory', 'mixed']).withMessage('Invalid test type'),
   body('duration').isInt({ min: 1 }).withMessage('Duration must be at least 1 minute')
 ], async (req, res) => {
   try {
@@ -70,6 +72,36 @@ router.post('/', [
           ]
         });
         console.log(`   MCQ question ${q.questionId}: ${question ? '✅ Found' : '❌ Not found'}`);
+      } else if (q.type === 'aptitude') {
+        question = await AptitudeQuestion.findOne({
+          _id: q.questionId,
+          $or: [
+            { 
+              vendorId: req.vendorId, 
+              $or: [
+                { isGlobal: false },
+                { isGlobal: { $exists: false } }
+              ]
+            },
+            { isGlobal: true }
+          ]
+        });
+        console.log(`   Aptitude question ${q.questionId}: ${question ? '✅ Found' : '❌ Not found'}`);
+      } else if (q.type === 'theory') {
+        question = await TheoryQuestion.findOne({
+          _id: q.questionId,
+          $or: [
+            {
+              vendorId: req.vendorId,
+              $or: [
+                { isGlobal: false },
+                { isGlobal: { $exists: false } }
+              ]
+            },
+            { isGlobal: true }
+          ]
+        });
+        console.log(`   Theory question ${q.questionId}: ${question ? '✅ Found' : '❌ Not found'}`);
       } else {
         console.log(`   ❌ Unknown question type: ${q.type}`);
         return res.status(400).json({ message: `Invalid question type: ${q.type}` });
@@ -92,7 +124,13 @@ router.post('/', [
       questions: questions.map((q, index) => ({
         type: q.type,
         questionId: q.questionId,
-        questionType: q.type === 'coding' ? 'CodingQuestion' : 'MCQQuestion',
+        questionType: q.type === 'coding'
+          ? 'CodingQuestion'
+          : q.type === 'mcq'
+            ? 'MCQQuestion'
+            : q.type === 'aptitude'
+              ? 'AptitudeQuestion'
+              : 'TheoryQuestion',
         points: q.points || 10,
         order: q.order || index + 1
       })),
@@ -174,6 +212,7 @@ router.get('/:id', auth, async (req, res) => {
     // Populate questions based on type
     const CodingQuestion = require('../models/CodingQuestion');
     const MCQQuestion = require('../models/MCQQuestion');
+    const TheoryQuestion = require('../models/TheoryQuestion');
     
     const populatedQuestions = [];
     for (const q of test.questions) {
@@ -183,6 +222,12 @@ router.get('/:id', auth, async (req, res) => {
           questionData = await CodingQuestion.findById(q.questionId);
         } else if (q.type === 'mcq') {
           questionData = await MCQQuestion.findById(q.questionId);
+        } else if (q.type === 'aptitude') {
+          questionData = await AptitudeQuestion.findById(q.questionId);
+        } else if (q.type === 'theory') {
+          questionData = await TheoryQuestion.findById(q.questionId)
+            .populate('subjectId', 'name')
+            .populate('topicId', 'name');
         }
         
         if (questionData) {

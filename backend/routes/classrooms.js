@@ -6,6 +6,7 @@ const tenantMiddleware = require('../middleware/tenant');
 const Classroom = require('../models/Classroom');
 const User = require('../models/User');
 const Test = require('../models/Test');
+const Interview = require('../models/Interview');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -37,7 +38,9 @@ router.get('/:id', async (req, res) => {
     })
       .populate('students', 'name email')
       .populate('assignedTests.testId', 'title type duration')
-      .populate('assignedTests.assignedBy', 'name email');
+      .populate('assignedTests.assignedBy', 'name email')
+      .populate('assignedInterviews.interviewId', 'title interviewType topic duration')
+      .populate('assignedInterviews.assignedBy', 'name email');
 
     if (!classroom) {
       return res.status(404).json({ message: 'Classroom not found' });
@@ -81,6 +84,7 @@ router.post('/', [
       createdBy: req.user._id,
       students: [],
       assignedTests: [],
+      assignedInterviews: [],
       isActive: true
     });
 
@@ -450,6 +454,96 @@ router.delete('/:id/tests/:testId', async (req, res) => {
   }
 });
 
+// Assign mock interview to classroom
+router.post('/:id/interviews/:interviewId', async (req, res) => {
+  try {
+    const classroom = await Classroom.findOne({
+      _id: req.params.id,
+      vendorId: req.vendorId
+    });
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    const interview = await Interview.findOne({
+      _id: req.params.interviewId,
+      vendorId: req.vendorId
+    });
+
+    if (!interview) {
+      return res.status(404).json({ message: 'Interview not found' });
+    }
+
+    const alreadyAssigned = (classroom.assignedInterviews || []).some(
+      ai => (ai.interviewId || ai).toString() === req.params.interviewId
+    );
+
+    if (alreadyAssigned) {
+      return res.status(400).json({ message: 'Interview is already assigned to this classroom' });
+    }
+
+    classroom.assignedInterviews = classroom.assignedInterviews || [];
+    classroom.assignedInterviews.push({
+      interviewId: interview._id,
+      assignedAt: new Date(),
+      assignedBy: req.user._id
+    });
+
+    await classroom.save();
+
+    const enrolledCount = await assignInterviewToStudents(interview._id, classroom.students, req.vendorId);
+
+    console.log(`✅ Interview assigned to classroom: ${classroom.name}, ${enrolledCount} students enrolled`);
+
+    const updatedClassroom = await Classroom.findById(classroom._id)
+      .populate('assignedTests.testId', 'title type duration')
+      .populate('assignedTests.assignedBy', 'name email')
+      .populate('assignedInterviews.interviewId', 'title interviewType topic duration')
+      .populate('assignedInterviews.assignedBy', 'name email');
+
+    res.json({
+      message: `Mock interview assigned successfully to ${enrolledCount} student(s)`,
+      classroom: updatedClassroom
+    });
+  } catch (error) {
+    console.error('❌ Error assigning interview to classroom:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Remove mock interview from classroom
+router.delete('/:id/interviews/:interviewId', async (req, res) => {
+  try {
+    const classroom = await Classroom.findOne({
+      _id: req.params.id,
+      vendorId: req.vendorId
+    });
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    classroom.assignedInterviews = (classroom.assignedInterviews || []).filter(
+      ai => (ai.interviewId || ai).toString() !== req.params.interviewId
+    );
+
+    await classroom.save();
+
+    const updatedClassroom = await Classroom.findById(classroom._id)
+      .populate('assignedTests.testId', 'title type duration')
+      .populate('assignedInterviews.interviewId', 'title interviewType topic duration');
+
+    res.json({
+      message: 'Mock interview removed from classroom successfully',
+      classroom: updatedClassroom
+    });
+  } catch (error) {
+    console.error('❌ Error removing interview from classroom:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Helper function to assign test to students
 async function assignTestToStudents(testId, studentIds, vendorId) {
   let enrolledCount = 0;
@@ -477,6 +571,39 @@ async function assignTestToStudents(testId, studentIds, vendorId) {
       }
     } catch (error) {
       console.error(`❌ Error enrolling student ${studentId}:`, error);
+    }
+  }
+
+  return enrolledCount;
+}
+
+// Helper function to assign interview to students in a classroom
+async function assignInterviewToStudents(interviewId, studentIds, vendorId) {
+  let enrolledCount = 0;
+
+  for (const studentId of studentIds) {
+    try {
+      const student = await User.findById(studentId);
+      if (!student || student.vendorId.toString() !== vendorId.toString()) {
+        continue;
+      }
+
+      const existingEnrollment = (student.enrolledInterviews || []).find(
+        ei => (ei.interviewId || ei).toString() === interviewId.toString()
+      );
+
+      if (!existingEnrollment) {
+        student.enrolledInterviews = student.enrolledInterviews || [];
+        student.enrolledInterviews.push({
+          interviewId: interviewId,
+          assignedAt: new Date(),
+          status: 'assigned'
+        });
+        await student.save();
+        enrolledCount++;
+      }
+    } catch (error) {
+      console.error(`❌ Error enrolling student ${studentId} in interview:`, error);
     }
   }
 

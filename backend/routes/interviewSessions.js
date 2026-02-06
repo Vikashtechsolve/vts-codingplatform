@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const { auth, authorize } = require('../middleware/auth');
+const tenantMiddleware = require('../middleware/tenant');
 const Interview = require('../models/Interview');
 const InterviewQuestion = require('../models/InterviewQuestion');
 const InterviewSession = require('../models/InterviewSession');
@@ -97,6 +98,22 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
 
     if (!enrollment) {
       return res.status(403).json({ message: 'Interview not assigned to you' });
+    }
+
+    const allowMultipleAttempts = interview.settings?.allowMultipleAttempts === true;
+    if (!allowMultipleAttempts) {
+      const completedSession = await InterviewSession.findOne({
+        interviewId: interview._id,
+        studentId: req.user._id,
+        status: 'completed'
+      }).sort({ submittedAt: -1 });
+      if (completedSession) {
+        return res.status(403).json({
+          message: 'You have already attempted this interview. Only one attempt is allowed.',
+          alreadyAttempted: true,
+          lastSessionId: completedSession._id
+        });
+      }
     }
 
     const vendor = await Vendor.findById(interview.vendorId);
@@ -208,10 +225,8 @@ router.post('/:sessionId/answer', auth, authorize('student'), async (req, res) =
       return res.status(404).json({ message: 'Session not found' });
     }
 
-    const transcript = req.body.transcript || '';
-    if (!transcript.trim()) {
-      return res.status(400).json({ message: 'Transcript is required' });
-    }
+    const transcript = (req.body.transcript || '').trim();
+    const transcriptForEval = transcript || '(No verbal response)';
 
     let question = null;
     if (session.currentQuestion?.questionId) {
@@ -224,13 +239,13 @@ router.post('/:sessionId/answer', auth, authorize('student'), async (req, res) =
       topic: session.topic,
       difficulty: session.difficulty,
       rubrics: question?.rubrics || [],
-      transcript
+      transcript: transcriptForEval
     });
 
     session.answers.push({
       questionId: session.currentQuestion?.questionId || null,
       questionText: session.currentQuestion?.questionText || '',
-      transcript,
+      transcript: transcript || '(No verbal response)',
       evaluation,
       isFollowUp: session.currentQuestion?.isFollowUp || false
     });
@@ -242,7 +257,7 @@ router.post('/:sessionId/answer', auth, authorize('student'), async (req, res) =
       if (interview?.settings?.allowFollowUps && followUpsUsed < (interview.settings.maxFollowUps || 2)) {
         const followUpText = await generateFollowUpQuestion({
           questionText: session.currentQuestion?.questionText || '',
-          transcript,
+          transcript: transcriptForEval,
           interviewType: session.interviewType,
           topic: session.topic,
           difficulty: session.difficulty
@@ -368,15 +383,36 @@ router.get('/interview/:interviewId', auth, authorize('vendor_admin'), async (re
   }
 });
 
+router.get('/student/:studentId', auth, authorize('vendor_admin'), tenantMiddleware, async (req, res) => {
+  try {
+    const vendorId = req.vendorId || req.user?.vendorId;
+    if (!vendorId) {
+      return res.status(403).json({ message: 'Vendor context required' });
+    }
+    const sessions = await InterviewSession.find({
+      studentId: req.params.studentId,
+      vendorId,
+      status: 'completed'
+    })
+      .populate('interviewId', 'title interviewType topic difficulty duration')
+      .sort({ submittedAt: -1 });
+    res.json(sessions);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 router.get('/:sessionId', auth, async (req, res) => {
   try {
     const session = await InterviewSession.findById(req.params.sessionId)
-      .populate('interviewId', 'title interviewType topic difficulty duration');
+      .populate('interviewId', 'title interviewType topic difficulty duration')
+      .populate('studentId', 'name email');
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
 
-    if (req.user.role === 'student' && session.studentId.toString() !== req.user._id.toString()) {
+    const studentIdStr = (session.studentId?._id || session.studentId)?.toString();
+    if (req.user.role === 'student' && studentIdStr !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
     if (req.user.role === 'vendor_admin' && session.vendorId.toString() !== req.user.vendorId.toString()) {

@@ -60,6 +60,20 @@ const vendorSchema = new mongoose.Schema({
       type: Number,
       default: 0
     }
+  },
+  interviewCredits: {
+    allocated: {
+      type: Number,
+      default: 0
+    },
+    used: {
+      type: Number,
+      default: 0
+    },
+    remaining: {
+      type: Number,
+      default: 0
+    }
   }
 }, {
   timestamps: true

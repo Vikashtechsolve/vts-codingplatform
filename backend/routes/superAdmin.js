@@ -9,6 +9,7 @@ const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 const Test = require('../models/Test');
 const Result = require('../models/Result');
+const InterviewSession = require('../models/InterviewSession');
 
 // Apply auth and super_admin authorization to all routes
 router.use(auth);
@@ -42,11 +43,24 @@ const upload = multer({
   }
 });
 
-// Get all vendors
+// Get all vendors (with normalized interviewCredits — handle legacy number or object)
 router.get('/vendors', async (req, res) => {
   try {
     const vendors = await Vendor.find().sort({ createdAt: -1 });
-    res.json(vendors);
+    const normalized = vendors.map(v => {
+      const doc = v.toObject();
+      if (typeof doc.interviewCredits === 'number' && Number.isFinite(doc.interviewCredits)) {
+        doc.interviewCredits = { allocated: doc.interviewCredits, used: 0, remaining: doc.interviewCredits };
+      } else if (typeof doc.interviewCredits !== 'object' || doc.interviewCredits === null) {
+        doc.interviewCredits = { allocated: 0, used: 0, remaining: 0 };
+      } else {
+        const alloc = Number(doc.interviewCredits.allocated) || 0;
+        const used = Number(doc.interviewCredits.used) || 0;
+        doc.interviewCredits.remaining = Math.max(0, alloc - used);
+      }
+      return doc;
+    });
+    res.json(normalized);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -87,7 +101,8 @@ router.post('/vendors', [
       name,
       email: normalizedEmail,
       companyName,
-      subscriptionPlan: subscriptionPlan || 'free'
+      subscriptionPlan: subscriptionPlan || 'free',
+      interviewCredits: { allocated: 0, used: 0, remaining: 0 }
     });
 
     await vendor.save();
@@ -154,6 +169,42 @@ router.put('/vendors/:id', async (req, res) => {
   }
 });
 
+// Allocate interview credits to vendor (super admin assigns; consumed when student attempts > 5 min)
+router.post('/vendors/:id/interview-credits', async (req, res) => {
+  try {
+    const { credits } = req.body;
+    const creditValue = parseInt(credits, 10);
+    if (Number.isNaN(creditValue) || creditValue < 0) {
+      return res.status(400).json({ message: 'Credits must be a non-negative number' });
+    }
+
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    // Normalize: DB may have interviewCredits as a number (legacy) or as object
+    let allocated = 0;
+    let used = 0;
+    if (typeof vendor.interviewCredits === 'number' && Number.isFinite(vendor.interviewCredits)) {
+      allocated = vendor.interviewCredits;
+      used = 0;
+    } else if (vendor.interviewCredits && typeof vendor.interviewCredits === 'object') {
+      allocated = Number(vendor.interviewCredits.allocated) || 0;
+      used = Number(vendor.interviewCredits.used) || 0;
+    }
+    allocated += creditValue;
+    const remaining = Math.max(0, allocated - used);
+
+    vendor.interviewCredits = { allocated, used, remaining };
+    await vendor.save();
+
+    res.json({ message: 'Interview credits updated', interviewCredits: vendor.interviewCredits });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Upload vendor logo
 router.post('/vendors/:id/logo', upload.single('logo'), async (req, res) => {
   try {
@@ -209,7 +260,7 @@ router.delete('/vendors/:id', async (req, res) => {
   }
 });
 
-// Get platform statistics
+// Get platform statistics (including interview stats)
 router.get('/stats', async (req, res) => {
   try {
     const totalVendors = await Vendor.countDocuments();
@@ -217,13 +268,17 @@ router.get('/stats', async (req, res) => {
     const totalUsers = await User.countDocuments();
     const totalTests = await Test.countDocuments();
     const totalResults = await Result.countDocuments();
+    const totalInterviewSessions = await InterviewSession.countDocuments();
+    const completedInterviewSessions = await InterviewSession.countDocuments({ status: 'completed' });
 
     res.json({
       totalVendors,
       activeVendors,
       totalUsers,
       totalTests,
-      totalResults
+      totalResults,
+      totalInterviewSessions,
+      completedInterviewSessions
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
