@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import RichTextDisplay from '../../components/RichTextDisplay';
@@ -10,11 +10,7 @@ const AssignmentDetails = () => {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAssignment();
-  }, [assignmentId]);
-
-  const fetchAssignment = async () => {
+  const fetchAssignment = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await axiosInstance.get(`/assignments/${assignmentId}`);
@@ -26,7 +22,11 @@ const AssignmentDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    fetchAssignment();
+  }, [fetchAssignment]);
 
   const getDifficultyColor = (difficulty) => {
     switch (difficulty) {

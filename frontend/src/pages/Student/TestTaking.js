@@ -52,7 +52,7 @@ function SchemaView({ schemaSql }) {
     if (container) container.addEventListener('scroll', onScroll);
     return () => {
       window.removeEventListener('resize', onResize);
-      if (containerRef.current) containerRef.current.removeEventListener('scroll', onScroll);
+      if (container) container.removeEventListener('scroll', onScroll);
     };
   }, [measure]);
 
@@ -129,7 +129,6 @@ function SchemaView({ schemaSql }) {
             y2 = dy >= 0 ? to.top - pad : to.top + to.height + pad;
           }
           const midX = (x1 + x2) / 2;
-          const midY = (y1 + y2) / 2;
           const path = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
           return (
             <path

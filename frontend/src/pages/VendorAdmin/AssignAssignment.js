@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './VendorAdminCommon.css';
@@ -14,11 +14,7 @@ const AssignAssignment = () => {
   const [selectedClassroomId, setSelectedClassroomId] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [assignmentId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [assignmentRes, studentsRes, classroomsRes] = await Promise.all([
@@ -37,7 +33,11 @@ const AssignAssignment = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleToggleStudent = (studentId) => {
     setSelectedClassroomId('');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './SQLTestQuestions.css';
@@ -16,32 +16,33 @@ const SQLTestQuestions = () => {
   const [runResult, setRunResult] = useState(null);
   const [isRunningQuery, setIsRunningQuery] = useState(false);
 
-  const fetchTest = async () => {
+  const fetchTest = useCallback(async () => {
     try {
       const res = await axiosInstance.get(`/tests/${testId}`);
       setTest(res.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Test not found');
     }
-  };
+  }, [testId]);
 
-  const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
     try {
       const res = await axiosInstance.get(`/sql-questions/test/${testId}`);
       setQuestions(res.data || []);
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [testId]);
 
   useEffect(() => {
-    (async () => {
+    const load = async () => {
       setLoading(true);
       await fetchTest();
       await fetchQuestions();
       setLoading(false);
-    })();
-  }, [testId]);
+    };
+    load();
+  }, [fetchTest, fetchQuestions]);
 
   const handleValidate = async () => {
     setValidateResult(null);

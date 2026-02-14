@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './EvaluationResult.css';
@@ -13,11 +13,7 @@ const EvaluationResult = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchEvaluationResult();
-  }, [submissionId]);
-
-  const fetchEvaluationResult = async () => {
+  const fetchEvaluationResult = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await axiosInstance.get(`/project-submissions/${submissionId}/result`);
@@ -32,7 +28,11 @@ const EvaluationResult = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [submissionId]);
+
+  useEffect(() => {
+    fetchEvaluationResult();
+  }, [fetchEvaluationResult]);
 
   const getGradeColor = (grade) => {
     const colors = {

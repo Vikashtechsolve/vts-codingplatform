@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './VendorAdminCommon.css';
@@ -10,11 +10,7 @@ const AssignmentSubmissions = () => {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [assignmentId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [submissionsRes, assignmentRes] = await Promise.all([
@@ -32,7 +28,11 @@ const AssignmentSubmissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleRetry = async (submissionId) => {
     if (!window.confirm('Retry evaluation for this submission?')) return;
