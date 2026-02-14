@@ -35,6 +35,10 @@ import ClassroomList from './pages/VendorAdmin/ClassroomList';
 import CreateClassroom from './pages/VendorAdmin/CreateClassroom';
 import ManageClassroomStudents from './pages/VendorAdmin/ManageClassroomStudents';
 import AssignTestToClassroom from './pages/VendorAdmin/AssignTestToClassroom';
+import DatasetTemplateList from './pages/VendorAdmin/DatasetTemplateList';
+import CreateDatasetTemplate from './pages/VendorAdmin/CreateDatasetTemplate';
+import CreateSQLTest from './pages/VendorAdmin/CreateSQLTest';
+import SQLTestQuestions from './pages/VendorAdmin/SQLTestQuestions';
 import InterviewList from './pages/VendorAdmin/InterviewList';
 import CreateInterview from './pages/VendorAdmin/CreateInterview';
 import InterviewQuestionList from './pages/VendorAdmin/InterviewQuestionList';
@@ -42,6 +46,11 @@ import CreateInterviewQuestion from './pages/VendorAdmin/CreateInterviewQuestion
 import AssignInterview from './pages/VendorAdmin/AssignInterview';
 import InterviewResults from './pages/VendorAdmin/InterviewResults';
 import InterviewResultDetails from './pages/VendorAdmin/InterviewResultDetails';
+import AssignmentList from './pages/VendorAdmin/AssignmentList';
+import CreateAssignment from './pages/VendorAdmin/CreateAssignment';
+import AssignmentDetails from './pages/VendorAdmin/AssignmentDetails';
+import AssignAssignment from './pages/VendorAdmin/AssignAssignment';
+import AssignmentSubmissions from './pages/VendorAdmin/AssignmentSubmissions';
 
 // Student
 import StudentDashboard from './pages/Student/Dashboard';
@@ -50,6 +59,9 @@ import TestResult from './pages/Student/TestResult';
 import TestsByType from './pages/Student/TestsByType';
 import MockInterviewRoom from './pages/Student/MockInterviewRoom';
 import MockInterviewFeedback from './pages/Student/MockInterviewFeedback';
+import AssignmentDashboard from './pages/Student/AssignmentDashboard';
+import SubmitAssignment from './pages/Student/SubmitAssignment';
+import EvaluationResult from './pages/Student/EvaluationResult';
 
 import './App.css';
 
@@ -464,6 +476,102 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route
+                path="/vendor-admin/dataset-templates"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <DatasetTemplateList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/dataset-templates/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateDatasetTemplate />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/dataset-templates/:id/edit"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateDatasetTemplate />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/sql-tests/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateSQLTest />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/sql-tests/:testId/questions"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <SQLTestQuestions />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/assignments"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <AssignmentList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/assignments/:id"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <AssignmentDetails />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/create-assignment"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateAssignment />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/assignments/:id/edit"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateAssignment />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/assignments/:id/assign"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <AssignAssignment />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/assignments/:id/submissions"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <AssignmentSubmissions />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/submission/:submissionId/result"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <EvaluationResult />
+                  </PrivateRoute>
+                }
+              />
 
               {/* Student Routes */}
               <Route
@@ -523,6 +631,30 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={['student']}>
                     <TestResult />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/assignments"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <AssignmentDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/submit-assignment/:assignmentId"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <SubmitAssignment />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/submission/:submissionId/result"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <EvaluationResult />
                   </PrivateRoute>
                 }
               />

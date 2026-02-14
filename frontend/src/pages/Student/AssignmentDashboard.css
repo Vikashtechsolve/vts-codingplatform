@@ -1,0 +1,446 @@
+.assignment-dashboard-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  animation: fadeIn 0.5s ease;
+}
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 36px;
+  animation: fadeInDown 0.5s ease;
+}
+
+.dashboard-header h1 {
+  color: var(--text-primary);
+  margin: 0 0 10px 0;
+  font-size: 36px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dashboard-subtitle {
+  color: var(--text-secondary);
+  font-size: 17px;
+  margin: 0;
+  font-weight: 500;
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  font-size: 16px;
+}
+
+.error-message {
+  background: rgba(255, 82, 82, 0.1);
+  color: #ff5252;
+  padding: 14px 18px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  border-left: 4px solid #ff5252;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
+}
+
+[data-theme="dark"] .error-message {
+  background: rgba(255, 82, 82, 0.15);
+  color: #ff8a80;
+  border-left-color: #ff8a80;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+  background: var(--card-bg);
+  padding: 18px;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px var(--shadow);
+  border: 2px solid var(--border-color);
+  flex-wrap: wrap;
+  animation: fadeInUp 0.6s ease;
+}
+
+.filter-tabs button {
+  flex: 1;
+  min-width: 130px;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-tabs button:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  border-color: #667eea;
+}
+
+[data-theme="dark"] .filter-tabs button:hover {
+  background: rgba(139, 158, 247, 0.15);
+  color: #8b9ef7;
+  border-color: #8b9ef7;
+}
+
+.filter-tabs button.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  background: var(--card-bg);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px var(--shadow);
+  border: 2px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.assignments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 24px;
+  animation: fadeInUp 0.7s ease;
+}
+
+.assignment-card {
+  background: var(--card-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 26px;
+  box-shadow: 0 4px 12px var(--shadow);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  border-left: 5px solid #667eea;
+  position: relative;
+  overflow: hidden;
+}
+
+.assignment-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  transform: scaleX(0);
+  transition: transform 0.4s ease;
+}
+
+.assignment-card:hover {
+  box-shadow: 0 8px 24px var(--shadow);
+  transform: translateY(-4px);
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.assignment-card:hover::before {
+  transform: scaleX(1);
+}
+
+.assignment-card.overdue {
+  border-left-color: #ff5252;
+  opacity: 0.9;
+}
+
+[data-theme="dark"] .assignment-card {
+  background: rgba(42, 42, 42, 0.8);
+  border-color: var(--border-color);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.card-header h3 {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  text-transform: capitalize;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.card-meta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.meta-chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+}
+
+.meta-chip.category {
+  background: #9c27b0;
+}
+
+.meta-chip.difficulty {
+  text-transform: capitalize;
+}
+
+.meta-chip.marks {
+  background: #607d8b;
+}
+
+.assignment-description {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+
+.assignment-details {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+
+[data-theme="dark"] .assignment-details {
+  background: rgba(42, 42, 42, 0.6);
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  font-size: 13px;
+}
+
+.detail-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: 12px;
+}
+
+.detail-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.detail-value.overdue-text {
+  color: #f44336;
+}
+
+.detail-value.time-remaining {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.progress-info,
+.submitted-info,
+.evaluated-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(33, 150, 243, 0.1), rgba(25, 118, 210, 0.05));
+  border: 2px solid rgba(33, 150, 243, 0.3);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2196f3;
+}
+
+[data-theme="dark"] .progress-info {
+  background: linear-gradient(135deg, rgba(66, 165, 245, 0.15), rgba(33, 150, 243, 0.1));
+  color: #64b5f6;
+  border-color: rgba(66, 165, 245, 0.4);
+}
+
+.submitted-info {
+  background: linear-gradient(135deg, rgba(156, 39, 176, 0.1), rgba(123, 31, 162, 0.05));
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+  flex-wrap: wrap;
+}
+
+[data-theme="dark"] .submitted-info {
+  background: linear-gradient(135deg, rgba(186, 104, 200, 0.15), rgba(171, 71, 188, 0.1));
+  color: #ba68c8;
+  border-color: rgba(186, 104, 200, 0.4);
+}
+
+.evaluated-info {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(46, 125, 50, 0.05));
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+[data-theme="dark"] .evaluated-info {
+  background: linear-gradient(135deg, rgba(129, 199, 132, 0.15), rgba(102, 187, 106, 0.1));
+  color: #81c784;
+  border-color: rgba(129, 199, 132, 0.4);
+}
+
+.progress-icon,
+.submitted-icon,
+.evaluated-icon {
+  font-size: 16px;
+}
+
+.evaluation-pending {
+  width: 100%;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.action-button {
+  flex: 1;
+  min-width: 130px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.action-button.view {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.action-button.view:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+}
+
+.action-button.start {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+}
+
+.action-button.start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(76, 175, 80, 0.4);
+}
+
+.action-button.submit {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+}
+
+.action-button.submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(255, 152, 0, 0.4);
+}
+
+.action-button.status {
+  background: linear-gradient(135deg, #9c27b0, #7b1fa2);
+  color: white;
+}
+
+.action-button.status:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(156, 39, 176, 0.4);
+}
+
+.action-button.results {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+}
+
+.action-button.results:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(76, 175, 80, 0.4);
+}
+
+.overdue-message {
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(255, 82, 82, 0.1), rgba(229, 57, 53, 0.05));
+  border: 2px solid rgba(255, 82, 82, 0.3);
+  color: #ff5252;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .overdue-message {
+  background: linear-gradient(135deg, rgba(255, 138, 128, 0.15), rgba(239, 83, 80, 0.1));
+  color: #ff8a80;
+  border-color: rgba(255, 138, 128, 0.4);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .assignment-dashboard-container {
+    padding: 12px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 24px;
+  }
+
+  .assignments-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-tabs {
+    flex-direction: column;
+  }
+
+  .filter-tabs button {
+    width: 100%;
+  }
+
+  .card-actions {
+    flex-direction: column;
+  }
+
+  .action-button {
+    width: 100%;
+  }
+}

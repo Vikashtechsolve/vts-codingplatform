@@ -6,11 +6,13 @@ import './Dashboard.css';
 const StudentDashboard = () => {
   const [tests, setTests] = useState([]);
   const [interviews, setInterviews] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchTests();
     fetchInterviews();
+    fetchAssignments();
   }, []);
 
   const fetchTests = async () => {
@@ -37,6 +39,16 @@ const StudentDashboard = () => {
     }
   };
 
+  const fetchAssignments = async () => {
+    try {
+      const response = await axiosInstance.get('/assignments/student/my-assignments');
+      const raw = response.data?.assignments ?? [];
+      setAssignments(raw);
+    } catch (error) {
+      console.error('❌ Error fetching assignments:', error);
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -45,8 +57,11 @@ const StudentDashboard = () => {
   const inProgressTests = tests.filter(test => test.enrollmentStatus === 'in_progress');
   const assignedTests = tests.filter(test => !test.enrollmentStatus || test.enrollmentStatus === 'assigned');
   const completedInterviews = interviews.filter(i => i.hasCompleted);
-  const totalAssigned = tests.length + interviews.length;
-  const readinessScore = totalAssigned > 0 ? Math.round(((completedTests.length + completedInterviews.length) / totalAssigned) * 100) : 0;
+  const evaluatedAssignments = assignments.filter(a => a.enrollmentStatus === 'evaluated');
+  const totalAssigned = tests.length + interviews.length + assignments.length;
+  const readinessScore = totalAssigned > 0
+    ? Math.round(((completedTests.length + completedInterviews.length + evaluatedAssignments.length) / totalAssigned) * 100)
+    : 0;
   const upcomingTests = tests
     .filter(test => test.startDate && new Date(test.startDate) > new Date())
     .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
@@ -131,6 +146,8 @@ const StudentDashboard = () => {
   const typeCounts = typeMeta.reduce((acc, type) => {
     if (type.key === 'interview') {
       acc[type.key] = interviews.length;
+    } else if (type.key === 'project') {
+      acc[type.key] = assignments.length;
     } else {
       acc[type.key] = groupedTests[type.key]?.length || 0;
     }
@@ -138,6 +155,78 @@ const StudentDashboard = () => {
   }, {});
 
   const canStartInterview = (item) => !item.hasCompleted || item.allowMultipleAttempts === true;
+
+  const renderAssignmentCard = (item) => {
+    const assignment = item.assignment;
+    const status = item.enrollmentStatus || 'assigned';
+    const isOverdue = item.isOverdue;
+
+    return (
+      <div key={assignment?._id} className="test-card-modern">
+        <div className="test-card-header">
+          <div className="test-title-section">
+            <h3>{assignment?.title}</h3>
+            <span className="test-type-badge-modern project">project</span>
+          </div>
+        </div>
+        <div className="test-meta">
+          <div className="test-meta-item">
+            <strong>Duration:</strong> {assignment?.duration} min
+          </div>
+          {assignment?.category && (
+            <div className="test-meta-item">
+              <strong>Category:</strong> {assignment.category}
+            </div>
+          )}
+          {item.deadline && (
+            <div className="test-meta-item">
+              <strong>Deadline:</strong> {new Date(item.deadline).toLocaleString()}
+            </div>
+          )}
+        </div>
+        <div className="test-status-section">
+          <span className={`status-badge-modern ${isOverdue && status !== 'evaluated' ? 'overdue' : status}`}>
+            {isOverdue && status !== 'evaluated' ? 'overdue' : status}
+          </span>
+          {status === 'assigned' && !isOverdue && (
+            <Link to={`/student/submit-assignment/${assignment?._id}`} className="test-action-btn btn-primary">
+              Start Assignment →
+            </Link>
+          )}
+          {status === 'in_progress' && !isOverdue && (
+            <Link to={`/student/submit-assignment/${assignment?._id}`} className="test-action-btn btn-secondary">
+              Submit Project →
+            </Link>
+          )}
+          {status === 'submitted' && (
+            <div className="test-action-buttons">
+              {(item.submission?._id || item.submission) && (
+                <Link
+                  to={`/student/submission/${item.submission?._id || item.submission}/result`}
+                  className="test-action-btn btn-primary"
+                >
+                  Check Status →
+                </Link>
+              )}
+              {item.timerEndAt && new Date(item.timerEndAt) > new Date() && (
+                <Link to={`/student/submit-assignment/${assignment?._id}`} className="test-action-btn btn-secondary">
+                  View / Edit URL →
+                </Link>
+              )}
+            </div>
+          )}
+          {status === 'evaluated' && (item.submission?._id || item.submission) && (
+            <Link
+              to={`/student/submission/${item.submission?._id || item.submission}/result`}
+              className="test-action-btn btn-secondary"
+            >
+              View Result →
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderInterviewCard = (interview) => (
     <div key={interview._id} className="test-card-modern">
@@ -173,7 +262,7 @@ const StudentDashboard = () => {
     </div>
   );
 
-  const hasAnyTests = tests.length > 0 || interviews.length > 0;
+  const hasAnyTests = tests.length > 0 || interviews.length > 0 || assignments.length > 0;
 
   return (
     <div className="container student-dashboard">
@@ -194,12 +283,16 @@ const StudentDashboard = () => {
         </div>
         <div className="summary-card">
           <h3>Pending Evaluations</h3>
-          <div className="summary-value">{inProgressTests.length}</div>
-          <div className="summary-subtext">In-progress tests</div>
+          <div className="summary-value">
+            {inProgressTests.length + assignments.filter(a => ['in_progress', 'submitted'].includes(a.enrollmentStatus)).length}
+          </div>
+          <div className="summary-subtext">In-progress tests & assignments</div>
         </div>
         <div className="summary-card">
           <h3>Assigned Tests</h3>
-          <div className="summary-value">{assignedTests.length + interviews.length}</div>
+          <div className="summary-value">
+            {assignedTests.length + interviews.filter(i => !i.hasCompleted).length + assignments.filter(a => a.enrollmentStatus === 'assigned').length}
+          </div>
           <div className="summary-subtext">Ready to start</div>
         </div>
       </div>
@@ -255,6 +348,17 @@ const StudentDashboard = () => {
               </div>
             </div>
           ))}
+          {assignments.length > 0 && (
+            <div className="test-section">
+              <div className="test-section-header">
+                <div className="test-section-title">PROJECT EVALUATION (AI)</div>
+                <span className="test-section-badge">{assignments.length} assignment{assignments.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="tests-grid">
+                {assignments.map(renderAssignmentCard)}
+              </div>
+            </div>
+          )}
           {interviews.length > 0 && (
             <div className="test-section">
               <div className="test-section-header">

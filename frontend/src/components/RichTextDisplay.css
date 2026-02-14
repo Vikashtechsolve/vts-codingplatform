@@ -1,0 +1,89 @@
+.rich-text-display {
+  color: var(--text-primary);
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+.rich-text-display.plain {
+  display: inline;
+}
+
+.rich-text-display h1,
+.rich-text-display h2,
+.rich-text-display h3,
+.rich-text-display h4 {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rich-text-display h1 { font-size: 1.5em; }
+.rich-text-display h2 { font-size: 1.3em; }
+.rich-text-display h3 { font-size: 1.15em; }
+.rich-text-display h4 { font-size: 1.05em; }
+
+.rich-text-display h1:first-child,
+.rich-text-display h2:first-child,
+.rich-text-display h3:first-child,
+.rich-text-display h4:first-child {
+  margin-top: 0;
+}
+
+.rich-text-display p {
+  margin: 0.5em 0;
+}
+
+.rich-text-display p:first-child {
+  margin-top: 0;
+}
+
+.rich-text-display ul,
+.rich-text-display ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.rich-text-display li {
+  margin: 0.25em 0;
+}
+
+.rich-text-display strong,
+.rich-text-display b {
+  font-weight: 600;
+}
+
+.rich-text-display em,
+.rich-text-display i {
+  font-style: italic;
+}
+
+.rich-text-display a {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.rich-text-display a:hover {
+  opacity: 0.85;
+}
+
+.rich-text-display blockquote {
+  margin: 0.75em 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.rich-text-display pre,
+.rich-text-display code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  background: var(--bg-secondary);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.rich-text-display pre {
+  padding: 12px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}

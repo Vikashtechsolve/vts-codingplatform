@@ -1,10 +1,149 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
+import { parseSchemaSql } from '../../utils/schemaParser';
 import './TestTaking.css';
+
+/** ER-style schema diagram: tables in a row with arrows for relationships */
+function SchemaView({ schemaSql }) {
+  const { tables, relationships } = parseSchemaSql(schemaSql);
+  const containerRef = useRef(null);
+  const tableRefs = useRef({});
+  const [positions, setPositions] = useState({});
+
+  const setTableRef = useCallback((name) => (el) => {
+    if (el) tableRefs.current[name] = el;
+  }, []);
+
+  const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
+
+  const measure = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || !tables.length) return;
+    const containerRect = container.getBoundingClientRect();
+    const scrollLeft = container.scrollLeft || 0;
+    const scrollTop = container.scrollTop || 0;
+    const next = {};
+    tables.forEach((t) => {
+      const el = tableRefs.current[t.tableName];
+      if (el) {
+        const r = el.getBoundingClientRect();
+        next[t.tableName] = {
+          left: r.left - containerRect.left + scrollLeft,
+          top: r.top - containerRect.top + scrollTop,
+          width: r.width,
+          height: r.height
+        };
+      }
+    });
+    setPositions(next);
+    setSvgSize({ width: container.scrollWidth, height: container.scrollHeight });
+  }, [tables]);
+
+  useEffect(() => {
+    measure();
+    const onResize = () => measure();
+    const onScroll = () => measure();
+    window.addEventListener('resize', onResize);
+    const container = containerRef.current;
+    if (container) container.addEventListener('scroll', onScroll);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      if (containerRef.current) containerRef.current.removeEventListener('scroll', onScroll);
+    };
+  }, [measure]);
+
+  useEffect(() => {
+    const t = setTimeout(measure, 50);
+    return () => clearTimeout(t);
+  }, [measure, tables, relationships]);
+
+  if (!tables.length) {
+    return <pre className="schema-sql-fallback">{schemaSql || 'No schema.'}</pre>;
+  }
+
+  const tableNameByLower = {};
+  tables.forEach((t) => { tableNameByLower[t.tableName.toLowerCase()] = t.tableName; });
+
+  return (
+    <div className="schema-diagram-wrap" ref={containerRef}>
+      <div className="schema-diagram-tables">
+        {tables.map((t) => (
+          <div
+            key={t.tableName}
+            ref={setTableRef(t.tableName)}
+            className="schema-er-table"
+            data-table-name={t.tableName}
+          >
+            <div className="schema-er-table-header">{t.tableName}</div>
+            <div className="schema-er-table-body">
+              {t.columns.map((col) => (
+                <div key={col.name} className="schema-er-column">
+                  <span className="schema-er-col-name">{col.name}</span>
+                  {col.type && <span className="schema-er-col-type">{col.type}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <svg className="schema-diagram-arrows" aria-hidden="true" width={svgSize.width} height={svgSize.height}>
+        <defs>
+          <marker
+            id="schema-arrowhead"
+            markerWidth="8"
+            markerHeight="6"
+            refX="7"
+            refY="3"
+            orient="auto"
+          >
+            <polygon points="0 0, 8 3, 0 6" fill="var(--schema-arrow, #94a3b8)" />
+          </marker>
+        </defs>
+        {relationships.map((rel, i) => {
+          const fromKey = tableNameByLower[rel.fromTable.toLowerCase()] ?? rel.fromTable;
+          const toKey = tableNameByLower[rel.toTable.toLowerCase()] ?? rel.toTable;
+          const from = positions[fromKey];
+          const to = positions[toKey];
+          if (!from || !to || fromKey === toKey) return null;
+          const fromCx = from.left + from.width / 2;
+          const fromCy = from.top + from.height / 2;
+          const toCx = to.left + to.width / 2;
+          const toCy = to.top + to.height / 2;
+          const dx = toCx - fromCx;
+          const dy = toCy - fromCy;
+          const pad = 6;
+          let x1, y1, x2, y2;
+          if (Math.abs(dx) >= Math.abs(dy)) {
+            x1 = dx >= 0 ? from.left + from.width + pad : from.left - pad;
+            y1 = fromCy;
+            x2 = dx >= 0 ? to.left - pad : to.left + to.width + pad;
+            y2 = toCy;
+          } else {
+            x1 = fromCx;
+            y1 = dy >= 0 ? from.top + from.height + pad : from.top - pad;
+            x2 = toCx;
+            y2 = dy >= 0 ? to.top - pad : to.top + to.height + pad;
+          }
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
+          const path = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+          return (
+            <path
+              key={`${rel.fromTable}-${rel.fromColumn}-${rel.toTable}-${i}`}
+              d={path}
+              className="schema-relation-line"
+              markerEnd="url(#schema-arrowhead)"
+            />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 
 const TestTaking = () => {
   const { testId } = useParams();
@@ -49,6 +188,8 @@ const TestTaking = () => {
   const [hiddenTestCaseResults, setHiddenTestCaseResults] = useState([]); // For hidden test case results (used in submission summary)
   const [isRunningTests, setIsRunningTests] = useState(false);
   const [submissionSummary, setSubmissionSummary] = useState(null);
+  const [sqlRunResult, setSqlRunResult] = useState(null);
+  const [isRunningSql, setIsRunningSql] = useState(false);
   
   // Custom test case
   const [customTestCase, setCustomTestCase] = useState({ input: '', expectedOutput: '' });
@@ -173,6 +314,7 @@ const TestTaking = () => {
       const mcqQuestions = test.questions.filter(q => q.type === 'mcq');
       const aptitudeQuestions = test.questions.filter(q => q.type === 'aptitude');
       const theoryQuestions = test.questions.filter(q => q.type === 'theory');
+      const sqlQuestions = test.questions.filter(q => q.type === 'sql');
       
       const newSections = [];
       if (codingQuestions.length > 0) {
@@ -201,6 +343,13 @@ const TestTaking = () => {
           type: 'theory',
           title: `Section ${newSections.length + 1}: Theory Questions`,
           questions: theoryQuestions
+        });
+      }
+      if (sqlQuestions.length > 0) {
+        newSections.push({
+          type: 'sql',
+          title: `Section ${newSections.length + 1}: SQL Questions`,
+          questions: sqlQuestions
         });
       }
       setSections(newSections);
@@ -294,6 +443,12 @@ const TestTaking = () => {
           initialAnswers[q.questionId._id] = {
             textAnswer: theoryAnswer,
             attempted: theoryAnswer.trim().length > 0
+          };
+        } else if (q.type === 'sql') {
+          const sqlAnswer = existingAnswer?.answer || '';
+          initialAnswers[q.questionId._id] = {
+            sql: sqlAnswer,
+            attempted: sqlAnswer.trim().length > 0
           };
         }
       });
@@ -443,6 +598,76 @@ const TestTaking = () => {
         attempted: value.trim().length > 0
       }
     });
+  };
+
+  const handleSqlChange = (value) => {
+    const question = getCurrentQuestion();
+    if (!question || !question.questionId) return;
+    setAnswers({
+      ...answers,
+      [question.questionId._id]: {
+        ...answers[question.questionId._id],
+        sql: value || '',
+        attempted: (value || '').trim().length > 0
+      }
+    });
+  };
+
+  const handleRunSql = async () => {
+    const question = getCurrentQuestion();
+    if (!question || !question.questionId || !result) return;
+    const query = answers[question.questionId._id]?.sql || '';
+    if (!query.trim()) {
+      showModal('Warning', 'Please enter a SQL query first', 'warning');
+      return;
+    }
+    setIsRunningSql(true);
+    setSqlRunResult(null);
+    try {
+      const resultId = typeof result._id === 'object' && result._id?.toString ? result._id.toString() : String(result._id);
+      const questionIdForRun = typeof question.questionId._id === 'object' && question.questionId._id?.toString ? question.questionId._id.toString() : String(question.questionId._id);
+      const res = await axiosInstance.post('/sql-execution/run', {
+        resultId,
+        questionId: questionIdForRun,
+        query: query.trim()
+      });
+      const data = res.data || {};
+      setSqlRunResult({
+        success: Boolean(data.success),
+        rows: Array.isArray(data.rows) ? data.rows : [],
+        error: data.error || null,
+        isCorrect: Boolean(data.isCorrect),
+        runCount: data.runCount,
+        maxRuns: data.maxRuns
+      });
+
+      // Auto-submit answer when SQL is correct so student doesn't have to click Save
+      if (data.isCorrect) {
+        try {
+          const resultIdForApi = typeof result._id === 'object' && result._id?.toString ? result._id.toString() : String(result._id);
+          const questionIdForApi = typeof question.questionId._id === 'object' && question.questionId._id?.toString ? question.questionId._id.toString() : String(question.questionId._id);
+          await axiosInstance.post(`/results/${resultIdForApi}/answer`, {
+            questionId: questionIdForApi,
+            answer: query.trim()
+          });
+          const updatedResult = await axiosInstance.get(`/results/${resultIdForApi}`);
+          setResult(updatedResult.data);
+          showModal('Answer saved', 'Correct! Your answer was saved automatically.', 'success');
+        } catch (saveErr) {
+          console.error('Auto-save SQL answer failed:', saveErr);
+          showModal('Save failed', 'Your answer was correct but could not be saved automatically. Please click Save Answer.', 'warning');
+        }
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.error || err.response?.data?.message || (err.response?.data?.errors?.[0]?.msg) || err.message || 'Execution failed';
+      setSqlRunResult({
+        success: false,
+        rows: [],
+        error: String(errMsg)
+      });
+    } finally {
+      setIsRunningSql(false);
+    }
   };
 
   const handleRunCustomTestCase = async () => {
@@ -787,12 +1012,23 @@ const TestTaking = () => {
         showModal('Success', 'Answer saved successfully!', 'success');
         const updatedResult = await axiosInstance.get(`/results/${result._id}`);
         setResult(updatedResult.data);
+      } else if (question.type === 'sql') {
+        const sqlAnswer = answers[questionId]?.sql || '';
+        const resultIdForApi = typeof result._id === 'object' && result._id?.toString ? result._id.toString() : String(result._id);
+        const questionIdForApi = typeof questionId === 'object' && questionId?.toString ? questionId.toString() : String(questionId);
+        await axiosInstance.post(`/results/${resultIdForApi}/answer`, {
+          questionId: questionIdForApi,
+          answer: sqlAnswer
+        });
+        showModal('Success', 'Answer saved successfully!', 'success');
+        const updatedResult = await axiosInstance.get(`/results/${resultIdForApi}`);
+        setResult(updatedResult.data);
       }
       setLoading(false);
     } catch (error) {
       setLoading(false);
       console.error('❌ Error submitting answer:', error);
-      const errorMsg = error.response?.data?.message || error.message || 'Error saving answer';
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error saving answer';
       showModal('Error', errorMsg, 'error');
     }
   };
@@ -801,12 +1037,12 @@ const TestTaking = () => {
   const navigateToQuestion = (sectionIdx, questionIdx) => {
     setCurrentSectionIndex(sectionIdx);
     setCurrentQuestionIndex(questionIdx);
-    // Clear test case results when navigating
     setTestCaseResults([]);
     setSubmissionSummary(null);
     setHiddenTestCaseResults([]);
     setCustomTestResult(null);
     setCustomTestCase({ input: '', expectedOutput: '' });
+    setSqlRunResult(null);
   };
 
   const navigatePrevious = () => {
@@ -821,6 +1057,7 @@ const TestTaking = () => {
     setHiddenTestCaseResults([]);
     setCustomTestResult(null);
     setCustomTestCase({ input: '', expectedOutput: '' });
+    setSqlRunResult(null);
   };
 
   const navigateNext = () => {
@@ -836,6 +1073,7 @@ const TestTaking = () => {
     setHiddenTestCaseResults([]);
     setCustomTestResult(null);
     setCustomTestCase({ input: '', expectedOutput: '' });
+    setSqlRunResult(null);
   };
 
   const isLastQuestion = () => {
@@ -1386,6 +1624,136 @@ const TestTaking = () => {
                 <button onClick={handleSubmitAnswer} className="btn btn-primary" disabled={loading}>
                   {loading ? 'Saving...' : 'Save Answer'}
                 </button>
+              </div>
+            </div>
+          ) : currentQuestion.type === 'sql' ? (
+            <div className="sql-test-single-screen">
+              <div className="sql-left-panel" style={{ width: `${leftPanelWidth}%` }}>
+                <div className="sql-question-block">
+                  <div className="sql-task-label">
+                    <span className="sql-task-icon">📋</span>
+                    <span>Query to write</span>
+                    <span className="q-marks-badge">{questionData.marks} mark(s)</span>
+                  </div>
+                  <div className="sql-question-text-wrap">
+                    <p className="sql-question-text">{questionData.text}</p>
+                  </div>
+                </div>
+                {test.datasetTemplate && (
+                  <div className="schema-panel schema-panel-compact">
+                    <h4>Database schema</h4>
+                    <SchemaView schemaSql={test.datasetTemplate.schemaSql} />
+                  </div>
+                )}
+              </div>
+              <div className="resizer" onMouseDown={handleResizeStart} />
+              <div className="sql-right-panel" style={{ width: `${100 - leftPanelWidth}%` }}>
+                <div className="sql-editor-block">
+                  <div className="editor-header sql-editor-header">
+                    <span className="editor-label">Your SQL</span>
+                    <div className="editor-actions">
+                      <button
+                        onClick={handleRunSql}
+                        className="btn btn-secondary btn-run"
+                        disabled={isRunningSql || loading}
+                      >
+                        {isRunningSql ? 'Running...' : '▶ Run'}
+                      </button>
+                      <button
+                        onClick={handleSubmitAnswer}
+                        className="btn btn-primary btn-submit"
+                        disabled={loading}
+                      >
+                        {loading ? 'Saving...' : 'Save Answer'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="sql-editor-wrapper">
+                    <Editor
+                      height="100%"
+                      language="sql"
+                      value={answers[questionData._id]?.sql || ''}
+                      onChange={handleSqlChange}
+                      theme={localStorage.getItem('theme') === 'dark' ? 'vs-dark' : 'light'}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        wordWrap: 'on',
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        tabSize: 2
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="sql-result-block">
+                  <div className={`sql-output-panel ${sqlRunResult ? (sqlRunResult.success ? (sqlRunResult.isCorrect ? 'match' : 'no-match') : 'error') : isRunningSql ? 'loading' : 'empty'}`}>
+                    {/* Clear correct / incorrect feedback banner */}
+                    {sqlRunResult?.success && sqlRunResult.isCorrect && (
+                      <div className="sql-feedback-banner sql-feedback-correct">
+                        <span className="sql-feedback-icon">✓</span>
+                        <div>
+                          <strong>Correct!</strong> Your output matches the expected result. Answer saved automatically.
+                        </div>
+                      </div>
+                    )}
+                    {sqlRunResult?.success && !sqlRunResult.isCorrect && (
+                      <div className="sql-feedback-banner sql-feedback-incorrect">
+                        <span className="sql-feedback-icon">✗</span>
+                        <div>
+                          <strong>Output does not match expected.</strong> Modify your query and run again to get the correct result.
+                        </div>
+                      </div>
+                    )}
+                    <div className="sql-output-header">
+                      <h4>Your query result</h4>
+                      {sqlRunResult?.success && (
+                        <span className={`sql-result-badge ${sqlRunResult.isCorrect ? 'match' : 'no-match'}`}>
+                          {sqlRunResult.isCorrect ? '✓ Matching' : '✗ Not matching'}
+                        </span>
+                      )}
+                      {sqlRunResult && !sqlRunResult.success && (
+                        <span className="sql-result-badge error">✗ Error</span>
+                      )}
+                      {sqlRunResult?.runCount != null && (
+                        <span className="sql-run-count">Runs: {sqlRunResult.runCount}/{sqlRunResult.maxRuns}</span>
+                      )}
+                    </div>
+                    {isRunningSql ? (
+                      <p className="sql-loading">Running query...</p>
+                    ) : sqlRunResult?.success ? (
+                      sqlRunResult.rows && sqlRunResult.rows.length > 0 ? (
+                        <div className="sql-result-table-wrap">
+                          <table className="sql-result-table">
+                            <thead>
+                              <tr>
+                                {Object.keys(sqlRunResult.rows[0]).map((k) => (
+                                  <th key={k}>{k}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sqlRunResult.rows.map((row, i) => (
+                                <tr key={i}>
+                                  {Object.values(row).map((val, j) => (
+                                    <td key={j}>{val != null ? String(val) : 'NULL'}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="sql-no-rows">Query returned no rows.</p>
+                      )
+                    ) : sqlRunResult ? (
+                      <pre className="sql-error">{sqlRunResult.error || 'Unknown error'}</pre>
+                    ) : (
+                      <p className="sql-placeholder">Click <strong>Run</strong> to see your query result here.</p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ) : (

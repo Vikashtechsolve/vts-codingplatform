@@ -87,7 +87,10 @@ const VendorAdminDashboard = () => {
       title: 'Project Evaluation (AI)',
       description: 'AI-based project review and scoring.',
       icon: '🤖',
-      comingSoon: true
+      actions: [
+        { label: 'Create Assignment', to: '/vendor-admin/create-assignment' },
+        { label: 'View Assignments', to: '/vendor-admin/assignments' }
+      ]
     },
     {
       key: 'interview',
@@ -108,10 +111,13 @@ const VendorAdminDashboard = () => {
     },
     {
       key: 'tools',
-      title: 'Practical Tools',
-      description: 'Git, SQL, Linux and tool-based tasks.',
+      title: 'Practical Tools (SQL)',
+      description: 'SQL exams with dataset templates and output-based evaluation.',
       icon: '🧰',
-      comingSoon: true
+      actions: [
+        { label: 'Dataset Templates', to: '/vendor-admin/dataset-templates' },
+        { label: 'Create SQL Test', to: '/vendor-admin/sql-tests/create' }
+      ]
     },
     {
       key: 'company',

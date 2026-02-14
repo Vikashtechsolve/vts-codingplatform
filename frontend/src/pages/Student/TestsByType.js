@@ -7,6 +7,7 @@ import './TestsByType.css';
 const TestsByType = () => {
   const { type } = useParams();
   const [tests, setTests] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const typeMeta = {
@@ -30,6 +31,19 @@ const TestsByType = () => {
         if (normalizedType === 'interview') {
           const response = await axiosInstance.get('/interviews/assigned');
           setTests(response.data || []);
+        } else if (normalizedType === 'project') {
+          const response = await axiosInstance.get('/assignments/student/my-assignments');
+          const raw = response.data?.assignments ?? [];
+          const transformed = raw.map(item => ({
+            ...(item.assignment || {}),
+            deadline: item.deadline,
+            timerEndAt: item.timerEndAt,
+            enrollmentData: {
+              status: item.enrollmentStatus,
+              submissionId: item.submission?._id ?? item.submission
+            }
+          }));
+          setAssignments(transformed);
         } else {
           const response = await axiosInstance.get('/students/tests');
           setTests(response.data || []);
@@ -62,11 +76,16 @@ const TestsByType = () => {
   }
 
   const isInterviewType = normalizedType === 'interview';
+  const isProjectType = normalizedType === 'project';
   const filtered = isInterviewType
     ? tests
-    : normalizedType === 'core'
-      ? tests.filter(test => test.type === 'theory')
-      : tests.filter(test => test.type === normalizedType);
+    : isProjectType
+      ? assignments
+      : normalizedType === 'core'
+        ? tests.filter(test => test.type === 'theory')
+        : normalizedType === 'tools'
+          ? tests.filter(test => test.type === 'sql')
+          : tests.filter(test => test.type === normalizedType);
 
   const canStartInterview = (item) => {
     if (!item.hasCompleted) return true;
@@ -132,6 +151,82 @@ const TestsByType = () => {
                     {interview.hasCompleted && interview.lastSessionId && (
                       <Link
                         to={`/student/interviews/feedback/${interview.lastSessionId}`}
+                        className="test-action-btn btn-secondary"
+                      >
+                        View Result →
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            if (isProjectType) {
+              const assignment = item;
+              const enrollmentData = assignment.enrollmentData || {};
+              const status = enrollmentData.status || 'assigned';
+              const isOverdue = assignment.deadline && new Date(assignment.deadline) < new Date();
+              
+              return (
+                <div key={assignment._id} className="test-card-modern">
+                  <div className="test-card-header">
+                    <div className="test-title-section">
+                      <h3>{assignment.title}</h3>
+                      <span className="test-type-badge-modern project">project</span>
+                    </div>
+                  </div>
+                  <div className="test-meta">
+                    <div className="test-meta-item">
+                      <strong>Duration:</strong> {assignment.duration} min
+                    </div>
+                    <div className="test-meta-item">
+                      <strong>Category:</strong> {assignment.category}
+                    </div>
+                    <div className="test-meta-item">
+                      <strong>Difficulty:</strong> {assignment.difficulty}
+                    </div>
+                    {assignment.deadline && (
+                      <div className="test-meta-item">
+                        <strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="test-status-section">
+                    <span className={`status-badge-modern ${isOverdue ? 'overdue' : status}`}>
+                      {isOverdue && status !== 'evaluated' ? 'overdue' : status}
+                    </span>
+                    {status === 'assigned' && !isOverdue && (
+                      <Link to={`/student/submit-assignment/${assignment._id}`} className="test-action-btn btn-primary">
+                        Start Assignment →
+                      </Link>
+                    )}
+                    {status === 'in_progress' && !isOverdue && (
+                      <Link to={`/student/submit-assignment/${assignment._id}`} className="test-action-btn btn-secondary">
+                        Submit Project →
+                      </Link>
+                    )}
+                    {status === 'submitted' && (
+                      <div className="test-action-buttons">
+                        {enrollmentData.submissionId && (
+                          <Link
+                            to={`/student/submission/${enrollmentData.submissionId}/result`}
+                            className="test-action-btn btn-primary"
+                          >
+                            Check Status →
+                          </Link>
+                        )}
+                        {assignment.timerEndAt && new Date(assignment.timerEndAt) > new Date() && (
+                          <Link to={`/student/submit-assignment/${assignment._id}`} className="test-action-btn btn-secondary">
+                            View / Edit URL →
+                          </Link>
+                        )}
+                        {!enrollmentData.submissionId && (
+                          <span className="test-action-btn btn-info">Evaluation Pending...</span>
+                        )}
+                      </div>
+                    )}
+                    {status === 'evaluated' && enrollmentData.submissionId && (
+                      <Link
+                        to={`/student/submission/${enrollmentData.submissionId}/result`}
                         className="test-action-btn btn-secondary"
                       >
                         View Result →

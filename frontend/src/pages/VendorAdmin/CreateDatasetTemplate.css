@@ -1,0 +1,61 @@
+.create-dataset-template .page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.create-dataset-template .page-description {
+  color: var(--text-secondary, #666);
+  margin-bottom: 24px;
+}
+
+.create-dataset-template .dataset-template-form {
+  max-width: 900px;
+}
+
+.create-dataset-template .form-group {
+  margin-bottom: 20px;
+}
+
+.create-dataset-template .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.create-dataset-template .form-group input,
+.create-dataset-template .form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.create-dataset-template .sql-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.create-dataset-template .form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.create-dataset-template .error-message {
+  color: #c00;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #fff0f0;
+  border-radius: 8px;
+}

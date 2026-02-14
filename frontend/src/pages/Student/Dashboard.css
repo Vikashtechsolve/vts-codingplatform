@@ -110,6 +110,21 @@
   color: white;
 }
 
+.test-type-badge-modern.project {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.test-type-badge-modern.sql {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+}
+
+.test-type-badge-modern.theory {
+  background: linear-gradient(135deg, #607d8b, #455a64);
+  color: white;
+}
+
 .dashboard-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -249,10 +264,22 @@
 .test-status-section {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 16px;
   padding-top: 16px;
   border-top: 2px solid var(--border-color);
+}
+
+.test-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.test-action-buttons .test-action-btn {
+  margin-left: 0;
 }
 
 .status-badge-modern {
@@ -280,16 +307,34 @@
   color: white;
 }
 
+.status-badge-modern.submitted {
+  background: linear-gradient(135deg, #9c27b0, #7b1fa2);
+  color: white;
+}
+
+.status-badge-modern.evaluated {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+}
+
+.status-badge-modern.overdue {
+  background: linear-gradient(135deg, #ff5252, #d32f2f);
+  color: white;
+}
+
 .test-action-btn {
   margin-left: auto;
-  padding: 10px 24px;
+  padding: 10px 20px;
   border-radius: 12px;
+  font-size: 0.9em;
   font-weight: 600;
+  white-space: nowrap;
   transition: all 0.3s ease;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -313,6 +358,13 @@
   background: var(--bg-secondary);
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.test-action-btn.btn-info {
+  background: linear-gradient(135deg, #17a2b8, #138496);
+  color: white;
+  cursor: default;
+  pointer-events: none;
 }
 
 .empty-state {

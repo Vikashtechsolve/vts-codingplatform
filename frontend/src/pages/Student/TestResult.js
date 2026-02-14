@@ -110,7 +110,9 @@ const TestResult = () => {
               ? answer.isCorrect
               : answer.questionType === 'theory'
                 ? (answer.points || 0) >= (answer.maxPoints || 1) * 0.6
-                : (answer.testCasesPassed === answer.totalTestCases);
+                : answer.questionType === 'sql'
+                  ? answer.isCorrect
+                  : (answer.testCasesPassed === answer.totalTestCases);
           const questionData = questionsData[answer.questionId];
           
           return (
@@ -143,11 +145,16 @@ const TestResult = () => {
                     {answer.isCorrect ? '✓ Correct' : '✗ Incorrect'}
                   </div>
                 )}
-              {answer.questionType === 'aptitude' && (
-                <div className={`status-indicator ${answer.isCorrect ? 'correct' : 'incorrect'}`}>
-                  {answer.isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                </div>
-              )}
+                {answer.questionType === 'aptitude' && (
+                  <div className={`status-indicator ${answer.isCorrect ? 'correct' : 'incorrect'}`}>
+                    {answer.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                  </div>
+                )}
+                {answer.questionType === 'sql' && (
+                  <div className={`status-indicator ${answer.isCorrect ? 'correct' : 'incorrect'}`}>
+                    {answer.isCorrect ? '✓ Correct output' : '✗ Incorrect output'}
+                  </div>
+                )}
               </div>
 
               {/* Show submitted code for coding questions */}
@@ -323,6 +330,36 @@ const TestResult = () => {
                       <p style={{ marginTop: '5px', marginBottom: 0 }}>{questionData.explanation}</p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {answer.questionType === 'sql' && (
+                <div style={{ marginTop: '20px' }}>
+                  {questionData?.text && (
+                    <>
+                      <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Question:</h5>
+                      <p style={{ marginBottom: '15px', padding: '10px', background: 'var(--bg-secondary)', borderRadius: '5px' }}>
+                        {questionData.text}
+                      </p>
+                    </>
+                  )}
+                  <h5 style={{ marginBottom: '10px', color: 'var(--text-primary)' }}>Your SQL:</h5>
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <Editor
+                      height="200px"
+                      language="sql"
+                      value={answer.answer || ''}
+                      theme={localStorage.getItem('theme') === 'dark' ? 'vs-dark' : 'light'}
+                      options={{
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        wordWrap: 'on',
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 

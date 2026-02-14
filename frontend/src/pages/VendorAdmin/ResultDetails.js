@@ -66,7 +66,7 @@ const ResultDetails = () => {
   }
 
   const isCorrect = (answer) => {
-    if (answer.questionType === 'mcq' || answer.questionType === 'aptitude') return answer.isCorrect;
+    if (answer.questionType === 'mcq' || answer.questionType === 'aptitude' || answer.questionType === 'sql') return answer.isCorrect;
     if (answer.questionType === 'theory') {
       return (answer.points || 0) >= (answer.maxPoints || 1) * 0.6;
     }
@@ -206,6 +206,11 @@ const ResultDetails = () => {
                     <strong>Answer:</strong> {answer.answer ? `${answer.answer.slice(0, 120)}...` : 'Not answered'}
                   </div>
                 )}
+                {answer.questionType === 'sql' && (
+                  <div className={`detail-item ${answer.isCorrect ? 'correct' : 'incorrect'}`}>
+                    <strong>Result:</strong> {answer.isCorrect ? '✓ Correct output' : '✗ Incorrect output'}
+                  </div>
+                )}
               </div>
 
               {answer.questionType === 'theory' && (
@@ -272,6 +277,12 @@ const ResultDetails = () => {
                 <div className="code-block">
                   <strong>Code:</strong>
                   <pre>{answer.answer}</pre>
+                </div>
+              )}
+              {answer.questionType === 'sql' && (
+                <div className="code-block">
+                  <strong>Submitted SQL:</strong>
+                  <pre>{answer.answer || '(No answer)'}</pre>
                 </div>
               )}
             </div>

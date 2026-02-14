@@ -43,6 +43,24 @@ code {
   --input-bg: #2a2a2a;
   --border-color: #404040;
   --shadow: rgba(0, 0, 0, 0.3);
+  /* SQL test – query description & result */
+  --sql-task-bg: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
+  --sql-task-label-bg: rgba(237, 3, 49, 0.15);
+  --sql-task-label-border: rgba(237, 3, 49, 0.35);
+  --sql-result-success-bg: #1b3320;
+  --sql-result-success-border: #2e7d32;
+  --sql-result-nomatch-bg: #3d3000;
+  --sql-result-nomatch-border: #ff8f00;
+  --sql-result-error-bg: #3d2020;
+  --sql-result-error-border: #c62828;
+  --sql-result-loading-bg: #1a2835;
+  --sql-result-loading-border: #1976d2;
+  --sql-feedback-correct-bg: rgba(46, 125, 50, 0.25);
+  --sql-feedback-correct-text: #81c784;
+  --sql-feedback-incorrect-bg: rgba(255, 143, 0, 0.2);
+  --sql-feedback-incorrect-text: #ffb74d;
+  --sql-table-row-hover: rgba(255, 255, 255, 0.06);
+  --sql-error-text: #ef9a9a;
 }
 
 /* Animations */

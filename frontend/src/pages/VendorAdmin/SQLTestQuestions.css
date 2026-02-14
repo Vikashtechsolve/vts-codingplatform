@@ -1,0 +1,255 @@
+.sql-test-questions .page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.sql-test-questions .page-meta {
+  color: var(--text-secondary, #666);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.sql-test-questions .header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sql-test-questions .validate-result {
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.sql-test-questions .validate-result.valid {
+  background: #e8f5e9;
+  border: 1px solid #a5d6a7;
+}
+
+.sql-test-questions .validate-result.invalid {
+  background: #ffebee;
+  border: 1px solid #ef9a9a;
+}
+
+.sql-test-questions .validate-result ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.sql-test-questions .questions-toolbar {
+  margin-bottom: 20px;
+}
+
+.sql-test-questions .questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sql-test-questions .question-card {
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-color, #dee2e6);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.sql-test-questions .question-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sql-test-questions .q-num {
+  font-weight: 700;
+  color: var(--primary-color, #667eea);
+}
+
+.sql-test-questions .q-marks {
+  font-size: 14px;
+  color: var(--text-secondary, #666);
+}
+
+.sql-test-questions .question-text {
+  margin: 0 0 12px 0;
+  color: var(--text-primary, #333);
+  white-space: pre-wrap;
+}
+
+.sql-test-questions .question-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sql-test-questions .empty-state {
+  padding: 32px;
+  text-align: center;
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: 12px;
+  color: var(--text-secondary, #666);
+}
+
+.sql-test-questions .modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.sql-test-questions .sql-question-modal {
+  background: var(--bg-primary, #fff);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 720px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.sql-test-questions .sql-question-modal h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.sql-test-questions .sql-question-modal .form-group {
+  margin-bottom: 16px;
+}
+
+.sql-test-questions .sql-question-modal .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.sql-test-questions .sql-question-modal .form-group textarea,
+.sql-test-questions .sql-question-modal .form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+}
+
+.sql-test-questions .sql-question-modal .sql-textarea {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+}
+
+.sql-test-questions .btn-run-query {
+  margin-top: 10px;
+}
+
+.sql-test-questions .vendor-query-output {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #dee2e6);
+}
+
+.sql-test-questions .vendor-query-output.success {
+  background: var(--bg-secondary, #f8f9fa);
+}
+
+.sql-test-questions .vendor-query-output.error {
+  background: var(--vendor-query-error-bg, #fff5f5);
+  border-color: var(--vendor-query-error-border, #feb2b2);
+}
+
+[data-theme="dark"] .sql-test-questions .vendor-query-output.success {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .sql-test-questions .vendor-query-output.error {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.sql-test-questions .vendor-query-table-wrap {
+  overflow-x: auto;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.sql-test-questions .vendor-query-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.sql-test-questions .vendor-query-table th,
+.sql-test-questions .vendor-query-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border: 1px solid var(--border-color, #dee2e6);
+}
+
+.sql-test-questions .vendor-query-table th {
+  background: var(--vendor-query-th-bg, #e9ecef);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .sql-test-questions .vendor-query-table th {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-color);
+}
+
+.sql-test-questions .vendor-query-table td {
+  background: var(--bg-primary, #fff);
+}
+
+[data-theme="dark"] .sql-test-questions .vendor-query-table td {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+}
+
+.sql-test-questions .vendor-query-table tbody tr:nth-child(even) td {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="dark"] .sql-test-questions .vendor-query-table tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sql-test-questions .vendor-query-empty {
+  margin: 0;
+  color: var(--text-secondary, #666);
+  font-size: 14px;
+}
+
+[data-theme="dark"] .sql-test-questions .vendor-query-empty {
+  color: var(--text-secondary);
+}
+
+.sql-test-questions .vendor-query-error {
+  margin: 0;
+  color: var(--vendor-query-error-text, #c53030);
+  font-size: 14px;
+}
+
+[data-theme="dark"] .sql-test-questions .vendor-query-error {
+  color: #fca5a5;
+}
+
+.sql-test-questions .sql-question-modal .form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.sql-test-questions .error-message {
+  color: #c00;
+  margin-bottom: 12px;
+  padding: 10px;
+  background: #fff0f0;
+  border-radius: 8px;
+  font-size: 14px;
+}

@@ -17,14 +17,30 @@ const normalizeInterview = (i) => ({
   topic: i.topic
 });
 
+// Normalize assignment to same shape as test for unified UI (kind: 'assignment', type: 'project')
+const normalizeAssignment = (a) => ({
+  _id: a._id,
+  title: a.title,
+  type: 'project',
+  kind: 'assignment',
+  duration: a.duration,
+  questions: [],
+  isActive: a.status !== 'archived',
+  category: a.category,
+  difficulty: a.difficulty,
+  totalMarks: a.totalMarks,
+  totalSubmitted: a.totalSubmitted || 0
+});
+
 const TestList = () => {
   const [tests, setTests] = useState([]);
   const [interviews, setInterviews] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
   const typeParam = new URLSearchParams(location.search).get('type');
-  const activeType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'interview'].includes(typeParam) ? typeParam : 'all';
+  const activeType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql', 'interview', 'project'].includes(typeParam) ? typeParam : 'all';
 
   useEffect(() => {
     fetchData();
@@ -32,12 +48,14 @@ const TestList = () => {
 
   const fetchData = async () => {
     try {
-      const [testsRes, interviewsRes] = await Promise.all([
+      const [testsRes, interviewsRes, assignmentsRes] = await Promise.all([
         axiosInstance.get('/vendor-admin/tests'),
-        axiosInstance.get('/interviews').catch(() => ({ data: [] }))
+        axiosInstance.get('/interviews').catch(() => ({ data: [] })),
+        axiosInstance.get('/assignments').catch(() => ({ data: [] }))
       ]);
       setTests(Array.isArray(testsRes.data) ? testsRes.data : []);
       setInterviews(Array.isArray(interviewsRes?.data) ? interviewsRes.data : []);
+      setAssignments(assignmentsRes?.data?.assignments ?? []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -48,16 +66,23 @@ const TestList = () => {
   const allItems = useMemo(() => {
     const testItems = (tests || []).map(t => ({ ...t, kind: 'test' }));
     const interviewItems = (interviews || []).map(normalizeInterview);
-    return [...testItems, ...interviewItems];
-  }, [tests, interviews]);
+    const assignmentItems = (assignments || []).map(normalizeAssignment);
+    return [...testItems, ...interviewItems, ...assignmentItems];
+  }, [tests, interviews, assignments]);
 
   const handleDelete = async (item) => {
     const isInterview = item.kind === 'interview';
-    const label = isInterview ? 'test' : 'test';
-    if (!window.confirm(`Are you sure you want to delete this ${label}?`)) return;
+    const isAssignment = item.kind === 'assignment';
+    const label = isInterview ? 'interview test' : isAssignment ? 'project assignment' : 'test';
+    const confirmMsg = isAssignment && (item.totalSubmitted || 0) > 0
+      ? `Are you sure you want to delete this assignment? ${item.totalSubmitted} submission(s) and all related results will be permanently deleted. This cannot be undone.`
+      : `Are you sure you want to delete this ${label}?`;
+    if (!window.confirm(confirmMsg)) return;
     try {
       if (isInterview) {
         await axiosInstance.delete(`/interviews/${item._id}`);
+      } else if (isAssignment) {
+        await axiosInstance.delete(`/assignments/${item._id}`);
       } else {
         await axiosInstance.delete(`/tests/${item._id}`);
       }
@@ -75,7 +100,9 @@ const TestList = () => {
       aptitude: allItems.filter(t => t.type === 'aptitude'),
       theory: allItems.filter(t => t.type === 'theory'),
       mixed: allItems.filter(t => t.type === 'mixed'),
-      interview: allItems.filter(t => t.type === 'interview')
+      sql: allItems.filter(t => t.type === 'sql'),
+      interview: allItems.filter(t => t.type === 'interview'),
+      project: allItems.filter(t => t.type === 'project')
     };
     return map;
   }, [allItems]);
@@ -84,16 +111,20 @@ const TestList = () => {
 
   const getCreateLink = () => {
     if (activeType === 'interview') return '/vendor-admin/interviews/create';
+    if (activeType === 'sql') return '/vendor-admin/sql-tests/create';
+    if (activeType === 'project') return '/vendor-admin/create-assignment';
     return activeType !== 'all' ? `/vendor-admin/tests/create?type=${activeType}` : '/vendor-admin/tests/create';
   };
 
   const getAssignLink = (item) => {
     if (item.kind === 'interview') return `/vendor-admin/interviews/${item._id}/assign`;
+    if (item.kind === 'assignment') return `/vendor-admin/assignments/${item._id}/assign`;
     return `/vendor-admin/tests/${item._id}/assign`;
   };
 
   const getResultsLink = (item) => {
     if (item.kind === 'interview') return `/vendor-admin/interviews/${item._id}/results`;
+    if (item.kind === 'assignment') return `/vendor-admin/assignments/${item._id}/submissions`;
     return `/vendor-admin/tests/${item._id}/results`;
   };
 
@@ -111,13 +142,18 @@ const TestList = () => {
       </div>
 
       <div className="test-type-filter-grid">
-        {['all', 'coding', 'aptitude', 'mcq', 'theory', 'mixed', 'interview'].map(type => (
+        {['all', 'coding', 'aptitude', 'mcq', 'theory', 'mixed', 'sql', 'project', 'interview'].map(type => (
           <button
             key={type}
             className={`test-type-filter-card ${activeType === type ? 'active' : ''}`}
             onClick={() => navigate(type === 'all' ? '/vendor-admin/tests' : `/vendor-admin/tests?type=${type}`)}
           >
-            <div className="filter-title">{type === 'interview' ? 'INTERVIEW' : type.toUpperCase()}</div>
+            <div className="filter-title">
+              {type === 'interview' ? 'INTERVIEW' : 
+               type === 'sql' ? 'SQL' : 
+               type === 'project' ? 'PROJECT (AI)' : 
+               type.toUpperCase()}
+            </div>
             <div className="filter-count">{testsByType[type]?.length || 0}</div>
           </button>
         ))}
@@ -152,22 +188,52 @@ const TestList = () => {
                 <div className="test-meta-item-list">
                   <strong>Duration:</strong> {item.duration} min
                 </div>
-                <div className="test-meta-item-list">
-                  <strong>Questions:</strong> {item.questions?.length || 0}
-                </div>
+                {item.kind !== 'assignment' && (
+                  <div className="test-meta-item-list">
+                    <strong>Questions:</strong> {item.questions?.length || 0}
+                  </div>
+                )}
                 {item.kind === 'interview' && item.topic && (
                   <div className="test-meta-item-list">
                     <strong>Topic:</strong> {item.topic}
                   </div>
                 )}
+                {item.kind === 'assignment' && (
+                  <>
+                    <div className="test-meta-item-list">
+                      <strong>Category:</strong> {item.category}
+                    </div>
+                    <div className="test-meta-item-list">
+                      <strong>Difficulty:</strong> {item.difficulty}
+                    </div>
+                    <div className="test-meta-item-list">
+                      <strong>Total Marks:</strong> {item.totalMarks}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="test-actions-list">
+                {item.type === 'sql' && (
+                  <Link to={`/vendor-admin/sql-tests/${item._id}/questions`} className="test-action-btn-list btn-secondary">
+                    Questions
+                  </Link>
+                )}
+                {item.kind === 'assignment' && (
+                  <>
+                    <Link to={`/vendor-admin/assignments/${item._id}`} className="test-action-btn-list btn-secondary">
+                      View Details
+                    </Link>
+                    <Link to={`/vendor-admin/assignments/${item._id}/edit`} className="test-action-btn-list btn-secondary">
+                      Edit
+                    </Link>
+                  </>
+                )}
                 <Link to={getAssignLink(item)} className="test-action-btn-list btn-primary">
                   Assign
                 </Link>
                 <Link to={getResultsLink(item)} className="test-action-btn-list btn-secondary">
-                  Results
+                  {item.kind === 'assignment' ? 'Submissions' : 'Results'}
                 </Link>
                 <button onClick={() => handleDelete(item)} className="test-action-btn-list btn-danger">
                   Delete

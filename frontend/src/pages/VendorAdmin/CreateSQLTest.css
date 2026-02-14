@@ -1,0 +1,70 @@
+.create-sql-test .page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.create-sql-test .page-description {
+  color: var(--text-secondary, #666);
+  margin-bottom: 24px;
+}
+
+.create-sql-test .sql-test-form {
+  max-width: 640px;
+}
+
+.create-sql-test .form-group {
+  margin-bottom: 20px;
+}
+
+.create-sql-test .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.create-sql-test .form-group input,
+.create-sql-test .form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.create-sql-test .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.create-sql-test .form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.create-sql-test .error-message {
+  color: #c00;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #fff0f0;
+  border-radius: 8px;
+}
+
+.create-sql-test .info-banner {
+  padding: 16px;
+  background: #e8f4fd;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  color: var(--text-primary, #333);
+}
+
+.create-sql-test .info-banner a {
+  color: var(--primary-color, #667eea);
+  font-weight: 600;
+}
