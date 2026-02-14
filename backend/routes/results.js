@@ -8,7 +8,10 @@ const User = require('../models/User');
 const MCQQuestion = require('../models/MCQQuestion');
 const AptitudeQuestion = require('../models/AptitudeQuestion');
 const TheoryQuestion = require('../models/TheoryQuestion');
+const SQLQuestion = require('../models/SQLQuestion');
+const DatasetTemplate = require('../models/DatasetTemplate');
 const { evaluateTheoryAnswer } = require('../utils/aiEvaluation');
+const { runInSandbox } = require('../utils/sqlSandbox');
 
 const normalizeOptionIndexes = (indexes = []) => {
   if (!Array.isArray(indexes)) return [];
@@ -230,6 +233,9 @@ router.post('/:resultId/answer', auth, async (req, res) => {
         console.error('❌ Error evaluating theory question:', error);
         result.answers[answerIndex].points = 0;
       }
+    } else if (result.answers[answerIndex].questionType === 'sql') {
+      // SQL answers are evaluated on final submit only; here we just store the answer
+      result.answers[answerIndex].answer = answer;
     } else {
       // Coding question scoring based on test cases
       if (testCasesPassed !== undefined && totalTestCases !== undefined) {
@@ -328,6 +334,46 @@ router.post('/:resultId/submit', auth, async (req, res) => {
           answer.points = 0;
         }
       }
+
+      if (answer.questionType === 'sql') {
+        try {
+          const test = await Test.findById(result.testId);
+          if (!test || test.type !== 'sql' || !test.datasetTemplateId) {
+            answer.points = 0;
+            answer.isCorrect = false;
+          } else {
+            const template = await DatasetTemplate.findById(test.datasetTemplateId);
+            const sqlQuestion = await SQLQuestion.findById(answer.questionId);
+            if (!template || !sqlQuestion) {
+              answer.points = 0;
+              answer.isCorrect = false;
+            } else {
+              const studentSql = (answer.answer && answer.answer.trim()) || '';
+              if (!studentSql) {
+                answer.points = 0;
+                answer.isCorrect = false;
+              } else {
+                const run = runInSandbox(template.schemaSql, template.dataSql, studentSql);
+                if (!run.success) {
+                  answer.points = 0;
+                  answer.isCorrect = false;
+                } else {
+                  const expected = sqlQuestion.expectedOutputHash;
+                  const match =
+                    run.outputHash === expected ||
+                    (run.outputHashSet && run.outputHashSet === expected);
+                  answer.isCorrect = match;
+                  answer.points = match ? answer.maxPoints : 0;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error evaluating SQL question ${answer.questionId}:`, error);
+          answer.points = 0;
+          answer.isCorrect = false;
+        }
+      }
     }
 
     // Calculate total score
@@ -413,6 +459,9 @@ router.get('/:resultId/questions', auth, async (req, res) => {
     const theoryIds = result.answers
       .filter(a => a.questionType === 'theory' && a.questionId)
       .map(a => a.questionId);
+    const sqlIds = result.answers
+      .filter(a => a.questionType === 'sql' && a.questionId)
+      .map(a => a.questionId);
 
     const questionMap = {};
 
@@ -430,6 +479,11 @@ router.get('/:resultId/questions', auth, async (req, res) => {
       .populate('subjectId', 'name')
       .populate('topicId', 'name');
     theoryQuestions.forEach(q => {
+      questionMap[q._id.toString()] = q.toObject();
+    });
+
+    const sqlQuestions = await SQLQuestion.find({ _id: { $in: sqlIds } }).select('text marks');
+    sqlQuestions.forEach(q => {
       questionMap[q._id.toString()] = q.toObject();
     });
 

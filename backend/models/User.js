@@ -66,6 +66,28 @@ const userSchema = new mongoose.Schema({
     },
     startedAt: Date,
     completedAt: Date
+  }],
+  enrolledAssignments: [{
+    assignmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Assignment'
+    },
+    assignedAt: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['assigned', 'in_progress', 'submitted', 'evaluated'],
+      default: 'assigned'
+    },
+    startedAt: Date,
+    submittedAt: Date,
+    deadline: Date,
+    submissionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProjectSubmission'
+    }
   }]
 }, {
   timestamps: true

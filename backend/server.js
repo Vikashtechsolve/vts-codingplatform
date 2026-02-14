@@ -39,6 +39,29 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Evaluation queue health (for debugging AI project evaluation)
+app.get('/api/health/evaluation', async (req, res) => {
+  try {
+    const { getQueueStats } = require('./workers/evaluationWorker');
+    const stats = await getQueueStats();
+    res.json({
+      status: 'OK',
+      evaluation: {
+        queueConnected: true,
+        waiting: stats.waiting,
+        active: stats.active,
+        completed: stats.completed,
+        failed: stats.failed
+      }
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'ERROR',
+      evaluation: { queueConnected: false, error: err.message }
+    });
+  }
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/super-admin', require('./routes/superAdmin'));
@@ -55,8 +78,16 @@ app.use('/api/interview-sessions', require('./routes/interviewSessions'));
 app.use('/api/students', require('./routes/students'));
 app.use('/api/results', require('./routes/results'));
 app.use('/api/code-execution', require('./routes/codeExecution'));
+app.use('/api/dataset-templates', require('./routes/datasetTemplates'));
+app.use('/api/sql-questions', require('./routes/sqlQuestions'));
+app.use('/api/sql-execution', require('./routes/sqlExecution'));
 app.use('/api/subjects', require('./routes/subjects'));
 app.use('/api/topics', require('./routes/topics'));
+app.use('/api/assignments', require('./routes/assignments'));
+app.use('/api/project-submissions', require('./routes/projectSubmissions'));
+
+// Load evaluation worker to register queue processor (must run for AI project evaluation)
+require('./workers/evaluationWorker');
 
 // Error handling middleware
 app.use((err, req, res, next) => {

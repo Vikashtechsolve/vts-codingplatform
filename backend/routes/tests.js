@@ -17,7 +17,7 @@ router.post('/', [
   authorize('vendor_admin'),
   tenantMiddleware,
   body('title').trim().notEmpty().withMessage('Title is required'),
-  body('type').isIn(['coding', 'mcq', 'aptitude', 'theory', 'mixed']).withMessage('Invalid test type'),
+  body('type').isIn(['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql']).withMessage('Invalid test type'),
   body('duration').isInt({ min: 1 }).withMessage('Duration must be at least 1 minute')
 ], async (req, res) => {
   try {
@@ -28,11 +28,39 @@ router.post('/', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { title, description, type, duration, questions, startDate, endDate, settings } = req.body;
+    const { title, description, type, duration, questions, startDate, endDate, settings, datasetTemplateId } = req.body;
 
     console.log('📋 Test details:', { title, type, duration, questionsCount: questions?.length });
 
-    // Validate questions
+    if (type === 'sql') {
+      if (!datasetTemplateId) {
+        return res.status(400).json({ message: 'SQL tests require a dataset template (datasetTemplateId)' });
+      }
+      const DatasetTemplate = require('../models/DatasetTemplate');
+      const template = await DatasetTemplate.findOne({ _id: datasetTemplateId, vendorId: req.vendorId });
+      if (!template) {
+        return res.status(400).json({ message: 'Dataset template not found or not owned by vendor' });
+      }
+      const test = new Test({
+        title,
+        description: description || '',
+        vendorId: req.vendorId,
+        createdBy: req.user._id,
+        type: 'sql',
+        datasetTemplateId,
+        duration,
+        questions: [],
+        startDate: startDate || null,
+        endDate: endDate || null,
+        settings: settings || {}
+      });
+      await test.save();
+      const Vendor = require('../models/Vendor');
+      await Vendor.findByIdAndUpdate(req.vendorId, { $inc: { 'stats.totalTests': 1 } });
+      return res.status(201).json(test);
+    }
+
+    // Validate questions for non-SQL tests
     if (!questions || questions.length === 0) {
       console.log('❌ No questions provided');
       return res.status(400).json({ message: 'At least one question is required' });
@@ -213,7 +241,8 @@ router.get('/:id', auth, async (req, res) => {
     const CodingQuestion = require('../models/CodingQuestion');
     const MCQQuestion = require('../models/MCQQuestion');
     const TheoryQuestion = require('../models/TheoryQuestion');
-    
+    const SQLQuestion = require('../models/SQLQuestion');
+
     const populatedQuestions = [];
     for (const q of test.questions) {
       let questionData;
@@ -228,6 +257,9 @@ router.get('/:id', auth, async (req, res) => {
           questionData = await TheoryQuestion.findById(q.questionId)
             .populate('subjectId', 'name')
             .populate('topicId', 'name');
+        } else if (q.type === 'sql') {
+          const sqlQ = await SQLQuestion.findById(q.questionId).select('text marks order');
+          questionData = sqlQ ? { _id: sqlQ._id, text: sqlQ.text, marks: sqlQ.marks, order: sqlQ.order } : null;
         }
         
         if (questionData) {
@@ -245,6 +277,20 @@ router.get('/:id', auth, async (req, res) => {
 
     const testObj = test.toObject();
     testObj.questions = populatedQuestions;
+
+    if (test.type === 'sql' && test.datasetTemplateId) {
+      const DatasetTemplate = require('../models/DatasetTemplate');
+      const template = await DatasetTemplate.findById(test.datasetTemplateId)
+        .select('name schemaSql dataSql');
+      testObj.datasetTemplate = template
+        ? {
+            _id: template._id,
+            name: template.name,
+            schemaSql: template.schemaSql,
+            dataSql: template.dataSql
+          }
+        : null;
+    }
 
     console.log(`✅ Test fetched: ${testObj.title}, Questions: ${populatedQuestions.length}/${test.questions.length}`);
     

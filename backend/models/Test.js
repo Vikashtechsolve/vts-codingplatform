@@ -22,8 +22,13 @@ const testSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['coding', 'mcq', 'aptitude', 'theory', 'mixed'],
+    enum: ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql'],
     required: true
+  },
+  datasetTemplateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DatasetTemplate',
+    default: null
   },
   duration: {
     type: Number, // in minutes
@@ -32,7 +37,7 @@ const testSchema = new mongoose.Schema({
   questions: [{
     type: {
       type: String,
-      enum: ['coding', 'mcq', 'aptitude', 'theory'],
+      enum: ['coding', 'mcq', 'aptitude', 'theory', 'sql'],
       required: true
     },
     questionId: {
@@ -42,7 +47,7 @@ const testSchema = new mongoose.Schema({
     },
     questionType: {
       type: String,
-      enum: ['CodingQuestion', 'MCQQuestion', 'AptitudeQuestion', 'TheoryQuestion']
+      enum: ['CodingQuestion', 'MCQQuestion', 'AptitudeQuestion', 'TheoryQuestion', 'SQLQuestion']
     },
     points: {
       type: Number,

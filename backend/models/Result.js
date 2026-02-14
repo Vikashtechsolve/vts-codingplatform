@@ -29,7 +29,7 @@ const resultSchema = new mongoose.Schema({
     },
     questionType: {
       type: String,
-      enum: ['coding', 'mcq', 'aptitude', 'theory'],
+      enum: ['coding', 'mcq', 'aptitude', 'theory', 'sql'],
       required: true
     },
     answer: mongoose.Schema.Types.Mixed, // Can be code or selected option
