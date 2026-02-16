@@ -6,6 +6,20 @@ const path = require('path');
 
 dotenv.config();
 
+// Prevent Redis connection errors from crashing the process (register before any Redis usage)
+process.on('unhandledRejection', (reason) => {
+  const isRedisError = reason && typeof reason === 'object' && (
+    (reason.code === 'ECONNREFUSED' && reason.port === 6379) ||
+    (reason.message && (String(reason.message).includes('ECONNREFUSED') || String(reason.message).includes('6379')))
+  );
+  if (isRedisError) {
+    console.warn('⚠️ Redis connection refused. Start Redis for AI evaluation: brew services start redis');
+    return;
+  }
+  console.error('Unhandled Rejection:', reason);
+  process.exit(1);
+});
+
 const app = express();
 
 // Request logging middleware
@@ -86,8 +100,18 @@ app.use('/api/topics', require('./routes/topics'));
 app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/project-submissions', require('./routes/projectSubmissions'));
 
-// Load evaluation worker to register queue processor (must run for AI project evaluation)
-require('./workers/evaluationWorker');
+// Load evaluation worker asynchronously - avoid crashing if Redis is down
+const loadEvaluationWorker = () => {
+  try {
+    require('./workers/evaluationWorker');
+    console.log('📬 Evaluation queue initializing (Redis connection in progress...)');
+  } catch (err) {
+    console.warn('⚠️ Evaluation worker not loaded (Redis may be down). AI project evaluation will not work.');
+    console.warn('   Error:', err.message);
+  }
+};
+// Defer load so Redis connection errors don't crash startup
+setImmediate(loadEvaluationWorker);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

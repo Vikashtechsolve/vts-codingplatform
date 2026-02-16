@@ -14,11 +14,26 @@ const User = require('../models/User');
 const githubCloner = require('../utils/githubCloner');
 const aiEvaluator = require('../utils/aiEvaluator');
 const scoringEngine = require('../utils/scoringEngine');
-const { getBullQueueOptions } = require('../config/redis');
+const { getBullQueueOptions, isRailwayRedis } = require('../config/redis');
+
+const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
+const usingRailwayRedis = isRailwayRedis(process.env.REDIS_URL);
 
 // Create evaluation queue with proper Redis configuration
 const evaluationQueue = new Queue('project-evaluation', getBullQueueOptions());
-evaluationQueue.on('ready', () => console.log('📬 Evaluation queue connected to Redis'));
+
+evaluationQueue.on('ready', () => {
+  if (isRailway) {
+    console.log('✅ Redis: Connected successfully (Railway)');
+    console.log('   Evaluation queue ready for AI project evaluation.');
+  } else {
+    console.log('✅ Redis: Connected successfully');
+    console.log('   Evaluation queue ready for AI project evaluation.');
+    if (usingRailwayRedis) {
+      console.log('   ℹ️  Using Railway Redis from local.');
+    }
+  }
+});
 
 // Throttle error logging to avoid spam (e.g. repeated ETIMEDOUT)
 let lastErrorLog = 0;
@@ -27,9 +42,22 @@ evaluationQueue.on('error', (err) => {
   const now = Date.now();
   if (now - lastErrorLog > ERROR_LOG_INTERVAL_MS) {
     lastErrorLog = now;
-    console.error('❌ Evaluation queue error:', err.message);
-    if (err.message && err.message.includes('ETIMEDOUT')) {
-      console.error('💡 Redis connection timed out. Check: 1) Redis is running 2) REDIS_URL is reachable 3) Run: node scripts/test-redis.js');
+    const msg = err.message || String(err);
+    console.error('❌ Redis: Connection error:', msg);
+    if (msg.includes('ECONNREFUSED') || msg.includes('::1') || msg.includes('127.0.0.1')) {
+      console.error('   Cause: Redis not reachable.');
+      if (isRailway) {
+        console.error('   Railway: Ensure REDIS_URL is set and Redis service is running. Use internal URL (railway.internal) for same-project services.');
+      } else {
+        console.error('   Local: If using Railway public URL, ensure it is correct. Or run local Redis: brew services start redis');
+      }
+    } else if (msg.includes('ETIMEDOUT')) {
+      console.error('   Cause: Connection timed out.');
+      if (usingRailwayRedis && !isRailway) {
+        console.error('   Local→Railway: Public URL can timeout. Consider running Redis locally for dev, or verify Railway Redis is up.');
+      } else if (isRailway) {
+        console.error('   Railway: Use internal REDIS_URL (railway.internal) for reliable connectivity.');
+      }
     }
   }
 });

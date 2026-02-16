@@ -4,14 +4,34 @@
  */
 
 /**
+ * Detect if Redis URL points to Railway (for contextual logging)
+ */
+function isRailwayRedis(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.toLowerCase();
+  return lower.includes('railway') || lower.includes('rlwy.net') || lower.includes('railway.internal');
+}
+
+/**
  * Get Redis configuration based on environment
  * Priority: REDIS_URL > Individual params (HOST, PORT, PASSWORD)
  */
 function getRedisConfig() {
+  const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
+
   // Check if REDIS_URL is provided (common in cloud deployments)
   if (process.env.REDIS_URL) {
-    console.log('📡 Using REDIS_URL for connection');
-    return process.env.REDIS_URL;
+    const url = process.env.REDIS_URL;
+    const isRemote = isRailwayRedis(url);
+    if (isRailway) {
+      console.log('📡 Redis: Using REDIS_URL (Railway deployment)');
+    } else {
+      console.log('📡 Redis: Using REDIS_URL (local dev → connecting to remote Redis)');
+      if (isRemote) {
+        console.log('   ℹ️  Tip: Public URL from local may have higher latency. For prod, backend and Redis run together on Railway.');
+      }
+    }
+    return url;
   }
 
   // Use individual parameters (common in local development)
@@ -20,12 +40,11 @@ function getRedisConfig() {
     port: parseInt(process.env.REDIS_PORT || '6379'),
   };
 
-  // Add password if provided
   if (process.env.REDIS_PASSWORD) {
     config.password = process.env.REDIS_PASSWORD;
   }
 
-  console.log('📡 Using Redis config:', {
+  console.log('📡 Redis: Using host/port config', {
     host: config.host,
     port: config.port,
     hasPassword: !!config.password
@@ -98,16 +117,19 @@ async function testRedisConnection() {
     const pong = await client.ping();
     
     if (pong === 'PONG') {
-      console.log('✅ Redis connection successful');
+      console.log('✅ Redis: Connection test successful');
       await client.quit();
       return true;
     }
   } catch (error) {
-    console.error('❌ Redis connection failed:', error.message);
-    console.log('💡 Make sure Redis is running:');
-    console.log('   - Local: brew services start redis (macOS) or sudo systemctl start redis (Linux)');
-    console.log('   - Docker: docker run -d -p 6379:6379 redis:alpine');
-    console.log('   - Railway: Add Redis database in dashboard');
+    console.error('❌ Redis: Connection test failed:', error.message);
+    if (process.env.REDIS_URL) {
+      console.log('💡 REDIS_URL is set. Check:');
+      console.log('   - Railway: Ensure Redis service is running and REDIS_URL uses internal URL (railway.internal)');
+      console.log('   - Local using Railway URL: Verify public URL is correct and Redis is reachable');
+    } else {
+      console.log('💡 Local Redis: brew services start redis | docker run -d -p 6379:6379 redis:alpine');
+    }
     return false;
   }
 }
@@ -115,5 +137,6 @@ async function testRedisConnection() {
 module.exports = {
   getRedisConfig,
   getBullQueueOptions,
-  testRedisConnection
+  testRedisConnection,
+  isRailwayRedis
 };
