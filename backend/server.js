@@ -13,7 +13,7 @@ process.on('unhandledRejection', (reason) => {
     (reason.message && (String(reason.message).includes('ECONNREFUSED') || String(reason.message).includes('6379')))
   );
   if (isRedisError) {
-    console.warn('⚠️ Redis connection refused. Start Redis for AI evaluation: brew services start redis');
+    console.warn('⚠️ Redis connection refused. Ensure REDIS_URL is set (Railway public URL in .env or Variables).');
     return;
   }
   console.error('Unhandled Rejection:', reason);
@@ -100,17 +100,20 @@ app.use('/api/topics', require('./routes/topics'));
 app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/project-submissions', require('./routes/projectSubmissions'));
 
-// Load evaluation worker asynchronously - avoid crashing if Redis is down
-const loadEvaluationWorker = () => {
-  try {
-    require('./workers/evaluationWorker');
-    console.log('📬 Evaluation queue initializing (Redis connection in progress...)');
-  } catch (err) {
-    console.warn('⚠️ Evaluation worker not loaded (Redis may be down). AI project evaluation will not work.');
-    console.warn('   Error:', err.message);
+// Load evaluation worker and test Redis connection on startup
+const { testRedisConnection } = require('./config/redis');
+const loadEvaluationWorker = async () => {
+  const connected = await testRedisConnection();
+  if (connected) {
+    try {
+      require('./workers/evaluationWorker');
+    } catch (err) {
+      console.warn('⚠️ Evaluation worker failed to load:', err.message);
+    }
+  } else {
+    console.warn('⚠️ Redis not connected. AI project evaluation will not work.');
   }
 };
-// Defer load so Redis connection errors don't crash startup
 setImmediate(loadEvaluationWorker);
 
 // Error handling middleware

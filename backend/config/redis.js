@@ -1,142 +1,68 @@
 /**
  * Redis Configuration
- * Works both locally and in deployment (Railway, Heroku, etc.)
+ * Uses REDIS_URL only. Set to Railway public Redis URL in both local and deployment.
  */
 
-/**
- * Detect if Redis URL points to Railway (for contextual logging)
- */
-function isRailwayRedis(url) {
-  if (!url || typeof url !== 'string') return false;
-  const lower = url.toLowerCase();
-  return lower.includes('railway') || lower.includes('rlwy.net') || lower.includes('railway.internal');
-}
+function getRedisUrl() {
+  const redisUrl = process.env.REDIS_URL?.trim();
 
-/**
- * Get Redis configuration based on environment
- * Priority: REDIS_URL > Individual params (HOST, PORT, PASSWORD)
- */
-function getRedisConfig() {
-  const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
-
-  // Check if REDIS_URL is provided (common in cloud deployments)
-  if (process.env.REDIS_URL) {
-    const url = process.env.REDIS_URL;
-    const isRemote = isRailwayRedis(url);
-    if (isRailway) {
-      console.log('📡 Redis: Using REDIS_URL (Railway deployment)');
-    } else {
-      console.log('📡 Redis: Using REDIS_URL (local dev → connecting to remote Redis)');
-      if (isRemote) {
-        console.log('   ℹ️  Tip: Public URL from local may have higher latency. For prod, backend and Redis run together on Railway.');
-      }
+  if (redisUrl) {
+    try {
+      const u = new URL(redisUrl);
+      console.log('📡 Redis: Using REDIS_URL →', `${u.hostname}:${u.port || '6379'}`);
+    } catch {
+      console.log('📡 Redis: Using REDIS_URL');
     }
-    return url;
+    return redisUrl;
   }
 
-  // Use individual parameters (common in local development)
-  const config = {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
-  };
-
-  if (process.env.REDIS_PASSWORD) {
-    config.password = process.env.REDIS_PASSWORD;
-  }
-
-  console.log('📡 Redis: Using host/port config', {
-    host: config.host,
-    port: config.port,
-    hasPassword: !!config.password
-  });
-
-  return config;
+  console.error('❌ Redis: REDIS_URL not set. Add it to .env or deployment Variables.');
+  return null;
 }
 
-/**
- * Get Bull queue options with retry logic
- */
 function getBullQueueOptions() {
-  const redisConfig = getRedisConfig();
+  const redisUrl = getRedisUrl();
 
-  // For remote Redis (URL), add longer timeout - ETIMEDOUT is common with Railway/cloud
-  const redisOpts = typeof redisConfig === 'string'
-    ? {
-        url: redisConfig,
-        connectTimeout: 30000,
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times) => (times > 10 ? null : Math.min(times * 1000, 10000))
-      }
-    : {
-        ...redisConfig,
-        connectTimeout: 30000,
-        maxRetriesPerRequest: 3
-      };
+  if (!redisUrl) {
+    throw new Error('REDIS_URL is required. Set it in .env or deployment Variables.');
+  }
 
+  // Bull uses ioredis — pass URL string directly, NOT as {url: "..."}
   return {
-    redis: redisOpts,
+    redis: redisUrl,
     defaultJobOptions: {
       attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 5000
-      },
-      removeOnComplete: {
-        age: 86400, // Keep completed jobs for 24 hours
-        count: 1000 // Keep last 1000 completed jobs
-      },
-      removeOnFail: {
-        age: 604800 // Keep failed jobs for 7 days
-      }
+      backoff: { type: 'exponential', delay: 5000 },
+      removeOnComplete: { age: 86400, count: 1000 },
+      removeOnFail: { age: 604800 }
     },
-    settings: {
-      enableReadyCheck: true
-    }
+    settings: { enableReadyCheck: true }
   };
 }
 
-/**
- * Test Redis connection
- */
 async function testRedisConnection() {
-  const redis = require('redis');
-  const redisConfig = getRedisConfig();
+  const Redis = require('ioredis');
+  const redisUrl = getRedisUrl();
+
+  if (!redisUrl) return false;
 
   try {
-    let client;
-
-    if (typeof redisConfig === 'string') {
-      // URL format
-      client = redis.createClient({ url: redisConfig });
-    } else {
-      // Object format
-      client = redis.createClient(redisConfig);
-    }
-
-    await client.connect();
+    const client = new Redis(redisUrl);
     const pong = await client.ping();
-    
+    await client.quit();
+
     if (pong === 'PONG') {
-      console.log('✅ Redis: Connection test successful');
-      await client.quit();
+      console.log('✅ Redis: Connection successful');
       return true;
     }
   } catch (error) {
-    console.error('❌ Redis: Connection test failed:', error.message);
-    if (process.env.REDIS_URL) {
-      console.log('💡 REDIS_URL is set. Check:');
-      console.log('   - Railway: Ensure Redis service is running and REDIS_URL uses internal URL (railway.internal)');
-      console.log('   - Local using Railway URL: Verify public URL is correct and Redis is reachable');
-    } else {
-      console.log('💡 Local Redis: brew services start redis | docker run -d -p 6379:6379 redis:alpine');
-    }
+    console.error('❌ Redis: Connection failed:', error.message);
     return false;
   }
 }
 
 module.exports = {
-  getRedisConfig,
+  getRedisUrl,
   getBullQueueOptions,
-  testRedisConnection,
-  isRailwayRedis
+  testRedisConnection
 };
