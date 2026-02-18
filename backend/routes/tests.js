@@ -8,8 +8,23 @@ const CodingQuestion = require('../models/CodingQuestion');
 const MCQQuestion = require('../models/MCQQuestion');
 const AptitudeQuestion = require('../models/AptitudeQuestion');
 const TheoryQuestion = require('../models/TheoryQuestion');
+const EnglishGrammarQuestion = require('../models/EnglishGrammarQuestion');
+const EnglishVocabularyQuestion = require('../models/EnglishVocabularyQuestion');
+const EnglishReadingQuestion = require('../models/EnglishReadingQuestion');
+const EnglishEssayQuestion = require('../models/EnglishEssayQuestion');
+const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
+const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
 const User = require('../models/User');
 const Result = require('../models/Result');
+
+const ENGLISH_QUESTION_MODELS = {
+  english_grammar: EnglishGrammarQuestion,
+  english_vocabulary: EnglishVocabularyQuestion,
+  english_reading: EnglishReadingQuestion,
+  english_essay: EnglishEssayQuestion,
+  english_speaking: EnglishSpeakingQuestion,
+  english_listening: EnglishListeningQuestion
+};
 
 // Create test (vendor admin only)
 router.post('/', [
@@ -17,7 +32,7 @@ router.post('/', [
   authorize('vendor_admin'),
   tenantMiddleware,
   body('title').trim().notEmpty().withMessage('Title is required'),
-  body('type').isIn(['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql']).withMessage('Invalid test type'),
+  body('type').isIn(['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql', 'english']).withMessage('Invalid test type'),
   body('duration').isInt({ min: 1 }).withMessage('Duration must be at least 1 minute')
 ], async (req, res) => {
   try {
@@ -130,6 +145,16 @@ router.post('/', [
           ]
         });
         console.log(`   Theory question ${q.questionId}: ${question ? '✅ Found' : '❌ Not found'}`);
+      } else if (ENGLISH_QUESTION_MODELS[q.type]) {
+        const Model = ENGLISH_QUESTION_MODELS[q.type];
+        question = await Model.findOne({
+          _id: q.questionId,
+          $or: [
+            { vendorId: req.vendorId, $or: [{ isGlobal: false }, { isGlobal: { $exists: false } }] },
+            { isGlobal: true }
+          ]
+        });
+        console.log(`   English ${q.type} question ${q.questionId}: ${question ? '✅ Found' : '❌ Not found'}`);
       } else {
         console.log(`   ❌ Unknown question type: ${q.type}`);
         return res.status(400).json({ message: `Invalid question type: ${q.type}` });
@@ -142,6 +167,19 @@ router.post('/', [
     }
     console.log('✅ All questions verified');
 
+    const TYPE_TO_MODEL = {
+      coding: 'CodingQuestion',
+      mcq: 'MCQQuestion',
+      aptitude: 'AptitudeQuestion',
+      theory: 'TheoryQuestion',
+      english_grammar: 'EnglishGrammarQuestion',
+      english_vocabulary: 'EnglishVocabularyQuestion',
+      english_reading: 'EnglishReadingQuestion',
+      english_essay: 'EnglishEssayQuestion',
+      english_speaking: 'EnglishSpeakingQuestion',
+      english_listening: 'EnglishListeningQuestion'
+    };
+
     const test = new Test({
       title,
       description,
@@ -152,16 +190,12 @@ router.post('/', [
       questions: questions.map((q, index) => ({
         type: q.type,
         questionId: q.questionId,
-        questionType: q.type === 'coding'
-          ? 'CodingQuestion'
-          : q.type === 'mcq'
-            ? 'MCQQuestion'
-            : q.type === 'aptitude'
-              ? 'AptitudeQuestion'
-              : 'TheoryQuestion',
+        questionType: q.questionType || TYPE_TO_MODEL[q.type] || 'MCQQuestion',
         points: q.points || 10,
-        order: q.order || index + 1
+        order: q.order || index + 1,
+        sectionId: q.sectionId || undefined
       })),
+      englishSections: req.body.englishSections || [],
       startDate,
       endDate,
       settings: settings || {}
@@ -260,6 +294,8 @@ router.get('/:id', auth, async (req, res) => {
         } else if (q.type === 'sql') {
           const sqlQ = await SQLQuestion.findById(q.questionId).select('text marks order');
           questionData = sqlQ ? { _id: sqlQ._id, text: sqlQ.text, marks: sqlQ.marks, order: sqlQ.order } : null;
+        } else if (ENGLISH_QUESTION_MODELS[q.type]) {
+          questionData = await ENGLISH_QUESTION_MODELS[q.type].findById(q.questionId);
         }
         
         if (questionData) {
@@ -317,7 +353,7 @@ router.put('/:id', [
       return res.status(404).json({ message: 'Test not found' });
     }
 
-    const { title, description, duration, questions, startDate, endDate, isActive, settings } = req.body;
+    const { title, description, duration, questions, startDate, endDate, isActive, settings, englishSections } = req.body;
 
     if (title) test.title = title;
     if (description !== undefined) test.description = description;
@@ -327,6 +363,7 @@ router.put('/:id', [
     if (endDate) test.endDate = endDate;
     if (isActive !== undefined) test.isActive = isActive;
     if (settings) test.settings = { ...test.settings, ...settings };
+    if (englishSections !== undefined) test.englishSections = englishSections;
 
     await test.save();
     res.json(test);

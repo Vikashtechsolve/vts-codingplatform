@@ -29,16 +29,64 @@ const resultSchema = new mongoose.Schema({
     },
     questionType: {
       type: String,
-      enum: ['coding', 'mcq', 'aptitude', 'theory', 'sql'],
+      enum: [
+        'coding', 'mcq', 'aptitude', 'theory', 'sql',
+        'english_grammar', 'english_vocabulary', 'english_reading',
+        'english_essay', 'english_speaking', 'english_listening'
+      ],
       required: true
     },
-    answer: mongoose.Schema.Types.Mixed, // Can be code or selected option
-    language: String, // For coding questions
+    answer: mongoose.Schema.Types.Mixed,
+    language: String,
     testCasesPassed: Number,
     totalTestCases: Number,
     isCorrect: Boolean,
     points: Number,
     maxPoints: Number,
+    audioFileUrl: String,
+    essayContent: String,
+    wordCount: Number,
+    flagged: { type: Boolean, default: false },
+    note: { type: String, trim: true },
+    sectionId: String,
+    subAnswers: [{
+      subQuestionIndex: Number,
+      answer: mongoose.Schema.Types.Mixed,
+      isCorrect: Boolean,
+      points: Number,
+      maxPoints: Number,
+      feedback: String
+    }],
+    englishEvaluation: {
+      grammarScore: Number,
+      vocabularyScore: Number,
+      coherenceScore: Number,
+      structureScore: Number,
+      toneScore: Number,
+      relevanceScore: Number,
+      detailedFeedback: String,
+      suggestions: [String],
+      pronunciationScore: Number,
+      fluencyScore: Number,
+      pauseAnalysis: {
+        totalPauses: Number,
+        avgPauseDuration: Number
+      },
+      speakingRate: Number,
+      transcription: String,
+      confidenceScore: Number,
+      accentClarity: Number,
+      fillerWords: Number,
+      vocabularyDiversity: Number,
+      plagiarism: {
+        originalityScore: Number,
+        suspicionLevel: { type: String, enum: ['none', 'low', 'medium', 'high'] },
+        isLikelyOriginal: Boolean,
+        indicators: [String],
+        crossSubmissionSimilarity: Number,
+        feedback: String
+      }
+    },
     evaluation: {
       similarityScore: Number,
       conceptScore: Number,
@@ -99,7 +147,13 @@ const resultSchema = new mongoose.Schema({
   autoSubmitted: {
     type: Boolean,
     default: false
-  }
+  },
+  sectionScores: [{
+    sectionType: String,
+    score: { type: Number, default: 0 },
+    maxScore: { type: Number, default: 0 },
+    percentage: { type: Number, default: 0 }
+  }]
 }, {
   timestamps: true
 });

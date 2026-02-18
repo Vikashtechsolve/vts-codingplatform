@@ -463,5 +463,83 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// Speaking analytics for a specific test
+router.get('/tests/:testId/speaking-analytics', async (req, res) => {
+  try {
+    const results = await Result.find({
+      testId: req.params.testId,
+      vendorId: req.vendorId,
+      status: 'completed'
+    }).populate('studentId', 'name email');
+
+    const speakingAnswers = [];
+    results.forEach(r => {
+      (r.answers || []).forEach(a => {
+        if (a.questionType === 'english_speaking' && a.englishEvaluation) {
+          speakingAnswers.push({
+            studentName: r.studentId?.name || 'Unknown',
+            studentEmail: r.studentId?.email || '',
+            questionId: a.questionId,
+            points: a.points,
+            maxPoints: a.maxPoints,
+            audioUrl: a.audioFileUrl,
+            evaluation: a.englishEvaluation
+          });
+        }
+      });
+    });
+
+    if (speakingAnswers.length === 0) {
+      return res.json({ totalSubmissions: 0, averages: {}, distribution: {} });
+    }
+
+    const avg = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 100) : 0;
+
+    const averages = {
+      pronunciation: avg(speakingAnswers.map(a => a.evaluation.pronunciationScore || 0)),
+      fluency: avg(speakingAnswers.map(a => a.evaluation.fluencyScore || 0)),
+      coherence: avg(speakingAnswers.map(a => a.evaluation.coherenceScore || 0)),
+      vocabulary: avg(speakingAnswers.map(a => a.evaluation.vocabularyScore || 0)),
+      grammar: avg(speakingAnswers.map(a => a.evaluation.grammarScore || 0)),
+      confidence: avg(speakingAnswers.map(a => a.evaluation.confidenceScore || 0)),
+    };
+
+    const avgSpeakingRate = speakingAnswers.reduce((sum, a) => sum + (a.evaluation.speakingRate || 0), 0) / speakingAnswers.length;
+    const avgFillerWords = speakingAnswers.reduce((sum, a) => sum + (a.evaluation.fillerWords || 0), 0) / speakingAnswers.length;
+    const avgVocabDiversity = speakingAnswers.reduce((sum, a) => sum + (a.evaluation.vocabularyDiversity || 0), 0) / speakingAnswers.length;
+
+    const scoreRanges = { excellent: 0, good: 0, average: 0, poor: 0 };
+    speakingAnswers.forEach(a => {
+      const pct = a.maxPoints > 0 ? (a.points / a.maxPoints) * 100 : 0;
+      if (pct >= 80) scoreRanges.excellent++;
+      else if (pct >= 60) scoreRanges.good++;
+      else if (pct >= 40) scoreRanges.average++;
+      else scoreRanges.poor++;
+    });
+
+    res.json({
+      totalSubmissions: speakingAnswers.length,
+      averages,
+      avgSpeakingRate: Math.round(avgSpeakingRate),
+      avgFillerWords: Math.round(avgFillerWords * 10) / 10,
+      avgVocabDiversity: Math.round(avgVocabDiversity * 100),
+      distribution: scoreRanges,
+      topPerformers: speakingAnswers
+        .sort((a, b) => (b.points / (b.maxPoints || 1)) - (a.points / (a.maxPoints || 1)))
+        .slice(0, 5)
+        .map(a => ({
+          name: a.studentName,
+          email: a.studentEmail,
+          score: a.points,
+          maxScore: a.maxPoints,
+          pronunciation: Math.round((a.evaluation.pronunciationScore || 0) * 100),
+          fluency: Math.round((a.evaluation.fluencyScore || 0) * 100),
+        }))
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router;
 

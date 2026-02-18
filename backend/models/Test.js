@@ -22,7 +22,7 @@ const testSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql'],
+    enum: ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql', 'english'],
     required: true
   },
   datasetTemplateId: {
@@ -37,7 +37,11 @@ const testSchema = new mongoose.Schema({
   questions: [{
     type: {
       type: String,
-      enum: ['coding', 'mcq', 'aptitude', 'theory', 'sql'],
+      enum: [
+        'coding', 'mcq', 'aptitude', 'theory', 'sql',
+        'english_grammar', 'english_vocabulary', 'english_reading',
+        'english_essay', 'english_speaking', 'english_listening'
+      ],
       required: true
     },
     questionId: {
@@ -47,7 +51,11 @@ const testSchema = new mongoose.Schema({
     },
     questionType: {
       type: String,
-      enum: ['CodingQuestion', 'MCQQuestion', 'AptitudeQuestion', 'TheoryQuestion', 'SQLQuestion']
+      enum: [
+        'CodingQuestion', 'MCQQuestion', 'AptitudeQuestion', 'TheoryQuestion', 'SQLQuestion',
+        'EnglishGrammarQuestion', 'EnglishVocabularyQuestion', 'EnglishReadingQuestion',
+        'EnglishEssayQuestion', 'EnglishSpeakingQuestion', 'EnglishListeningQuestion'
+      ]
     },
     points: {
       type: Number,
@@ -56,6 +64,29 @@ const testSchema = new mongoose.Schema({
     order: {
       type: Number,
       required: true
+    },
+    sectionId: {
+      type: String
+    }
+  }],
+  englishSections: [{
+    sectionType: {
+      type: String,
+      enum: ['grammar', 'vocabulary', 'reading', 'writing', 'speaking', 'listening']
+    },
+    sectionTitle: {
+      type: String,
+      trim: true
+    },
+    duration: {
+      type: Number
+    },
+    order: {
+      type: Number
+    },
+    instructions: {
+      type: String,
+      trim: true
     }
   }],
   isActive: {
@@ -74,6 +105,10 @@ const testSchema = new mongoose.Schema({
       default: true
     },
     shuffleQuestions: {
+      type: Boolean,
+      default: false
+    },
+    practiceMode: {
       type: Boolean,
       default: false
     }

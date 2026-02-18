@@ -85,6 +85,7 @@ app.use('/api/super-admin/interview-questions', require('./routes/superAdminInte
 app.use('/api/vendor-admin/classrooms', require('./routes/classrooms'));
 app.use('/api/vendor-admin', require('./routes/vendorAdmin'));
 app.use('/api/questions', require('./routes/questions'));
+app.use('/api/questions/english', require('./routes/englishQuestions'));
 app.use('/api/interview-questions', require('./routes/interviewQuestions'));
 app.use('/api/tests', require('./routes/tests'));
 app.use('/api/interviews', require('./routes/interviews'));

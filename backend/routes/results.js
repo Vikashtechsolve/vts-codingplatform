@@ -12,6 +12,37 @@ const SQLQuestion = require('../models/SQLQuestion');
 const DatasetTemplate = require('../models/DatasetTemplate');
 const { evaluateTheoryAnswer } = require('../utils/aiEvaluation');
 const { runInSandbox } = require('../utils/sqlSandbox');
+const EnglishGrammarQuestion = require('../models/EnglishGrammarQuestion');
+const EnglishVocabularyQuestion = require('../models/EnglishVocabularyQuestion');
+const EnglishReadingQuestion = require('../models/EnglishReadingQuestion');
+const EnglishEssayQuestion = require('../models/EnglishEssayQuestion');
+const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
+const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
+const {
+  evaluateGrammarSubjective,
+  evaluateReadingShortAnswer,
+  evaluateEssay,
+  evaluateSpeaking,
+  evaluateListeningShortAnswer,
+  checkPlagiarism
+} = require('../utils/englishAiEvaluator');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const speakingUploadDir = path.join(__dirname, '..', 'uploads', 'speaking');
+if (!fs.existsSync(speakingUploadDir)) fs.mkdirSync(speakingUploadDir, { recursive: true });
+
+const speakingStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(speakingUploadDir, req.params.resultId || 'unknown');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+});
+
+const uploadSpeaking = multer({ storage: speakingStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const normalizeOptionIndexes = (indexes = []) => {
   if (!Array.isArray(indexes)) return [];
@@ -157,7 +188,7 @@ router.post('/:resultId/answer', auth, async (req, res) => {
       return res.status(404).json({ message: 'Result not found' });
     }
 
-    const { questionId, answer, language, testCasesPassed, totalTestCases } = req.body;
+    const { questionId, answer, language, testCasesPassed, totalTestCases, note, flagged } = req.body;
 
     const answerIndex = result.answers.findIndex(
       a => a.questionId.toString() === questionId.toString()
@@ -233,10 +264,61 @@ router.post('/:resultId/answer', auth, async (req, res) => {
         console.error('❌ Error evaluating theory question:', error);
         result.answers[answerIndex].points = 0;
       }
-    } else if (result.answers[answerIndex].questionType === 'sql') {
-      // SQL answers are evaluated on final submit only; here we just store the answer
+    } else if (result.answers[answerIndex].questionType === 'english_grammar') {
+      try {
+        const grammarQ = await EnglishGrammarQuestion.findById(questionId);
+        if (!grammarQ) return;
+        if (grammarQ.subType === 'parajumble') {
+          const correct = JSON.stringify(grammarQ.correctOrder) === JSON.stringify(answer);
+          result.answers[answerIndex].isCorrect = correct;
+          result.answers[answerIndex].points = correct ? result.answers[answerIndex].maxPoints : 0;
+        } else if ((grammarQ.subType === 'fill_in_blank' || (grammarQ.subType === 'sentence_correction' && !grammarQ.isSubjective)) && grammarQ.correctAnswer && typeof answer === 'string') {
+          const normalized = (s) => (s || '').trim().toLowerCase();
+          const isCorrect = normalized(answer) === normalized(grammarQ.correctAnswer);
+          result.answers[answerIndex].isCorrect = isCorrect;
+          result.answers[answerIndex].points = isCorrect ? result.answers[answerIndex].maxPoints : 0;
+        } else if (grammarQ.isSubjective && grammarQ.subType === 'sentence_correction') {
+          // Subjective evaluated on final submit only
+        } else if (grammarQ.options && grammarQ.options.length > 0) {
+          const selectedIdx = parseInt(answer, 10);
+          const isCorrect = grammarQ.options[selectedIdx]?.isCorrect || false;
+          result.answers[answerIndex].isCorrect = isCorrect;
+          result.answers[answerIndex].points = isCorrect ? result.answers[answerIndex].maxPoints : 0;
+        }
+      } catch (error) {
+        console.error('Error evaluating grammar:', error);
+      }
+    } else if (result.answers[answerIndex].questionType === 'english_vocabulary') {
+      try {
+        const vocabQ = await EnglishVocabularyQuestion.findById(questionId);
+        if (vocabQ) {
+          const selectedIdx = parseInt(answer);
+          const isCorrect = vocabQ.options[selectedIdx]?.isCorrect || false;
+          result.answers[answerIndex].isCorrect = isCorrect;
+          result.answers[answerIndex].points = isCorrect ? result.answers[answerIndex].maxPoints : 0;
+        }
+      } catch (error) {
+        console.error('Error evaluating vocabulary:', error);
+      }
+    } else if (result.answers[answerIndex].questionType === 'english_reading') {
       result.answers[answerIndex].answer = answer;
-    } else {
+    } else if (result.answers[answerIndex].questionType === 'english_essay') {
+      result.answers[answerIndex].essayContent = answer;
+      result.answers[answerIndex].answer = answer;
+      const plainText = (answer || '').replace(/<[^>]*>/g, '');
+      result.answers[answerIndex].wordCount = plainText.split(/\s+/).filter(Boolean).length;
+    } else if (result.answers[answerIndex].questionType === 'english_speaking') {
+      result.answers[answerIndex].answer = answer;
+    } else if (result.answers[answerIndex].questionType === 'english_listening') {
+      result.answers[answerIndex].answer = answer;
+    } else if (result.answers[answerIndex].questionType === 'sql') {
+      result.answers[answerIndex].answer = answer;
+    }
+
+    if (note !== undefined) result.answers[answerIndex].note = note || '';
+    if (flagged !== undefined) result.answers[answerIndex].flagged = !!flagged;
+
+    if (result.answers[answerIndex].questionType === 'coding') {
       // Coding question scoring based on test cases
       if (testCasesPassed !== undefined && totalTestCases !== undefined) {
         const maxPoints = result.answers[answerIndex].maxPoints;
@@ -376,9 +458,234 @@ router.post('/:resultId/submit', auth, async (req, res) => {
       }
     }
 
+    // Evaluate English questions on final submission
+    for (let i = 0; i < result.answers.length; i++) {
+      const answer = result.answers[i];
+
+      if (answer.questionType === 'english_grammar' && answer.answer !== undefined && answer.answer !== null) {
+        try {
+          const grammarQ = await EnglishGrammarQuestion.findById(answer.questionId);
+          if (grammarQ) {
+            if (grammarQ.isSubjective && grammarQ.subType === 'sentence_correction' && typeof answer.answer === 'string') {
+              const eval_ = await evaluateGrammarSubjective(grammarQ, answer.answer);
+              answer.englishEvaluation = { grammarScore: eval_.grammarScore, detailedFeedback: eval_.detailedFeedback, suggestions: eval_.suggestions };
+              answer.isCorrect = eval_.isCorrect;
+              answer.points = Math.round(eval_.grammarScore * answer.maxPoints);
+            } else if (grammarQ.subType === 'parajumble') {
+              const correct = JSON.stringify(grammarQ.correctOrder) === JSON.stringify(answer.answer);
+              answer.isCorrect = correct;
+              answer.points = correct ? answer.maxPoints : 0;
+            } else if ((grammarQ.subType === 'fill_in_blank' || (grammarQ.subType === 'sentence_correction' && !grammarQ.isSubjective)) && grammarQ.correctAnswer && typeof answer.answer === 'string') {
+              const normalized = (s) => (s || '').trim().toLowerCase();
+              const isCorrect = normalized(answer.answer) === normalized(grammarQ.correctAnswer);
+              answer.isCorrect = isCorrect;
+              answer.points = isCorrect ? answer.maxPoints : 0;
+            } else if (grammarQ.options && grammarQ.options.length > 0) {
+              const selectedIdx = parseInt(answer.answer, 10);
+              const isCorrect = grammarQ.options[selectedIdx]?.isCorrect || false;
+              answer.isCorrect = isCorrect;
+              answer.points = isCorrect ? answer.maxPoints : 0;
+            }
+          }
+        } catch (error) {
+          console.error(`Error evaluating grammar ${answer.questionId}:`, error.message);
+        }
+      }
+
+      if (answer.questionType === 'english_vocabulary' && answer.answer !== undefined && answer.answer !== null) {
+        try {
+          const vocabQ = await EnglishVocabularyQuestion.findById(answer.questionId);
+          if (vocabQ) {
+            const selectedIdx = parseInt(answer.answer);
+            answer.isCorrect = vocabQ.options[selectedIdx]?.isCorrect || false;
+            answer.points = answer.isCorrect ? answer.maxPoints : 0;
+          }
+        } catch (error) {
+          console.error(`Error evaluating vocabulary ${answer.questionId}:`, error.message);
+        }
+      }
+
+      if (answer.questionType === 'english_reading' && answer.answer) {
+        try {
+          const readingQ = await EnglishReadingQuestion.findById(answer.questionId);
+          if (readingQ) {
+            let totalPts = 0;
+            const subAnswers = [];
+            for (let sIdx = 0; sIdx < readingQ.questions.length; sIdx++) {
+              const subQ = readingQ.questions[sIdx];
+              const subAns = answer.answer[sIdx];
+              if (subQ.questionType === 'mcq' || subQ.questionType === 'true_false') {
+                const isCorrect = subQ.options[parseInt(subAns)]?.isCorrect || false;
+                const pts = isCorrect ? (subQ.points || 5) : 0;
+                totalPts += pts;
+                subAnswers.push({ subQuestionIndex: sIdx, answer: subAns, isCorrect, points: pts, maxPoints: subQ.points || 5 });
+              } else if ((subQ.questionType === 'short_answer' || subQ.questionType === 'inference') && subAns) {
+                const eval_ = await evaluateReadingShortAnswer(readingQ.passage.content, subQ, subAns);
+                const pts = Math.round(eval_.finalScore * (subQ.points || 5));
+                totalPts += pts;
+                subAnswers.push({
+                  subQuestionIndex: sIdx,
+                  answer: subAns,
+                  isCorrect: eval_.finalScore >= 0.5,
+                  points: pts,
+                  maxPoints: subQ.points || 5,
+                  feedback: eval_.detailedFeedback || null
+                });
+              }
+            }
+            answer.subAnswers = subAnswers;
+            answer.points = totalPts;
+          }
+        } catch (error) {
+          console.error(`Error evaluating reading ${answer.questionId}:`, error.message);
+        }
+      }
+
+      if (answer.questionType === 'english_essay' && (answer.essayContent || answer.answer)) {
+        try {
+          const essayQ = await EnglishEssayQuestion.findById(answer.questionId);
+          if (essayQ) {
+            const content = answer.essayContent || answer.answer || '';
+            const eval_ = await evaluateEssay(essayQ, content);
+
+            let plagiarismResult = null;
+            try {
+              const otherResults = await Result.find({
+                testId: result.testId,
+                _id: { $ne: result._id },
+                status: 'completed'
+              }).select('answers');
+              const otherEssays = otherResults.flatMap(r =>
+                (r.answers || [])
+                  .filter(a => a.questionId?.toString() === answer.questionId?.toString() && (a.essayContent || a.answer))
+                  .map(a => a.essayContent || a.answer)
+              );
+              plagiarismResult = await checkPlagiarism(content, otherEssays);
+            } catch (plagErr) {
+              console.error('Plagiarism check error:', plagErr.message);
+            }
+
+            answer.englishEvaluation = {
+              grammarScore: eval_.grammarScore, vocabularyScore: eval_.vocabularyScore, coherenceScore: eval_.coherenceScore,
+              structureScore: eval_.structureScore, toneScore: eval_.toneScore, relevanceScore: eval_.relevanceScore,
+              detailedFeedback: eval_.detailedFeedback, suggestions: eval_.suggestions,
+              ...(plagiarismResult && {
+                plagiarism: {
+                  originalityScore: plagiarismResult.originalityScore,
+                  suspicionLevel: plagiarismResult.suspicionLevel,
+                  isLikelyOriginal: plagiarismResult.isLikelyOriginal,
+                  indicators: plagiarismResult.indicators,
+                  crossSubmissionSimilarity: plagiarismResult.crossSubmissionSimilarity,
+                  feedback: plagiarismResult.feedback
+                }
+              })
+            };
+            answer.wordCount = eval_.wordCount;
+            answer.points = Math.round(eval_.finalScore * answer.maxPoints);
+
+            if (plagiarismResult && plagiarismResult.suspicionLevel === 'high') {
+              answer.points = Math.round(answer.points * 0.5);
+              answer.flagged = true;
+            } else if (plagiarismResult && plagiarismResult.suspicionLevel === 'medium') {
+              answer.points = Math.round(answer.points * 0.8);
+              answer.flagged = true;
+            }
+          }
+        } catch (error) {
+          console.error(`Error evaluating essay ${answer.questionId}:`, error.message);
+        }
+      }
+
+      if (answer.questionType === 'english_speaking' && answer.audioFileUrl) {
+        try {
+          const speakingQ = await EnglishSpeakingQuestion.findById(answer.questionId);
+          if (speakingQ) {
+            const audioPath = path.join(__dirname, '..', answer.audioFileUrl);
+            const eval_ = await evaluateSpeaking(audioPath, speakingQ);
+            answer.englishEvaluation = {
+              pronunciationScore: eval_.pronunciationScore, fluencyScore: eval_.fluencyScore,
+              coherenceScore: eval_.coherenceScore, vocabularyScore: eval_.vocabularyScore, grammarScore: eval_.grammarScore,
+              confidenceScore: eval_.confidenceScore, transcription: eval_.transcription,
+              speakingRate: eval_.speakingRate, pauseAnalysis: eval_.pauseAnalysis,
+              fillerWords: eval_.fillerWords, vocabularyDiversity: eval_.vocabularyDiversity,
+              accentClarity: eval_.accentClarity, detailedFeedback: eval_.detailedFeedback
+            };
+            answer.points = Math.round(eval_.finalScore * answer.maxPoints);
+          }
+        } catch (error) {
+          console.error(`Error evaluating speaking ${answer.questionId}:`, error.message);
+        }
+      }
+
+      if (answer.questionType === 'english_listening' && answer.answer) {
+        try {
+          const listeningQ = await EnglishListeningQuestion.findById(answer.questionId);
+          if (listeningQ) {
+            let totalPts = 0;
+            const subAnswers = [];
+            for (let sIdx = 0; sIdx < listeningQ.questions.length; sIdx++) {
+              const subQ = listeningQ.questions[sIdx];
+              const subAns = answer.answer[sIdx];
+              if (subQ.questionType === 'mcq' || subQ.questionType === 'true_false') {
+                const isCorrect = subQ.options[parseInt(subAns)]?.isCorrect || false;
+                const pts = isCorrect ? (subQ.points || 5) : 0;
+                totalPts += pts;
+                subAnswers.push({ subQuestionIndex: sIdx, answer: subAns, isCorrect, points: pts, maxPoints: subQ.points || 5 });
+              } else if ((subQ.questionType === 'fill_in_blank' || subQ.questionType === 'short_answer') && subAns) {
+                if (subQ.correctAnswer && subAns.toLowerCase().trim() === subQ.correctAnswer.toLowerCase().trim()) {
+                  totalPts += subQ.points || 5;
+                  subAnswers.push({ subQuestionIndex: sIdx, answer: subAns, isCorrect: true, points: subQ.points || 5, maxPoints: subQ.points || 5 });
+                } else if (subQ.questionType === 'short_answer' && listeningQ.audioTranscript) {
+                  const eval_ = await evaluateListeningShortAnswer(listeningQ.audioTranscript, subQ, subAns);
+                  const pts = Math.round(eval_.finalScore * (subQ.points || 5));
+                  totalPts += pts;
+                  subAnswers.push({
+                    subQuestionIndex: sIdx,
+                    answer: subAns,
+                    isCorrect: eval_.finalScore >= 0.5,
+                    points: pts,
+                    maxPoints: subQ.points || 5,
+                    feedback: eval_.detailedFeedback || null
+                  });
+                } else {
+                  subAnswers.push({ subQuestionIndex: sIdx, answer: subAns, isCorrect: false, points: 0, maxPoints: subQ.points || 5 });
+                }
+              }
+            }
+            answer.subAnswers = subAnswers;
+            answer.points = totalPts;
+          }
+        } catch (error) {
+          console.error(`Error evaluating listening ${answer.questionId}:`, error.message);
+        }
+      }
+    }
+
+    // Calculate section scores for English tests
+    const test = await Test.findById(result.testId);
+    if (test && test.type === 'english' && test.englishSections?.length) {
+      const sectionScores = [];
+      for (const section of test.englishSections) {
+        const sectionQuestions = test.questions.filter(q => q.sectionId === section.sectionType);
+        const sectionQIds = sectionQuestions.map(q => q.questionId.toString());
+        const sectionAnswers = result.answers.filter(a => sectionQIds.includes(a.questionId.toString()));
+        const score = sectionAnswers.reduce((sum, a) => sum + (a.points || 0), 0);
+        const maxScore = sectionQuestions.reduce((sum, q) => sum + (q.points || 10), 0);
+        sectionScores.push({
+          sectionType: section.sectionType,
+          score,
+          maxScore,
+          percentage: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0
+        });
+      }
+      result.sectionScores = sectionScores;
+    }
+
     // Calculate total score
     result.totalScore = result.answers.reduce((sum, a) => sum + (a.points || 0), 0);
-    result.percentage = Math.round((result.totalScore / result.maxScore) * 100);
+    result.percentage = (result.maxScore > 0)
+      ? Math.round((result.totalScore / result.maxScore) * 100)
+      : 0;
     result.submittedAt = new Date();
     result.timeSpent = Math.floor((result.submittedAt - result.startedAt) / 1000);
     result.status = 'completed';
@@ -520,7 +827,55 @@ router.get('/:resultId', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    res.json(result);
+    const out = result.toObject();
+
+    if (out.testId?.type === 'english' && out.status === 'completed') {
+      const ENGLISH_MODELS = {
+        english_grammar: EnglishGrammarQuestion,
+        english_vocabulary: EnglishVocabularyQuestion,
+        english_reading: EnglishReadingQuestion,
+        english_essay: EnglishEssayQuestion,
+        english_speaking: EnglishSpeakingQuestion,
+        english_listening: EnglishListeningQuestion
+      };
+      for (let i = 0; i < out.answers.length; i++) {
+        const a = out.answers[i];
+        const Model = ENGLISH_MODELS[a.questionType];
+        if (Model && a.questionId) {
+          try {
+            const q = await Model.findById(a.questionId).lean();
+            if (q) {
+              out.answers[i].questionDetails = {
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                explanation: q.explanation,
+                questionText: q.questionText,
+                word: q.word,
+                subType: q.subType,
+                sampleResponse: q.sampleResponse,
+                referenceAnswer: q.referenceAnswer,
+                passage: q.passage,
+                questions: q.questions
+              };
+            }
+          } catch (err) {
+            // ignore per-question fetch errors
+          }
+        }
+      }
+      const totalCompleted = await Result.countDocuments({
+        testId: result.testId._id || result.testId,
+        status: 'completed'
+      });
+      const scoredLower = await Result.countDocuments({
+        testId: result.testId._id || result.testId,
+        status: 'completed',
+        percentage: { $lt: result.percentage }
+      });
+      out.percentile = totalCompleted > 0 ? Math.round((scoredLower / totalCompleted) * 100) : null;
+    }
+
+    res.json(out);
   } catch (error) {
     console.error('❌ Error fetching result:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -631,8 +986,9 @@ router.patch('/:resultId/answers/:answerId/manual-score', [
     if (!answer) {
       return res.status(404).json({ message: 'Answer not found' });
     }
-    if (answer.questionType !== 'theory') {
-      return res.status(400).json({ message: 'Manual scoring only supported for theory answers' });
+    const manualScorable = ['theory', 'english_grammar', 'english_reading', 'english_essay', 'english_speaking', 'english_listening'];
+    if (!manualScorable.includes(answer.questionType)) {
+      return res.status(400).json({ message: 'Manual scoring not supported for this question type' });
     }
 
     const manualScore = Math.max(0, Math.min(Number(score), answer.maxPoints));
@@ -650,6 +1006,32 @@ router.patch('/:resultId/answers/:answerId/manual-score', [
 
     await result.save();
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Upload speaking audio for a result
+router.post('/:resultId/upload-audio', auth, uploadSpeaking.single('audio'), async (req, res) => {
+  try {
+    if (req.user.role !== 'student') return res.status(403).json({ message: 'Access denied' });
+
+    const result = await Result.findOne({ _id: req.params.resultId, studentId: req.user._id });
+    if (!result) return res.status(404).json({ message: 'Result not found' });
+    if (!req.file) return res.status(400).json({ message: 'No audio file uploaded' });
+
+    const { questionId } = req.body;
+    if (!questionId) return res.status(400).json({ message: 'questionId is required' });
+
+    const answerIndex = result.answers.findIndex(a => a.questionId.toString() === questionId);
+    if (answerIndex === -1) return res.status(400).json({ message: 'Question not found in test' });
+
+    const audioUrl = `/uploads/speaking/${req.params.resultId}/${req.file.filename}`;
+    result.answers[answerIndex].audioFileUrl = audioUrl;
+    result.answers[answerIndex].answer = audioUrl;
+    await result.save();
+
+    res.json({ audioUrl, message: 'Audio uploaded successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
