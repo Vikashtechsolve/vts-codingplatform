@@ -8,6 +8,7 @@ const TestsByType = () => {
   const { type } = useParams();
   const [tests, setTests] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [systemDesigns, setSystemDesigns] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const typeMeta = {
@@ -44,6 +45,9 @@ const TestsByType = () => {
             }
           }));
           setAssignments(transformed);
+        } else if (normalizedType === 'system') {
+          const response = await axiosInstance.get('/system-design-problems/student-list');
+          setSystemDesigns(response.data?.problems ?? []);
         } else {
           const response = await axiosInstance.get('/students/tests');
           setTests(response.data || []);
@@ -77,15 +81,18 @@ const TestsByType = () => {
 
   const isInterviewType = normalizedType === 'interview';
   const isProjectType = normalizedType === 'project';
+  const isSystemType = normalizedType === 'system';
   const filtered = isInterviewType
     ? tests
     : isProjectType
       ? assignments
-      : normalizedType === 'core'
-        ? tests.filter(test => test.type === 'theory')
-        : normalizedType === 'tools'
-          ? tests.filter(test => test.type === 'sql')
-          : tests.filter(test => test.type === normalizedType);
+      : isSystemType
+        ? systemDesigns
+        : normalizedType === 'core'
+          ? tests.filter(test => test.type === 'theory')
+          : normalizedType === 'tools'
+            ? tests.filter(test => test.type === 'sql')
+            : tests.filter(test => test.type === normalizedType);
 
   const canStartInterview = (item) => {
     if (!item.hasCompleted) return true;
@@ -120,6 +127,68 @@ const TestsByType = () => {
       ) : (
         <div className="tests-grid">
           {filtered.map(item => {
+            if (isSystemType) {
+              const sd = item;
+              const status = sd.submission ? sd.submission.status : 'assigned';
+              const actionLink = (status === 'assigned' || status === 'not_started')
+                ? `/student/system-design/${sd._id}`
+                : status === 'in_progress'
+                  ? `/student/system-design/${sd._id}`
+                  : status === 'follow_up'
+                    ? `/student/system-design/${sd.submission._id}/follow-up`
+                    : status === 'evaluated'
+                      ? `/student/system-design-result/${sd.submission._id}`
+                      : null;
+              const actionLabel = (status === 'assigned' || status === 'not_started') ? 'Start Test →'
+                : status === 'in_progress' ? 'Continue →'
+                : status === 'follow_up' ? 'Answer Questions →'
+                : status === 'evaluated' ? 'View Result →'
+                : null;
+
+              return (
+                <div key={sd._id} className="test-card-modern">
+                  <div className="test-card-header">
+                    <div className="test-title-section">
+                      <h3>{sd.title}</h3>
+                      <span className="test-type-badge-modern system">system design</span>
+                    </div>
+                  </div>
+                  <div className="test-meta">
+                    <div className="test-meta-item">
+                      <strong>Duration:</strong> {sd.duration} min
+                    </div>
+                    {sd.difficulty && (
+                      <div className="test-meta-item">
+                        <strong>Difficulty:</strong> {sd.difficulty}
+                      </div>
+                    )}
+                    {sd.category && (
+                      <div className="test-meta-item">
+                        <strong>Category:</strong> {sd.category}
+                      </div>
+                    )}
+                  </div>
+                  <div className="test-status-section">
+                    <span className={`status-badge-modern ${status}`}>
+                      {status.replace('_', ' ')}
+                    </span>
+                    {actionLink && actionLabel && (
+                      <Link to={actionLink} className={`test-action-btn ${status === 'evaluated' || status === 'follow_up' ? 'btn-secondary' : 'btn-primary'}`}>
+                        {actionLabel}
+                      </Link>
+                    )}
+                    {['submitted', 'evaluating'].includes(status) && (
+                      <span className="test-action-btn btn-info">Evaluating...</span>
+                    )}
+                    {status === 'evaluated' && sd.submission?.percentage !== undefined && (
+                      <span className="test-action-btn btn-info" style={{ marginLeft: 4 }}>
+                        Score: {Math.round(sd.submission.percentage)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
             if (isInterviewType) {
               const interview = item;
               const showStart = canStartInterview(interview);

@@ -1,5 +1,5 @@
 .rich-text-editor-wrapper {
-  background: var(--input-bg);
+  background: var(--input-bg, var(--bg-primary, #fff));
   border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
@@ -16,6 +16,7 @@
   border: none;
   font-size: 15px;
   line-height: 1.6;
+  background: var(--input-bg, var(--bg-primary, #fff));
 }
 
 .rich-text-editor-wrapper .ql-editor {
@@ -29,20 +30,7 @@
   font-style: normal;
 }
 
-/* Toolbar button colors for dark mode */
-[data-theme="dark"] .rich-text-editor-wrapper .ql-stroke {
-  stroke: var(--border-color);
-}
-
-[data-theme="dark"] .rich-text-editor-wrapper .ql-fill {
-  fill: var(--text-secondary);
-}
-
-[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-label {
-  color: var(--text-primary);
-}
-
-/* Quill editor dark mode - ensure content area inherits theme */
+/* Quill editor - ensure content area inherits theme */
 .rich-text-editor-wrapper .ql-editor strong {
   font-weight: 700;
 }
@@ -51,4 +39,113 @@
 .rich-text-editor-wrapper .ql-editor ol {
   padding-left: 1.5em;
   margin: 0.5em 0;
+}
+
+/* ---- Dark Mode: Toolbar Buttons ---- */
+[data-theme="dark"] .rich-text-editor-wrapper .ql-stroke {
+  stroke: var(--text-secondary, #b0b0b0);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-fill {
+  fill: var(--text-secondary, #b0b0b0);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-label {
+  color: var(--text-primary, #fff);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-toolbar button:hover .ql-stroke,
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-label:hover .ql-stroke {
+  stroke: var(--primary-color, #ED0331);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-toolbar button:hover .ql-fill,
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-label:hover .ql-fill {
+  fill: var(--primary-color, #ED0331);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-toolbar button.ql-active .ql-stroke {
+  stroke: var(--primary-color, #ED0331);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-toolbar button.ql-active .ql-fill {
+  fill: var(--primary-color, #ED0331);
+}
+
+/* ---- Dark Mode: Picker Dropdown (Header selector, etc.) ---- */
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-options {
+  background: var(--bg-secondary, #2a2a2a) !important;
+  border-color: var(--border-color, #404040) !important;
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-item {
+  color: var(--text-primary, #fff) !important;
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-item:hover {
+  color: var(--primary-color, #ED0331) !important;
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-item.ql-selected {
+  color: var(--primary-color, #ED0331) !important;
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-picker-label {
+  border-color: transparent !important;
+}
+
+/* ---- Dark Mode: Link Tooltip ---- */
+[data-theme="dark"] .rich-text-editor-wrapper .ql-snow .ql-tooltip {
+  background: var(--bg-secondary, #2a2a2a);
+  border-color: var(--border-color, #404040);
+  color: var(--text-primary, #fff);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-snow .ql-tooltip input[type="text"] {
+  background: var(--bg-primary, #1a1a1a);
+  border-color: var(--border-color, #404040);
+  color: var(--text-primary, #fff);
+}
+
+[data-theme="dark"] .rich-text-editor-wrapper .ql-snow .ql-tooltip a {
+  color: var(--text-secondary, #b0b0b0);
+}
+
+/* ---- Dark Mode: Quill snow global overrides ---- */
+/* The Quill picker dropdown renders OUTSIDE the wrapper at the page root level,
+   so we need global selectors for those */
+[data-theme="dark"] .ql-snow .ql-picker-options {
+  background: var(--bg-secondary, #2a2a2a) !important;
+  border-color: var(--border-color, #404040) !important;
+}
+
+[data-theme="dark"] .ql-snow .ql-picker-item {
+  color: var(--text-primary, #fff) !important;
+}
+
+[data-theme="dark"] .ql-snow .ql-picker-item:hover {
+  color: var(--primary-color, #ED0331) !important;
+}
+
+[data-theme="dark"] .ql-snow .ql-picker-item.ql-selected {
+  color: var(--primary-color, #ED0331) !important;
+}
+
+[data-theme="dark"] .ql-snow .ql-tooltip {
+  background: var(--bg-secondary, #2a2a2a) !important;
+  border-color: var(--border-color, #404040) !important;
+  color: var(--text-primary, #fff) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-theme="dark"] .ql-snow .ql-tooltip input[type="text"] {
+  background: var(--bg-primary, #1a1a1a) !important;
+  border-color: var(--border-color, #404040) !important;
+  color: var(--text-primary, #fff) !important;
+}
+
+[data-theme="dark"] .ql-snow .ql-tooltip a.ql-action,
+[data-theme="dark"] .ql-snow .ql-tooltip a.ql-remove {
+  color: var(--text-secondary, #b0b0b0) !important;
 }

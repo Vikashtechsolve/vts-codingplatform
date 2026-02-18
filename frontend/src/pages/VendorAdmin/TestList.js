@@ -32,15 +32,31 @@ const normalizeAssignment = (a) => ({
   totalSubmitted: a.totalSubmitted || 0
 });
 
+// Normalize system design problem to same shape as test for unified UI
+const normalizeSystemDesign = (sd) => ({
+  _id: sd._id,
+  title: sd.title,
+  type: 'system',
+  kind: 'system_design',
+  duration: sd.duration,
+  questions: [],
+  isActive: sd.isActive !== false,
+  category: sd.category,
+  difficulty: sd.difficulty,
+  totalAssigned: sd.totalAssigned || 0,
+  totalSubmitted: sd.totalSubmitted || 0
+});
+
 const TestList = () => {
   const [tests, setTests] = useState([]);
   const [interviews, setInterviews] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [systemDesigns, setSystemDesigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
   const typeParam = new URLSearchParams(location.search).get('type');
-  const activeType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql', 'interview', 'project'].includes(typeParam) ? typeParam : 'all';
+  const activeType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql', 'interview', 'project', 'system'].includes(typeParam) ? typeParam : 'all';
 
   useEffect(() => {
     fetchData();
@@ -48,14 +64,16 @@ const TestList = () => {
 
   const fetchData = async () => {
     try {
-      const [testsRes, interviewsRes, assignmentsRes] = await Promise.all([
+      const [testsRes, interviewsRes, assignmentsRes, systemDesignRes] = await Promise.all([
         axiosInstance.get('/vendor-admin/tests'),
         axiosInstance.get('/interviews').catch(() => ({ data: [] })),
-        axiosInstance.get('/assignments').catch(() => ({ data: [] }))
+        axiosInstance.get('/assignments').catch(() => ({ data: [] })),
+        axiosInstance.get('/system-design-problems').catch(() => ({ data: { problems: [] } }))
       ]);
       setTests(Array.isArray(testsRes.data) ? testsRes.data : []);
       setInterviews(Array.isArray(interviewsRes?.data) ? interviewsRes.data : []);
       setAssignments(assignmentsRes?.data?.assignments ?? []);
+      setSystemDesigns(systemDesignRes?.data?.problems ?? []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -67,22 +85,28 @@ const TestList = () => {
     const testItems = (tests || []).map(t => ({ ...t, kind: 'test' }));
     const interviewItems = (interviews || []).map(normalizeInterview);
     const assignmentItems = (assignments || []).map(normalizeAssignment);
-    return [...testItems, ...interviewItems, ...assignmentItems];
-  }, [tests, interviews, assignments]);
+    const systemDesignItems = (systemDesigns || []).map(normalizeSystemDesign);
+    return [...testItems, ...interviewItems, ...assignmentItems, ...systemDesignItems];
+  }, [tests, interviews, assignments, systemDesigns]);
 
   const handleDelete = async (item) => {
     const isInterview = item.kind === 'interview';
     const isAssignment = item.kind === 'assignment';
-    const label = isInterview ? 'interview test' : isAssignment ? 'project assignment' : 'test';
+    const isSystemDesign = item.kind === 'system_design';
+    const label = isInterview ? 'interview test' : isAssignment ? 'project assignment' : isSystemDesign ? 'system design problem' : 'test';
     const confirmMsg = isAssignment && (item.totalSubmitted || 0) > 0
       ? `Are you sure you want to delete this assignment? ${item.totalSubmitted} submission(s) and all related results will be permanently deleted. This cannot be undone.`
-      : `Are you sure you want to delete this ${label}?`;
+      : isSystemDesign
+        ? 'Are you sure you want to delete this system design problem? All submissions will be permanently deleted.'
+        : `Are you sure you want to delete this ${label}?`;
     if (!window.confirm(confirmMsg)) return;
     try {
       if (isInterview) {
         await axiosInstance.delete(`/interviews/${item._id}`);
       } else if (isAssignment) {
         await axiosInstance.delete(`/assignments/${item._id}`);
+      } else if (isSystemDesign) {
+        await axiosInstance.delete(`/system-design-problems/${item._id}`);
       } else {
         await axiosInstance.delete(`/tests/${item._id}`);
       }
@@ -102,7 +126,8 @@ const TestList = () => {
       mixed: allItems.filter(t => t.type === 'mixed'),
       sql: allItems.filter(t => t.type === 'sql'),
       interview: allItems.filter(t => t.type === 'interview'),
-      project: allItems.filter(t => t.type === 'project')
+      project: allItems.filter(t => t.type === 'project'),
+      system: allItems.filter(t => t.type === 'system')
     };
     return map;
   }, [allItems]);
@@ -113,18 +138,21 @@ const TestList = () => {
     if (activeType === 'interview') return '/vendor-admin/interviews/create';
     if (activeType === 'sql') return '/vendor-admin/sql-tests/create';
     if (activeType === 'project') return '/vendor-admin/create-assignment';
+    if (activeType === 'system') return '/vendor-admin/system-designs/create';
     return activeType !== 'all' ? `/vendor-admin/tests/create?type=${activeType}` : '/vendor-admin/tests/create';
   };
 
   const getAssignLink = (item) => {
     if (item.kind === 'interview') return `/vendor-admin/interviews/${item._id}/assign`;
     if (item.kind === 'assignment') return `/vendor-admin/assignments/${item._id}/assign`;
+    if (item.kind === 'system_design') return `/vendor-admin/system-designs/${item._id}/assign`;
     return `/vendor-admin/tests/${item._id}/assign`;
   };
 
   const getResultsLink = (item) => {
     if (item.kind === 'interview') return `/vendor-admin/interviews/${item._id}/results`;
     if (item.kind === 'assignment') return `/vendor-admin/assignments/${item._id}/submissions`;
+    if (item.kind === 'system_design') return `/vendor-admin/system-designs/${item._id}/submissions`;
     return `/vendor-admin/tests/${item._id}/results`;
   };
 
@@ -142,7 +170,7 @@ const TestList = () => {
       </div>
 
       <div className="test-type-filter-grid">
-        {['all', 'coding', 'aptitude', 'mcq', 'theory', 'mixed', 'sql', 'project', 'interview'].map(type => (
+        {['all', 'coding', 'aptitude', 'mcq', 'theory', 'mixed', 'sql', 'project', 'interview', 'system'].map(type => (
           <button
             key={type}
             className={`test-type-filter-card ${activeType === type ? 'active' : ''}`}
@@ -152,6 +180,7 @@ const TestList = () => {
               {type === 'interview' ? 'INTERVIEW' : 
                type === 'sql' ? 'SQL' : 
                type === 'project' ? 'PROJECT (AI)' : 
+               type === 'system' ? 'SYSTEM DESIGN' :
                type.toUpperCase()}
             </div>
             <div className="filter-count">{testsByType[type]?.length || 0}</div>
@@ -188,7 +217,7 @@ const TestList = () => {
                 <div className="test-meta-item-list">
                   <strong>Duration:</strong> {item.duration} min
                 </div>
-                {item.kind !== 'assignment' && (
+                {item.kind !== 'assignment' && item.kind !== 'system_design' && (
                   <div className="test-meta-item-list">
                     <strong>Questions:</strong> {item.questions?.length || 0}
                   </div>
@@ -211,6 +240,19 @@ const TestList = () => {
                     </div>
                   </>
                 )}
+                {item.kind === 'system_design' && (
+                  <>
+                    <div className="test-meta-item-list">
+                      <strong>Category:</strong> {item.category}
+                    </div>
+                    <div className="test-meta-item-list">
+                      <strong>Difficulty:</strong> {item.difficulty}
+                    </div>
+                    <div className="test-meta-item-list">
+                      <strong>Assigned:</strong> {item.totalAssigned || 0}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="test-actions-list">
@@ -229,11 +271,16 @@ const TestList = () => {
                     </Link>
                   </>
                 )}
+                {item.kind === 'system_design' && (
+                  <Link to={`/vendor-admin/system-designs/${item._id}/edit`} className="test-action-btn-list btn-secondary">
+                    Edit
+                  </Link>
+                )}
                 <Link to={getAssignLink(item)} className="test-action-btn-list btn-primary">
                   Assign
                 </Link>
                 <Link to={getResultsLink(item)} className="test-action-btn-list btn-secondary">
-                  {item.kind === 'assignment' ? 'Submissions' : 'Results'}
+                  {item.kind === 'assignment' ? 'Submissions' : item.kind === 'system_design' ? 'Submissions' : 'Results'}
                 </Link>
                 <button onClick={() => handleDelete(item)} className="test-action-btn-list btn-danger">
                   Delete

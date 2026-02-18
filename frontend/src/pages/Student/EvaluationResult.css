@@ -792,6 +792,64 @@
   font-size: 14px;
 }
 
+/* Back to dashboard button */
+.back-dashboard-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  margin-top: 12px;
+}
+
+.back-dashboard-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.back-dashboard-button:active {
+  transform: translateY(0);
+}
+
+/* Evaluation status card (pending / in-progress / failed) */
+.eval-status-card {
+  text-align: center;
+  padding: 60px 30px;
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border-color);
+}
+
+.eval-status-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+}
+
+.eval-status-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.eval-status-message {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
 @media (max-width: 768px) {
   .score-card {
     flex-direction: column;

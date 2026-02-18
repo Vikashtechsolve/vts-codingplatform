@@ -3,7 +3,8 @@ import axiosInstance from '../utils/axios';
 
 const MAX_VIOLATIONS = parseInt(process.env.REACT_APP_MAX_VIOLATIONS || '3', 10);
 
-export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWarning) => {
+export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWarning, options = {}) => {
+  const { violationEndpoint } = options;
   const [violations, setViolations] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const warningShownFor = useRef(new Set()); // Track which violation counts we've warned about
@@ -55,7 +56,8 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
         lastViolationTime.current[type] = Date.now();
         pendingViolations.current.delete(type);
         
-        const response = await axiosInstance.post(`/results/${resultId}/violation`, {
+        const endpoint = violationEndpoint || `/results/${resultId}/violation`;
+        const response = await axiosInstance.post(endpoint, {
           type,
           details
         });
@@ -226,11 +228,14 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
 
     // Block drag and drop - but only track if it's actually a file/content drop
     const handleDragStart = (e) => {
-      // Allow drag within the editor (for text selection)
       const target = e.target;
       if (target && typeof target.closest === 'function') {
         if (target.closest('.monaco-editor') || target.closest('button') || target.closest('input') || target.closest('textarea')) {
-          return true; // Allow drag within editor and form elements
+          return true;
+        }
+        // Allow drag inside architecture builder (palette items, React Flow nodes)
+        if (target.closest('.arch-workspace') || target.closest('.arch-palette') || target.hasAttribute('draggable')) {
+          return true;
         }
       }
       e.preventDefault();
@@ -238,23 +243,23 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
     };
 
     const handleDrop = (e) => {
-      // Only track if dropping files or external content
       const target = e.target;
       if (target && typeof target.closest === 'function') {
-        // Allow drop in editor and form elements
         if (target.closest('.monaco-editor') || target.closest('input') || target.closest('textarea')) {
+          return true;
+        }
+        // Allow drop inside architecture builder canvas
+        if (target.closest('.arch-workspace') || target.closest('.react-flow')) {
           return true;
         }
       }
       
-      // Check if it's a file drop
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         e.preventDefault();
         trackViolation('copy_paste', 'File drag and drop attempt');
         return false;
       }
       
-      // Allow text drops in editor
       return true;
     };
 

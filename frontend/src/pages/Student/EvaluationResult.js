@@ -12,6 +12,20 @@ const EvaluationResult = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [evalStatus, setEvalStatus] = useState(null);
+
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'pending_evaluation':
+        return { icon: '⏳', title: 'Evaluation Pending', message: 'Your submission is in the queue and will be evaluated shortly. Please check back later.' };
+      case 'evaluating':
+        return { icon: '🔄', title: 'Evaluation In Progress', message: 'Your project is currently being evaluated by AI. This may take a few minutes.' };
+      case 'failed':
+        return { icon: '⚠️', title: 'Evaluation Failed', message: 'Something went wrong during evaluation. Please contact your instructor or try again later.' };
+      default:
+        return { icon: '📋', title: 'Not Yet Evaluated', message: 'Your submission has not been evaluated yet. Please check back later.' };
+    }
+  };
 
   const fetchEvaluationResult = useCallback(async () => {
     try {
@@ -20,11 +34,17 @@ const EvaluationResult = () => {
       if (data.success) {
         setResult(data.result);
       } else {
+        setEvalStatus(data.status || null);
         setError(data.message || 'Failed to fetch evaluation result');
       }
     } catch (err) {
-      console.error('Error fetching evaluation result:', err);
-      setError('Failed to fetch evaluation result');
+      const respData = err.response?.data;
+      if (respData?.status && respData.status !== 'evaluated') {
+        setEvalStatus(respData.status);
+        setError(respData.message || 'Submission not yet evaluated');
+      } else {
+        setError('Failed to fetch evaluation result. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -67,10 +87,20 @@ const EvaluationResult = () => {
   }
 
   if (error) {
+    const statusInfo = evalStatus ? getStatusInfo(evalStatus) : null;
+
     return (
       <div className="evaluation-result-container">
-        <div className="error-message">{error}</div>
-        <button onClick={() => navigate(backPath)}>
+        {statusInfo ? (
+          <div className="eval-status-card">
+            <div className="eval-status-icon">{statusInfo.icon}</div>
+            <h2 className="eval-status-title">{statusInfo.title}</h2>
+            <p className="eval-status-message">{statusInfo.message}</p>
+          </div>
+        ) : (
+          <div className="error-message">{error}</div>
+        )}
+        <button className="back-dashboard-button" onClick={() => navigate(backPath)}>
           {backLabel}
         </button>
       </div>

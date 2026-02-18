@@ -107,7 +107,10 @@ const VendorAdminDashboard = () => {
       title: 'System Design',
       description: 'Architecture and scalability assessments.',
       icon: '🏗️',
-      comingSoon: true
+      actions: [
+        { label: 'Create Problem', to: '/vendor-admin/system-designs/create' },
+        { label: 'View Problems', to: '/vendor-admin/system-designs' }
+      ]
     },
     {
       key: 'tools',

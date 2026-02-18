@@ -7,12 +7,14 @@ const StudentDashboard = () => {
   const [tests, setTests] = useState([]);
   const [interviews, setInterviews] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [systemDesigns, setSystemDesigns] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchTests();
     fetchInterviews();
     fetchAssignments();
+    fetchSystemDesigns();
   }, []);
 
   const fetchTests = async () => {
@@ -49,6 +51,15 @@ const StudentDashboard = () => {
     }
   };
 
+  const fetchSystemDesigns = async () => {
+    try {
+      const response = await axiosInstance.get('/system-design-problems/student-list');
+      setSystemDesigns(response.data?.problems ?? []);
+    } catch (error) {
+      console.error('❌ Error fetching system designs:', error);
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -58,9 +69,10 @@ const StudentDashboard = () => {
   const assignedTests = tests.filter(test => !test.enrollmentStatus || test.enrollmentStatus === 'assigned');
   const completedInterviews = interviews.filter(i => i.hasCompleted);
   const evaluatedAssignments = assignments.filter(a => a.enrollmentStatus === 'evaluated');
-  const totalAssigned = tests.length + interviews.length + assignments.length;
+  const evaluatedSystemDesigns = systemDesigns.filter(sd => sd.submission && sd.submission.status === 'evaluated');
+  const totalAssigned = tests.length + interviews.length + assignments.length + systemDesigns.length;
   const readinessScore = totalAssigned > 0
-    ? Math.round(((completedTests.length + completedInterviews.length + evaluatedAssignments.length) / totalAssigned) * 100)
+    ? Math.round(((completedTests.length + completedInterviews.length + evaluatedAssignments.length + evaluatedSystemDesigns.length) / totalAssigned) * 100)
     : 0;
   const upcomingTests = tests
     .filter(test => test.startDate && new Date(test.startDate) > new Date())
@@ -148,6 +160,8 @@ const StudentDashboard = () => {
       acc[type.key] = interviews.length;
     } else if (type.key === 'project') {
       acc[type.key] = assignments.length;
+    } else if (type.key === 'system') {
+      acc[type.key] = systemDesigns.length;
     } else {
       acc[type.key] = groupedTests[type.key]?.length || 0;
     }
@@ -262,7 +276,76 @@ const StudentDashboard = () => {
     </div>
   );
 
-  const hasAnyTests = tests.length > 0 || interviews.length > 0 || assignments.length > 0;
+  const getSystemDesignStatus = (sd) => {
+    if (!sd.submission) return 'assigned';
+    return sd.submission.status;
+  };
+
+  const getSystemDesignActionLink = (sd) => {
+    const status = getSystemDesignStatus(sd);
+    if (status === 'assigned' || status === 'not_started') return `/student/system-design/${sd._id}`;
+    if (status === 'in_progress') return `/student/system-design/${sd._id}`;
+    if (status === 'follow_up') return `/student/system-design/${sd.submission._id}/follow-up`;
+    if (status === 'evaluated') return `/student/system-design-result/${sd.submission._id}`;
+    return null;
+  };
+
+  const renderSystemDesignCard = (sd) => {
+    const status = getSystemDesignStatus(sd);
+    const actionLink = getSystemDesignActionLink(sd);
+    const actionLabel = status === 'assigned' || status === 'not_started' ? 'Start Test →'
+      : status === 'in_progress' ? 'Continue →'
+      : status === 'follow_up' ? 'Answer Questions →'
+      : status === 'evaluated' ? 'View Result →'
+      : status === 'submitted' || status === 'evaluating' ? 'Evaluating...'
+      : 'View →';
+
+    return (
+      <div key={sd._id} className="test-card-modern">
+        <div className="test-card-header">
+          <div className="test-title-section">
+            <h3>{sd.title}</h3>
+            <span className="test-type-badge-modern system">system design</span>
+          </div>
+        </div>
+        <div className="test-meta">
+          <div className="test-meta-item">
+            <strong>Duration:</strong> {sd.duration} min
+          </div>
+          {sd.difficulty && (
+            <div className="test-meta-item">
+              <strong>Difficulty:</strong> {sd.difficulty}
+            </div>
+          )}
+          {sd.category && (
+            <div className="test-meta-item">
+              <strong>Category:</strong> {sd.category}
+            </div>
+          )}
+        </div>
+        <div className="test-status-section">
+          <span className={`status-badge-modern ${status}`}>
+            {status.replace('_', ' ')}
+          </span>
+          {actionLink && !['submitted', 'evaluating'].includes(status) && (
+            <Link to={actionLink} className={`test-action-btn ${status === 'evaluated' || status === 'follow_up' ? 'btn-secondary' : 'btn-primary'}`}>
+              {actionLabel}
+            </Link>
+          )}
+          {['submitted', 'evaluating'].includes(status) && (
+            <span className="test-action-btn btn-info">Evaluating...</span>
+          )}
+          {status === 'evaluated' && sd.submission?.percentage !== undefined && (
+            <span className="test-action-btn btn-info" style={{ marginLeft: 4 }}>
+              Score: {Math.round(sd.submission.percentage)}%
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const hasAnyTests = tests.length > 0 || interviews.length > 0 || assignments.length > 0 || systemDesigns.length > 0;
 
   return (
     <div className="container student-dashboard">
@@ -284,14 +367,14 @@ const StudentDashboard = () => {
         <div className="summary-card">
           <h3>Pending Evaluations</h3>
           <div className="summary-value">
-            {inProgressTests.length + assignments.filter(a => ['in_progress', 'submitted'].includes(a.enrollmentStatus)).length}
+            {inProgressTests.length + assignments.filter(a => ['in_progress', 'submitted'].includes(a.enrollmentStatus)).length + systemDesigns.filter(sd => sd.submission && ['in_progress', 'submitted', 'evaluating'].includes(sd.submission.status)).length}
           </div>
           <div className="summary-subtext">In-progress tests & assignments</div>
         </div>
         <div className="summary-card">
           <h3>Assigned Tests</h3>
           <div className="summary-value">
-            {assignedTests.length + interviews.filter(i => !i.hasCompleted).length + assignments.filter(a => a.enrollmentStatus === 'assigned').length}
+            {assignedTests.length + interviews.filter(i => !i.hasCompleted).length + assignments.filter(a => a.enrollmentStatus === 'assigned').length + systemDesigns.filter(sd => !sd.submission).length}
           </div>
           <div className="summary-subtext">Ready to start</div>
         </div>
@@ -301,7 +384,7 @@ const StudentDashboard = () => {
         {typeMeta.map(type => (
           <Link
             key={type.key}
-            to={type.key === 'interview' ? '/student/tests/interview' : `/student/tests/${type.key}`}
+            to={`/student/tests/${type.key}`}
             className="test-type-nav-card"
           >
             <div className="test-type-nav-title">
@@ -367,6 +450,17 @@ const StudentDashboard = () => {
               </div>
               <div className="tests-grid">
                 {interviews.map(renderInterviewCard)}
+              </div>
+            </div>
+          )}
+          {systemDesigns.length > 0 && (
+            <div className="test-section">
+              <div className="test-section-header">
+                <div className="test-section-title">SYSTEM DESIGN</div>
+                <span className="test-section-badge">{systemDesigns.length} problem{systemDesigns.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="tests-grid">
+                {systemDesigns.map(renderSystemDesignCard)}
               </div>
             </div>
           )}

@@ -1,0 +1,49 @@
+.sds-container { padding: 24px; max-width: 1400px; margin: 0 auto; }
+.sds-loading { text-align: center; padding: 60px; color: var(--text-secondary, #888); }
+
+.sds-header { margin-bottom: 28px; }
+.sds-title { font-size: 1.8rem; color: var(--text-primary, #1a1a2e); margin: 0 0 4px; }
+.sds-subtitle { color: var(--text-secondary, #888); font-size: 1rem; margin: 0 0 16px; }
+
+.sds-filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.sds-filter-tab { padding: 8px 16px; border: 1px solid var(--border-color, #ddd); background: var(--bg-primary, #fff); border-radius: 20px; cursor: pointer; font-size: 0.85rem; color: var(--text-secondary, #666); transition: all 0.2s; }
+.sds-filter-tab.active { background: #6c5ce7; color: #fff; border-color: #6c5ce7; }
+
+.sds-empty { text-align: center; padding: 80px 20px; }
+.sds-empty-icon { font-size: 3.5rem; margin-bottom: 12px; }
+.sds-empty h2 { color: var(--text-primary, #333); margin: 0 0 8px; }
+.sds-empty p { color: var(--text-secondary, #888); }
+
+.sds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+
+.sds-card { background: var(--bg-primary, #fff); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid var(--border-color, #eee); cursor: pointer; transition: all 0.25s; display: flex; flex-direction: column; }
+.sds-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(108,92,231,0.15); border-color: #d4cef5; }
+
+.sds-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.sds-card-icon { font-size: 2rem; }
+.sds-card-badges { display: flex; gap: 6px; }
+.sds-difficulty-badge { padding: 3px 12px; border-radius: 12px; color: #fff; font-size: 0.75rem; font-weight: 700; text-transform: capitalize; }
+
+.sds-card-title { font-size: 1.1rem; font-weight: 700; color: var(--text-primary, #1a1a2e); margin: 0 0 4px; }
+.sds-card-category { font-size: 0.85rem; color: #6c5ce7; font-weight: 500; margin: 0 0 12px; }
+
+.sds-card-info { display: flex; gap: 16px; font-size: 0.82rem; color: var(--text-secondary, #888); margin-bottom: 16px; }
+
+.sds-card-bottom { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.sds-status-badge { padding: 4px 12px; border-radius: 12px; color: #fff; font-size: 0.75rem; font-weight: 600; }
+.sds-score { font-size: 1.3rem; font-weight: 800; color: #6c5ce7; }
+
+.sds-action-btn { width: 100%; padding: 10px; background: transparent; border: 2px solid; border-radius: 10px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; margin-top: auto; }
+.sds-action-btn:hover { opacity: 0.8; }
+
+.sd-submissions-table { width: 100%; border-collapse: collapse; background: var(--bg-primary, #fff); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.sd-submissions-table th { background: var(--bg-secondary, #f8f8f8); padding: 12px 16px; text-align: left; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary, #666); border-bottom: 2px solid var(--border-color, #eee); }
+.sd-submissions-table td { padding: 12px 16px; border-bottom: 1px solid var(--border-color, #f0f0f0); font-size: 0.9rem; color: var(--text-primary, #333); }
+.sd-submissions-table tr:hover { background: var(--bg-secondary, #fafafa); }
+
+/* ---- Dark Mode Overrides ---- */
+[data-theme="dark"] .sds-filter-tab.active { background: #6c5ce7; color: #fff; border-color: #6c5ce7; }
+[data-theme="dark"] .sds-card:hover { box-shadow: 0 8px 24px rgba(108,92,231,0.25); border-color: rgba(108,92,231,0.5); }
+[data-theme="dark"] .sds-card-category { color: #a29bfe; }
+[data-theme="dark"] .sds-score { color: #a29bfe; }
+[data-theme="dark"] .sds-action-btn { border-color: currentColor; }

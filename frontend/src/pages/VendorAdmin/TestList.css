@@ -108,6 +108,11 @@
   color: white;
 }
 
+.test-type-badge-modern.system {
+  background: linear-gradient(135deg, #ff6f00, #e65100);
+  color: white;
+}
+
 .test-type-filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

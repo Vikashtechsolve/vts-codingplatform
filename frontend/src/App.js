@@ -51,6 +51,10 @@ import CreateAssignment from './pages/VendorAdmin/CreateAssignment';
 import AssignmentDetails from './pages/VendorAdmin/AssignmentDetails';
 import AssignAssignment from './pages/VendorAdmin/AssignAssignment';
 import AssignmentSubmissions from './pages/VendorAdmin/AssignmentSubmissions';
+import SystemDesignListAdmin from './pages/VendorAdmin/SystemDesignList';
+import CreateSystemDesign from './pages/VendorAdmin/CreateSystemDesign';
+import AssignSystemDesign from './pages/VendorAdmin/AssignSystemDesign';
+import SystemDesignSubmissions from './pages/VendorAdmin/SystemDesignSubmissions';
 
 // Student
 import StudentDashboard from './pages/Student/Dashboard';
@@ -62,6 +66,10 @@ import MockInterviewFeedback from './pages/Student/MockInterviewFeedback';
 import AssignmentDashboard from './pages/Student/AssignmentDashboard';
 import SubmitAssignment from './pages/Student/SubmitAssignment';
 import EvaluationResult from './pages/Student/EvaluationResult';
+import SystemDesignListStudent from './pages/Student/SystemDesignList';
+import SystemDesignTaking from './pages/Student/SystemDesignTaking';
+import SystemDesignFollowUp from './pages/Student/SystemDesignFollowUp';
+import SystemDesignResult from './pages/Student/SystemDesignResult';
 
 import './App.css';
 
@@ -573,6 +581,56 @@ function App() {
                 }
               />
 
+              {/* System Design - Vendor Admin */}
+              <Route
+                path="/vendor-admin/system-designs"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <SystemDesignListAdmin />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/system-designs/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateSystemDesign />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/system-designs/:id/edit"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateSystemDesign />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/system-designs/:id/assign"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <AssignSystemDesign />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/system-designs/:id/submissions"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <SystemDesignSubmissions />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/system-design-result/:submissionId"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <SystemDesignResult />
+                  </PrivateRoute>
+                }
+              />
+
               {/* Student Routes */}
               <Route
                 path="/student/dashboard"
@@ -655,6 +713,40 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={['student']}>
                     <EvaluationResult />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* System Design - Student */}
+              <Route
+                path="/student/system-designs"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <SystemDesignListStudent />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/system-design/:problemId"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <SystemDesignTaking />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/system-design/:submissionId/follow-up"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <SystemDesignFollowUp />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/student/system-design-result/:submissionId"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <SystemDesignResult />
                   </PrivateRoute>
                 }
               />
