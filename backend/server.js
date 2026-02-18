@@ -99,6 +99,8 @@ app.use('/api/subjects', require('./routes/subjects'));
 app.use('/api/topics', require('./routes/topics'));
 app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/project-submissions', require('./routes/projectSubmissions'));
+app.use('/api/system-design-problems', require('./routes/systemDesignProblems'));
+app.use('/api/system-design-submissions', require('./routes/systemDesignSubmissions'));
 
 // Load evaluation worker and test Redis connection on startup
 const { testRedisConnection } = require('./config/redis');
