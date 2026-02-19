@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './SystemDesignList.css';
@@ -10,9 +10,7 @@ const SystemDesignSubmissions = () => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchSubmissions(); }, [problemId]);
-
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await axiosInstance.get(`/system-design-problems/${problemId}/submissions`);
@@ -25,7 +23,9 @@ const SystemDesignSubmissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [problemId]);
+
+  useEffect(() => { fetchSubmissions(); }, [fetchSubmissions]);
 
   const formatTime = (seconds) => {
     if (!seconds) return '-';

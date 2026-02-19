@@ -8,19 +8,10 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './EnglishTestTaking.css';
 
-const SECTION_LABELS = {
-  grammar: 'Grammar',
-  vocabulary: 'Vocabulary',
-  reading: 'Reading Comprehension',
-  writing: 'Essay / Email Writing',
-  listening: 'Listening',
-  speaking: 'Speaking'
-};
-
 const EnglishTestTaking = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  useAuth();
 
   const [test, setTest] = useState(null);
   const [result, setResult] = useState(null);
@@ -32,6 +23,7 @@ const EnglishTestTaking = () => {
   const [notes, setNotes] = useState({});
   const [sectionTimers, setSectionTimers] = useState({});
   const timeWarnedRef = useRef({ five: false, one: false });
+  const handleSectionTimeoutRef = useRef(() => {});
   const [sectionStarted, setSectionStarted] = useState({});
   const [showSectionTransition, setShowSectionTransition] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,9 +41,8 @@ const EnglishTestTaking = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlobs, setRecordedBlobs] = useState({});
   const [recordAttempts, setRecordAttempts] = useState({});
-  const [prepTimer, setPrepTimer] = useState(0);
   const [speakTimer, setSpeakTimer] = useState(0);
-  const [micTested, setMicTested] = useState(false);
+  const [, setMicTested] = useState(false);
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
   const animFrameRef = useRef(null);
@@ -59,51 +50,29 @@ const EnglishTestTaking = () => {
 
   const { violations } = useExamSecurity(result?._id, true);
 
-  useEffect(() => {
-    fetchTestAndStart();
-    return () => {
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [testId]);
+  const buildSections = useCallback((testData) => {
+    if (!testData.englishSections || testData.englishSections.length === 0) {
+      return [{ sectionType: 'mixed', sectionTitle: 'All Questions', duration: testData.duration, questions: testData.questions }];
+    }
+    return testData.englishSections
+      .sort((a, b) => a.order - b.order)
+      .map(sec => ({
+        ...sec,
+        questions: testData.questions.filter(q => q.sectionId === sec.sectionType)
+      }));
+  }, []);
 
-  const isPractice = test?.settings?.practiceMode === true;
-  const [practiceRevealed, setPracticeRevealed] = useState({});
+  const testMicrophone = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      setMicTested(true);
+    } catch {
+      setModal({ isOpen: true, title: 'Microphone Required', message: 'Please allow microphone access for the speaking section.', type: 'warning' });
+    }
+  }, []);
 
-  useEffect(() => {
-    timeWarnedRef.current = { five: false, one: false };
-  }, [currentSectionIdx]);
-
-  useEffect(() => {
-    if (isPractice) return;
-    if (sections.length === 0 || !sectionStarted[currentSectionIdx]) return;
-    const sectionType = sections[currentSectionIdx]?.sectionType;
-    if (!sectionType) return;
-
-    const interval = setInterval(() => {
-      setSectionTimers(prev => {
-        const remaining = (prev[currentSectionIdx] || 0) - 1;
-        if (remaining === 300 && !timeWarnedRef.current.five) {
-          timeWarnedRef.current.five = true;
-          setModal({ isOpen: true, title: 'Time reminder', message: '5 minutes remaining in this section.', type: 'warning' });
-        }
-        if (remaining === 60 && !timeWarnedRef.current.one) {
-          timeWarnedRef.current.one = true;
-          setModal({ isOpen: true, title: 'Time reminder', message: '1 minute remaining in this section.', type: 'warning' });
-        }
-        if (remaining <= 0) {
-          clearInterval(interval);
-          handleSectionTimeout();
-          return { ...prev, [currentSectionIdx]: 0 };
-        }
-        return { ...prev, [currentSectionIdx]: remaining };
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [currentSectionIdx, sectionStarted, isPractice]);
-
-  const fetchTestAndStart = async () => {
+  const fetchTestAndStart = useCallback(async () => {
     try {
       const testRes = await axiosInstance.get(`/tests/${testId}`);
       setTest(testRes.data);
@@ -144,29 +113,51 @@ const EnglishTestTaking = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [testId, buildSections, testMicrophone]);
 
-  const buildSections = (testData) => {
-    if (!testData.englishSections || testData.englishSections.length === 0) {
-      return [{ sectionType: 'mixed', sectionTitle: 'All Questions', duration: testData.duration, questions: testData.questions }];
-    }
-    return testData.englishSections
-      .sort((a, b) => a.order - b.order)
-      .map(sec => ({
-        ...sec,
-        questions: testData.questions.filter(q => q.sectionId === sec.sectionType)
-      }));
-  };
+  useEffect(() => {
+    fetchTestAndStart();
+    return () => {
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [fetchTestAndStart]);
 
-  const testMicrophone = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop());
-      setMicTested(true);
-    } catch {
-      setModal({ isOpen: true, title: 'Microphone Required', message: 'Please allow microphone access for the speaking section.', type: 'warning' });
-    }
-  };
+  const isPractice = test?.settings?.practiceMode === true;
+  const [practiceRevealed, setPracticeRevealed] = useState({});
+
+  useEffect(() => {
+    timeWarnedRef.current = { five: false, one: false };
+  }, [currentSectionIdx]);
+
+  useEffect(() => {
+    if (isPractice) return;
+    if (sections.length === 0 || !sectionStarted[currentSectionIdx]) return;
+    const sectionType = sections[currentSectionIdx]?.sectionType;
+    if (!sectionType) return;
+
+    const interval = setInterval(() => {
+      setSectionTimers(prev => {
+        const remaining = (prev[currentSectionIdx] || 0) - 1;
+        if (remaining === 300 && !timeWarnedRef.current.five) {
+          timeWarnedRef.current.five = true;
+          setModal({ isOpen: true, title: 'Time reminder', message: '5 minutes remaining in this section.', type: 'warning' });
+        }
+        if (remaining === 60 && !timeWarnedRef.current.one) {
+          timeWarnedRef.current.one = true;
+          setModal({ isOpen: true, title: 'Time reminder', message: '1 minute remaining in this section.', type: 'warning' });
+        }
+        if (remaining <= 0) {
+          clearInterval(interval);
+          handleSectionTimeoutRef.current();
+          return { ...prev, [currentSectionIdx]: 0 };
+        }
+        return { ...prev, [currentSectionIdx]: remaining };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentSectionIdx, sectionStarted, isPractice, sections]);
 
   const currentSection = sections[currentSectionIdx];
   const currentQuestion = currentSection?.questions?.[currentQuestionIdx];
@@ -183,6 +174,7 @@ const EnglishTestTaking = () => {
       handleSubmitTest();
     }
   };
+  handleSectionTimeoutRef.current = handleSectionTimeout;
 
   const moveToNextSection = () => {
     setShowSectionTransition(true);

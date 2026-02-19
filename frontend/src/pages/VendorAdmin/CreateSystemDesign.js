@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import RichTextEditor from '../../components/RichTextEditor';
@@ -60,26 +60,23 @@ const CreateSystemDesign = () => {
     isActive: true
   });
 
-  useEffect(() => {
-    if (isEdit) {
-      fetchProblem();
-    }
-  }, [id]);
-
-  const fetchProblem = async () => {
+  const fetchProblem = useCallback(async () => {
     try {
       const { data } = await axiosInstance.get(`/system-design-problems/${id}`);
       if (data.success) {
         const p = data.problem;
+        const defaultConstraints = { estimatedUsers: '', estimatedQPS: '', storageNeeds: '', latencyRequirement: '', availabilityTarget: '' };
+        const defaultDeepDive = ['Database Scaling', 'Message Queue Handling', 'Consistency Models', 'Cache Invalidation', 'Rate Limiting', 'Search System Design', 'Data Partitioning'];
+        const defaultEvalConfig = { strictness: 'moderate', enableFollowUp: true, followUpCount: 3 };
         setForm({
           title: p.title || '', problemStatement: p.problemStatement || '',
           difficulty: p.difficulty || 'medium', category: p.category || 'custom',
           duration: p.duration || 90, businessContext: p.businessContext || '',
-          constraints: p.constraints || form.constraints,
+          constraints: p.constraints || defaultConstraints,
           sectionWeights: p.sectionWeights || DEFAULT_WEIGHTS,
           dataFlowScenarios: p.dataFlowScenarios?.length ? p.dataFlowScenarios : [''],
-          deepDiveOptions: p.deepDiveOptions?.length ? p.deepDiveOptions : form.deepDiveOptions,
-          evaluationConfig: p.evaluationConfig || form.evaluationConfig,
+          deepDiveOptions: p.deepDiveOptions?.length ? p.deepDiveOptions : defaultDeepDive,
+          evaluationConfig: p.evaluationConfig || defaultEvalConfig,
           referenceAnswer: p.referenceAnswer || {},
           hints: p.hints || {},
           isActive: p.isActive !== false
@@ -88,7 +85,13 @@ const CreateSystemDesign = () => {
     } catch (err) {
       setError('Failed to load problem');
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (isEdit) {
+      fetchProblem();
+    }
+  }, [id, isEdit, fetchProblem]);
 
   const handleSave = async () => {
     if (!form.title.trim()) return setError('Title is required');

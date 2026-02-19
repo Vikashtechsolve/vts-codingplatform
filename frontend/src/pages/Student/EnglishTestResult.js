@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer } from 'recharts';
@@ -50,21 +50,7 @@ const EnglishTestResult = () => {
     } catch (_) {}
   }, [resultId]);
 
-  useEffect(() => {
-    if (!resultId) return;
-    fetchResult();
-  }, [resultId]);
-
-  useEffect(() => {
-    if (!result?.testId || test) return;
-    const testId = typeof result.testId === 'object' ? result.testId._id : result.testId;
-    if (!testId) return;
-    axiosInstance.get(`/tests/${testId}`)
-      .then((res) => setTest(res.data))
-      .catch(() => {});
-  }, [result?.testId, test]);
-
-  const fetchResult = async () => {
+  const fetchResult = useCallback(async () => {
     if (!resultId) return;
     try {
       setFetchError(null);
@@ -82,7 +68,21 @@ const EnglishTestResult = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [resultId, resultFromSubmit]);
+
+  useEffect(() => {
+    if (!resultId) return;
+    fetchResult();
+  }, [resultId, fetchResult]);
+
+  useEffect(() => {
+    if (!result?.testId || test) return;
+    const testId = typeof result.testId === 'object' ? result.testId._id : result.testId;
+    if (!testId) return;
+    axiosInstance.get(`/tests/${testId}`)
+      .then((res) => setTest(res.data))
+      .catch(() => {});
+  }, [result?.testId, test]);
 
   if (loading && !result) return <div className="english-result-loading">Loading results...</div>;
   if (!result && fetchError) {
@@ -378,6 +378,12 @@ const EnglishTestResult = () => {
           </div>
         ))}
         </div>
+        {activeSection && (
+          <div className="section-detail-expanded">
+            <h4>{activeSection?.charAt(0).toUpperCase() + activeSection?.slice(1)} Details</h4>
+            {renderSectionDetail(activeSection)}
+          </div>
+        )}
       </div>
 
       {/* Detailed results - every question/answer shown (no grouping so none are missed) */}

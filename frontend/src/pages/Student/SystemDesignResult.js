@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import axiosInstance from '../../utils/axios';
@@ -24,9 +24,7 @@ const SystemDesignResult = () => {
   const [expandedSections, setExpandedSections] = useState({});
   const [showComparison, setShowComparison] = useState({});
 
-  useEffect(() => { fetchResult(); }, [submissionId]);
-
-  const fetchResult = async () => {
+  const fetchResult = useCallback(async () => {
     try {
       const { data } = await axiosInstance.get(`/system-design-submissions/${submissionId}`);
       if (data.success) {
@@ -38,7 +36,9 @@ const SystemDesignResult = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [submissionId]);
+
+  useEffect(() => { fetchResult(); }, [fetchResult]);
 
   const toggleSection = (key) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   const toggleComparison = (key) => setShowComparison(prev => ({ ...prev, [key]: !prev[key] }));

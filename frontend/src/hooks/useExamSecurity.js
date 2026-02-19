@@ -79,7 +79,7 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
     
     pendingViolations.current.set(type, timeoutId);
     return violations;
-  }, [resultId, violations, onMaxViolationsReached, gracePeriod, violationCooldown]);
+  }, [resultId, violations, onMaxViolationsReached, violationEndpoint, gracePeriod, violationCooldown]);
 
   // Request fullscreen
   const requestFullscreen = useCallback(async () => {

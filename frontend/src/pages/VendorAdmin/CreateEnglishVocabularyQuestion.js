@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
@@ -38,11 +38,7 @@ const CreateEnglishVocabularyQuestion = () => {
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
-  useEffect(() => {
-    if (isEditMode && id) fetchQuestion();
-  }, [id, isEditMode]);
-
-  const fetchQuestion = async () => {
+  const fetchQuestion = useCallback(async () => {
     try {
       setLoading(true);
       const res = await axiosInstance.get(`/questions/english/vocabulary/${id}`);
@@ -61,7 +57,11 @@ const CreateEnglishVocabularyQuestion = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (isEditMode && id) fetchQuestion();
+  }, [id, isEditMode, fetchQuestion]);
 
   const showModal = (title, message, type = 'info') => setModal({ isOpen: true, title, message, type });
   const closeModal = () => setModal({ isOpen: false, title: '', message: '', type: 'info' });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './SystemDesignFollowUp.css';
@@ -15,12 +15,33 @@ const SystemDesignFollowUp = () => {
   const [feedback, setFeedback] = useState(null);
   const pollRef = useRef(null);
 
-  useEffect(() => {
-    fetchSubmission();
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [submissionId]);
+  const startPolling = useCallback(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const { data } = await axiosInstance.get(`/system-design-submissions/${submissionId}`);
+        if (!data.success) return;
+        const sub = data.submission;
 
-  const fetchSubmission = async () => {
+        if (sub.status === 'follow_up') {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          setSubmission(sub);
+          setEvaluating(false);
+          const firstUnanswered = (sub.followUpQuestions || []).findIndex(q => !q.answer);
+          if (firstUnanswered >= 0) setCurrentQIndex(firstUnanswered);
+        } else if (sub.status === 'evaluated') {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          navigate(`/student/system-design-result/${submissionId}`, { replace: true });
+        }
+      } catch (err) {
+        console.error('Poll error:', err);
+      }
+    }, 4000);
+  }, [submissionId, navigate]);
+
+  const fetchSubmission = useCallback(async () => {
     try {
       const { data } = await axiosInstance.get(`/system-design-submissions/${submissionId}`);
       if (data.success) {
@@ -51,33 +72,12 @@ const SystemDesignFollowUp = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [submissionId, navigate, startPolling]);
 
-  const startPolling = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      try {
-        const { data } = await axiosInstance.get(`/system-design-submissions/${submissionId}`);
-        if (!data.success) return;
-        const sub = data.submission;
-
-        if (sub.status === 'follow_up') {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-          setSubmission(sub);
-          setEvaluating(false);
-          const firstUnanswered = (sub.followUpQuestions || []).findIndex(q => !q.answer);
-          if (firstUnanswered >= 0) setCurrentQIndex(firstUnanswered);
-        } else if (sub.status === 'evaluated') {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-          navigate(`/student/system-design-result/${submissionId}`, { replace: true });
-        }
-      } catch (err) {
-        console.error('Poll error:', err);
-      }
-    }, 4000);
-  };
+  useEffect(() => {
+    fetchSubmission();
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [fetchSubmission]);
 
   const handleSubmitAnswer = async () => {
     if (!answer.trim()) return;

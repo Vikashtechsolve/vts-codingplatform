@@ -45,6 +45,7 @@ const SystemDesignTaking = () => {
   const [violationModal, setViolationModal] = useState(null);
   const timerRef = useRef(null);
   const sectionStartRef = useRef(Date.now());
+  const handleSubmitRef = useRef(() => {});
   const autoSaveTimerRef = useRef(null);
   const submissionRef = useRef(null);
   const currentStepRef = useRef(0);
@@ -82,13 +83,32 @@ const SystemDesignTaking = () => {
   useEffect(() => { submissionRef.current = submission; }, [submission]);
   useEffect(() => { currentStepRef.current = currentStep; }, [currentStep]);
 
+  const startDesign = useCallback(async () => {
+    try {
+      setLoading(true);
+      const problemRes = await axiosInstance.get(`/system-design-problems/${problemId}`);
+      if (!problemRes.data.success) return;
+      setProblem(problemRes.data.problem);
+
+      const { data } = await axiosInstance.post(`/system-design-submissions/start/${problemId}`);
+      if (data.success) {
+        setSubmission(data.submission);
+        if (data.submission.currentStep > 0) setCurrentStep(data.submission.currentStep);
+      }
+    } catch (err) {
+      console.error('Error starting:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [problemId]);
+
   useEffect(() => {
     startDesign();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [problemId]);
+  }, [startDesign]);
 
   // Save current section on page close / refresh
   useEffect(() => {
@@ -122,7 +142,7 @@ const SystemDesignTaking = () => {
       setTimeLeft(remaining);
       if (remaining <= 0) {
         clearInterval(timerRef.current);
-        handleSubmit(true);
+        handleSubmitRef.current(true);
       }
     }, 1000);
 
@@ -140,25 +160,6 @@ const SystemDesignTaking = () => {
       }
     };
   }, [currentStep]);
-
-  const startDesign = async () => {
-    try {
-      setLoading(true);
-      const problemRes = await axiosInstance.get(`/system-design-problems/${problemId}`);
-      if (!problemRes.data.success) return;
-      setProblem(problemRes.data.problem);
-
-      const { data } = await axiosInstance.post(`/system-design-submissions/start/${problemId}`);
-      if (data.success) {
-        setSubmission(data.submission);
-        if (data.submission.currentStep > 0) setCurrentStep(data.submission.currentStep);
-      }
-    } catch (err) {
-      console.error('Error starting:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const saveSection = useCallback(async (sectionKey, data) => {
     if (!submission) return;
@@ -236,6 +237,7 @@ const SystemDesignTaking = () => {
       setSubmitting(false);
     }
   };
+  handleSubmitRef.current = handleSubmit;
 
   const formatTimer = (ms) => {
     if (!ms) return '--:--';
