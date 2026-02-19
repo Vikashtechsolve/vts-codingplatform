@@ -56,7 +56,7 @@ const TestList = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const typeParam = new URLSearchParams(location.search).get('type');
-  const activeType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql', 'interview', 'project', 'system'].includes(typeParam) ? typeParam : 'all';
+  const activeType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed', 'sql', 'english', 'interview', 'project', 'system'].includes(typeParam) ? typeParam : 'all';
 
   useEffect(() => {
     fetchData();
@@ -125,6 +125,7 @@ const TestList = () => {
       theory: allItems.filter(t => t.type === 'theory'),
       mixed: allItems.filter(t => t.type === 'mixed'),
       sql: allItems.filter(t => t.type === 'sql'),
+      english: allItems.filter(t => t.type === 'english'),
       interview: allItems.filter(t => t.type === 'interview'),
       project: allItems.filter(t => t.type === 'project'),
       system: allItems.filter(t => t.type === 'system')
@@ -137,6 +138,7 @@ const TestList = () => {
   const getCreateLink = () => {
     if (activeType === 'interview') return '/vendor-admin/interviews/create';
     if (activeType === 'sql') return '/vendor-admin/sql-tests/create';
+    if (activeType === 'english') return '/vendor-admin/english-tests/create';
     if (activeType === 'project') return '/vendor-admin/create-assignment';
     if (activeType === 'system') return '/vendor-admin/system-designs/create';
     return activeType !== 'all' ? `/vendor-admin/tests/create?type=${activeType}` : '/vendor-admin/tests/create';
@@ -170,16 +172,17 @@ const TestList = () => {
       </div>
 
       <div className="test-type-filter-grid">
-        {['all', 'coding', 'aptitude', 'mcq', 'theory', 'mixed', 'sql', 'project', 'interview', 'system'].map(type => (
+        {['all', 'coding', 'aptitude', 'mcq', 'theory', 'mixed', 'sql', 'english', 'project', 'interview', 'system'].map(type => (
           <button
             key={type}
             className={`test-type-filter-card ${activeType === type ? 'active' : ''}`}
             onClick={() => navigate(type === 'all' ? '/vendor-admin/tests' : `/vendor-admin/tests?type=${type}`)}
           >
             <div className="filter-title">
-              {type === 'interview' ? 'INTERVIEW' : 
-               type === 'sql' ? 'SQL' : 
-               type === 'project' ? 'PROJECT (AI)' : 
+              {type === 'interview' ? 'INTERVIEW' :
+               type === 'sql' ? 'SQL' :
+               type === 'english' ? 'VERBAL & ENGLISH' :
+               type === 'project' ? 'PROJECT (AI)' :
                type === 'system' ? 'SYSTEM DESIGN' :
                type.toUpperCase()}
             </div>
@@ -259,6 +262,11 @@ const TestList = () => {
                 {item.type === 'sql' && (
                   <Link to={`/vendor-admin/sql-tests/${item._id}/questions`} className="test-action-btn-list btn-secondary">
                     Questions
+                  </Link>
+                )}
+                {item.type === 'english' && (
+                  <Link to={`/vendor-admin/english-tests/edit/${item._id}`} className="test-action-btn-list btn-secondary">
+                    Edit
                   </Link>
                 )}
                 {item.kind === 'assignment' && (

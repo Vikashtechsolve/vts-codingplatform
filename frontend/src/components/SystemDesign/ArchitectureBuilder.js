@@ -129,7 +129,7 @@ const ArchitectureBuilder = ({ diagramData, textExplanation, onChange, validatio
     const components = nodes.map(n => n.data?.label).filter(Boolean);
     const diagramObj = { nodes, edges };
     onChange(diagramObj, text, components);
-  }, [nodes, edges, text]);
+  }, [nodes, edges, text, onChange]);
 
   const onConnect = useCallback((params) => {
     setEdges(eds => addEdge({

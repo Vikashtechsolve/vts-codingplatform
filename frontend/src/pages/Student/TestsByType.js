@@ -16,6 +16,7 @@ const TestsByType = () => {
     aptitude: { title: 'Aptitude Tests', description: 'Quantitative, logical and analytical.', icon: '🧠' },
     mcq: { title: 'MCQ Tests', description: 'Objective questions with instant checks.', icon: '❓' },
     mixed: { title: 'Mixed Tests', description: 'Combination of multiple question types.', icon: '🧩' },
+    english: { title: 'English & Verbal', description: 'Grammar, vocabulary, reading, writing, speaking, and listening.', icon: '🗣️' },
     verbal: { title: 'Verbal & English', description: 'Grammar, comprehension, and vocabulary.', icon: '🗣️' },
     core: { title: 'Core CS / Theoretical', description: 'OS, DBMS, Networks, OOP fundamentals.', icon: '📚' },
     project: { title: 'Project Evaluation (AI)', description: 'AI-based project review and scoring.', icon: '🤖' },
@@ -88,11 +89,13 @@ const TestsByType = () => {
       ? assignments
       : isSystemType
         ? systemDesigns
-        : normalizedType === 'core'
-          ? tests.filter(test => test.type === 'theory')
-          : normalizedType === 'tools'
-            ? tests.filter(test => test.type === 'sql')
-            : tests.filter(test => test.type === normalizedType);
+          : normalizedType === 'core'
+            ? tests.filter(test => test.type === 'theory')
+            : normalizedType === 'tools'
+              ? tests.filter(test => test.type === 'sql')
+              : (normalizedType === 'verbal' || normalizedType === 'english')
+                ? tests.filter(test => test.type === 'english' || test.type === 'verbal')
+                : tests.filter(test => test.type === normalizedType);
 
   const canStartInterview = (item) => {
     if (!item.hasCompleted) return true;
@@ -326,18 +329,20 @@ const TestsByType = () => {
                     {test.enrollmentStatus || 'assigned'}
                   </span>
                   {(test.enrollmentStatus === 'assigned' || !test.enrollmentStatus) && (
-                    <Link to={`/student/test/${test._id}`} className="test-action-btn btn-primary">
+                    <Link to={test.type === 'english' ? `/student/english-test/${test._id}` : `/student/test/${test._id}`} className="test-action-btn btn-primary">
                       Start Test →
                     </Link>
                   )}
                   {test.enrollmentStatus === 'in_progress' && (
-                    <Link to={`/student/test/${test._id}`} className="test-action-btn btn-secondary">
+                    <Link to={test.type === 'english' ? `/student/english-test/${test._id}` : `/student/test/${test._id}`} className="test-action-btn btn-secondary">
                       Continue →
                     </Link>
                   )}
                   {test.enrollmentStatus === 'completed' && (
                     <Link
-                      to={test.resultId ? `/student/result/${test.resultId}` : `/student/result/test/${test._id}`}
+                      to={test.type === 'english'
+                        ? (test.resultId ? `/student/english-result/${test.resultId}` : `/student/english-result/test/${test._id}`)
+                        : (test.resultId ? `/student/result/${test.resultId}` : `/student/result/test/${test._id}`)}
                       className="test-action-btn btn-secondary"
                     >
                       View Result →

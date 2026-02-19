@@ -56,6 +56,16 @@ import CreateSystemDesign from './pages/VendorAdmin/CreateSystemDesign';
 import AssignSystemDesign from './pages/VendorAdmin/AssignSystemDesign';
 import SystemDesignSubmissions from './pages/VendorAdmin/SystemDesignSubmissions';
 
+// Vendor Admin - English
+import EnglishQuestionList from './pages/VendorAdmin/EnglishQuestionList';
+import CreateEnglishGrammarQuestion from './pages/VendorAdmin/CreateEnglishGrammarQuestion';
+import CreateEnglishVocabularyQuestion from './pages/VendorAdmin/CreateEnglishVocabularyQuestion';
+import CreateEnglishReadingQuestion from './pages/VendorAdmin/CreateEnglishReadingQuestion';
+import CreateEnglishEssayQuestion from './pages/VendorAdmin/CreateEnglishEssayQuestion';
+import CreateEnglishSpeakingQuestion from './pages/VendorAdmin/CreateEnglishSpeakingQuestion';
+import CreateEnglishListeningQuestion from './pages/VendorAdmin/CreateEnglishListeningQuestion';
+import CreateEnglishTest from './pages/VendorAdmin/CreateEnglishTest';
+
 // Student
 import StudentDashboard from './pages/Student/Dashboard';
 import TestTaking from './pages/Student/TestTaking';
@@ -70,6 +80,8 @@ import SystemDesignListStudent from './pages/Student/SystemDesignList';
 import SystemDesignTaking from './pages/Student/SystemDesignTaking';
 import SystemDesignFollowUp from './pages/Student/SystemDesignFollowUp';
 import SystemDesignResult from './pages/Student/SystemDesignResult';
+import EnglishTestTaking from './pages/Student/EnglishTestTaking';
+import EnglishTestResult from './pages/Student/EnglishTestResult';
 
 import './App.css';
 
@@ -631,6 +643,23 @@ function App() {
                 }
               />
 
+              {/* English / Verbal - Vendor Admin */}
+              <Route path="/vendor-admin/english-questions" element={<PrivateRoute allowedRoles={['vendor_admin']}><EnglishQuestionList /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/grammar/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishGrammarQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/grammar/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishGrammarQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/vocabulary/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishVocabularyQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/vocabulary/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishVocabularyQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/reading/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishReadingQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/reading/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishReadingQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/essay/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishEssayQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/essay/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishEssayQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/speaking/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishSpeakingQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/speaking/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishSpeakingQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/listening/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishListeningQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-questions/listening/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishListeningQuestion /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-tests/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishTest /></PrivateRoute>} />
+              <Route path="/vendor-admin/english-tests/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishTest /></PrivateRoute>} />
+
               {/* Student Routes */}
               <Route
                 path="/student/dashboard"
@@ -716,6 +745,10 @@ function App() {
                   </PrivateRoute>
                 }
               />
+
+              {/* English / Verbal - Student */}
+              <Route path="/student/english-test/:testId" element={<PrivateRoute allowedRoles={['student']}><EnglishTestTaking /></PrivateRoute>} />
+              <Route path="/student/english-result/:resultId" element={<PrivateRoute allowedRoles={['student']}><EnglishTestResult /></PrivateRoute>} />
 
               {/* System Design - Student */}
               <Route

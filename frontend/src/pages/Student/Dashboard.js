@@ -3,19 +3,39 @@ import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './Dashboard.css';
 
+const SECTION_LABELS = {
+  english_grammar: 'Grammar',
+  english_vocabulary: 'Vocabulary',
+  english_reading: 'Reading',
+  english_essay: 'Writing',
+  english_speaking: 'Speaking',
+  english_listening: 'Listening',
+};
+
 const StudentDashboard = () => {
   const [tests, setTests] = useState([]);
   const [interviews, setInterviews] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [systemDesigns, setSystemDesigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [englishTrends, setEnglishTrends] = useState(null);
 
   useEffect(() => {
     fetchTests();
     fetchInterviews();
     fetchAssignments();
     fetchSystemDesigns();
+    fetchEnglishTrends();
   }, []);
+
+  const fetchEnglishTrends = async () => {
+    try {
+      const response = await axiosInstance.get('/students/english-trends');
+      if (response.data?.totalTests > 0) setEnglishTrends(response.data);
+    } catch (error) {
+      // Silently ignore - widget is optional
+    }
+  };
 
   const fetchTests = async () => {
     try {
@@ -78,9 +98,10 @@ const StudentDashboard = () => {
     .filter(test => test.startDate && new Date(test.startDate) > new Date())
     .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
-  const groupOrder = ['coding', 'aptitude', 'mcq', 'mixed', 'core'];
+  const groupOrder = ['coding', 'aptitude', 'mcq', 'mixed', 'english', 'core'];
   const groupedTests = tests.reduce((acc, test) => {
-    const type = test.type || 'other';
+    const rawType = test.type || 'other';
+    const type = rawType === 'verbal' ? 'english' : rawType;
     if (!acc[type]) acc[type] = [];
     acc[type].push(test);
     return acc;
@@ -115,7 +136,7 @@ const StudentDashboard = () => {
         </span>
         {(test.enrollmentStatus === 'assigned' || !test.enrollmentStatus) && (
           <Link 
-            to={`/student/test/${test._id}`} 
+            to={test.type === 'english' ? `/student/english-test/${test._id}` : `/student/test/${test._id}`} 
             className="test-action-btn btn-primary"
           >
             Start Test →
@@ -123,7 +144,7 @@ const StudentDashboard = () => {
         )}
         {test.enrollmentStatus === 'in_progress' && (
           <Link 
-            to={`/student/test/${test._id}`} 
+            to={test.type === 'english' ? `/student/english-test/${test._id}` : `/student/test/${test._id}`} 
             className="test-action-btn btn-secondary"
           >
             Continue →
@@ -131,7 +152,9 @@ const StudentDashboard = () => {
         )}
         {test.enrollmentStatus === 'completed' && (
           <Link 
-            to={test.resultId ? `/student/result/${test.resultId}` : `/student/result/test/${test._id}`} 
+            to={test.type === 'english'
+              ? (test.resultId ? `/student/english-result/${test.resultId}` : `/student/english-result/test/${test._id}`)
+              : (test.resultId ? `/student/result/${test.resultId}` : `/student/result/test/${test._id}`)} 
             className="test-action-btn btn-secondary"
           >
             View Result →
@@ -146,7 +169,7 @@ const StudentDashboard = () => {
     { key: 'aptitude', title: 'Aptitude Tests', description: 'Quantitative, logical and analytical.', icon: '🧠' },
     { key: 'mcq', title: 'MCQ Tests', description: 'Objective questions with instant checks.', icon: '❓' },
     { key: 'mixed', title: 'Mixed Tests', description: 'Combination of multiple question types.', icon: '🧩' },
-    { key: 'verbal', title: 'Verbal & English', description: 'Grammar, comprehension, and vocabulary.', icon: '🗣️' },
+    { key: 'english', title: 'English & Verbal', description: 'Grammar, vocabulary, reading, writing, speaking, listening.', icon: '🗣️' },
     { key: 'core', title: 'Core CS / Theoretical', description: 'OS, DBMS, Networks, OOP fundamentals.', icon: '📚' },
     { key: 'project', title: 'Project Evaluation (AI)', description: 'AI-based project review and scoring.', icon: '🤖' },
     { key: 'interview', title: 'Interview', description: 'Voice-based interview tests.', icon: '🎤' },
@@ -379,6 +402,47 @@ const StudentDashboard = () => {
           <div className="summary-subtext">Ready to start</div>
         </div>
       </div>
+
+      {englishTrends && (
+        <div className="english-trends-widget">
+          <div className="trends-widget-header">
+            <h2>English Skill Trends</h2>
+            <Link to="/student/tests/english" className="btn btn-sm btn-secondary">View All Tests</Link>
+          </div>
+          <div className="trends-stats-row">
+            <div className="trend-stat">
+              <span className="trend-stat-value">{englishTrends.totalTests}</span>
+              <span className="trend-stat-label">Tests Taken</span>
+            </div>
+            <div className="trend-stat">
+              <span className="trend-stat-value">{englishTrends.latestPercentage ?? '-'}%</span>
+              <span className="trend-stat-label">Latest Score</span>
+            </div>
+            {englishTrends.improvement !== null && (
+              <div className="trend-stat">
+                <span className={`trend-stat-value ${englishTrends.improvement >= 0 ? 'positive' : 'negative'}`}>
+                  {englishTrends.improvement >= 0 ? '+' : ''}{englishTrends.improvement}%
+                </span>
+                <span className="trend-stat-label">vs Previous</span>
+              </div>
+            )}
+          </div>
+          <div className="section-averages-grid">
+            {Object.entries(englishTrends.sectionAverages || {}).map(([key, avg]) => {
+              if (avg === null) return null;
+              return (
+                <div key={key} className="section-avg-item">
+                  <div className="section-avg-label">{SECTION_LABELS[key] || key}</div>
+                  <div className="section-avg-bar-wrap">
+                    <div className={`section-avg-bar ${avg >= 70 ? 'excellent' : avg >= 50 ? 'good' : 'poor'}`} style={{ width: `${avg}%` }} />
+                  </div>
+                  <div className="section-avg-value">{avg}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="test-type-nav">
         {typeMeta.map(type => (

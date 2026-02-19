@@ -66,11 +66,14 @@ const VendorAdminDashboard = () => {
       ]
     },
     {
-      key: 'verbal',
+      key: 'english',
       title: 'Verbal & English',
-      description: 'Grammar, comprehension, and vocabulary.',
+      description: 'Grammar, vocabulary, reading, writing, speaking, and listening.',
       icon: '🗣️',
-      comingSoon: true
+      actions: [
+        { label: 'Create Test', to: '/vendor-admin/english-tests/create' },
+        { label: 'View Tests', to: '/vendor-admin/tests?type=english' }
+      ]
     },
     {
       key: 'theory',

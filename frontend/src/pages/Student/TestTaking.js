@@ -272,7 +272,7 @@ const TestTaking = () => {
     } catch (error) {
       setLoading(false);
       console.error('❌ Error submitting test:', error);
-      const errorMsg = error.response?.data?.message || error.message || 'Error submitting test';
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error submitting test';
       showModal('Error', errorMsg, 'error');
     }
   };

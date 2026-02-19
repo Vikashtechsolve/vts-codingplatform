@@ -96,7 +96,7 @@ const Navbar = () => {
                         <Link to="/student/tests/aptitude" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Aptitude Tests</Link>
                         <Link to="/student/tests/mcq" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>MCQ Tests</Link>
                         <Link to="/student/tests/mixed" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Mixed Tests</Link>
-                        <Link to="/student/tests/verbal" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Verbal & English</Link>
+                        <Link to="/student/tests/english" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>English & Verbal</Link>
                         <Link to="/student/tests/core" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Core CS</Link>
                         <Link to="/student/tests/project" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Project Evaluation (AI)</Link>
                         <Link to="/student/tests/interview" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Interview</Link>

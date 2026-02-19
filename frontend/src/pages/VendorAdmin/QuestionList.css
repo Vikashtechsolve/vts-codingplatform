@@ -2,6 +2,81 @@
   animation: fadeIn 0.5s ease;
 }
 
+.question-list-header {
+  margin-bottom: 8px;
+}
+
+.questions-page-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.questions-page-section .section-heading {
+  margin: 0 0 6px 0;
+  font-size: 1.05em;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.questions-page-section .section-desc {
+  margin: 0 0 14px 0;
+  font-size: 0.88em;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.questions-page-section.create-section .create-question-row {
+  margin-top: 4px;
+}
+
+.questions-page-section .tabs-container-modern {
+  margin-bottom: 0;
+}
+
+.create-question-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.create-question-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.9em;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+}
+
+.create-question-btn:hover {
+  border-color: #007bff;
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.08), rgba(111, 66, 193, 0.06));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+}
+
+.create-question-icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.create-question-text {
+  line-height: 1;
+}
+
 .tabs-container-modern {
   display: flex;
   gap: 12px;
@@ -163,6 +238,29 @@
 }
 
 @media (max-width: 768px) {
+  .questions-page-section {
+    padding: 16px;
+  }
+
+  .create-question-row {
+    width: 100%;
+  }
+
+  .create-question-btn {
+    padding: 10px 12px;
+    font-size: 0.85em;
+  }
+
+  .source-tabs,
+  .type-tabs {
+    flex-direction: column;
+  }
+
+  .source-tabs .tab-button-modern,
+  .type-tabs .tab-button-modern {
+    width: 100%;
+  }
+
   .tabs-container-modern {
     flex-direction: column;
   }
