@@ -76,6 +76,26 @@ app.get('/api/health/evaluation', async (req, res) => {
   }
 });
 
+// Code execution queue health
+app.get('/api/health/code-execution', async (req, res) => {
+  try {
+    const { getCodeQueueStats } = require('./workers/codeExecutionWorker');
+    const stats = await getCodeQueueStats();
+    res.json({
+      status: 'OK',
+      codeExecution: {
+        queueConnected: true,
+        ...stats
+      }
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'ERROR',
+      codeExecution: { queueConnected: false, error: err.message }
+    });
+  }
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/super-admin', require('./routes/superAdmin'));
@@ -103,9 +123,9 @@ app.use('/api/project-submissions', require('./routes/projectSubmissions'));
 app.use('/api/system-design-problems', require('./routes/systemDesignProblems'));
 app.use('/api/system-design-submissions', require('./routes/systemDesignSubmissions'));
 
-// Load evaluation worker and test Redis connection on startup
+// Load workers and test Redis connection on startup
 const { testRedisConnection } = require('./config/redis');
-const loadEvaluationWorker = async () => {
+const loadWorkers = async () => {
   const connected = await testRedisConnection();
   if (connected) {
     try {
@@ -113,11 +133,22 @@ const loadEvaluationWorker = async () => {
     } catch (err) {
       console.warn('⚠️ Evaluation worker failed to load:', err.message);
     }
+    // Start code execution worker in-process when not running as separate PM2 service
+    if (process.env.CODE_WORKER_STANDALONE !== 'true') {
+      try {
+        require('./workers/codeExecutionWorker');
+        console.log('✅ Code execution worker loaded (in-process mode)');
+      } catch (err) {
+        console.warn('⚠️ Code execution worker failed to load:', err.message);
+      }
+    } else {
+      console.log('ℹ️  Code execution worker running as separate process');
+    }
   } else {
-    console.warn('⚠️ Redis not connected. AI project evaluation will not work.');
+    console.warn('⚠️ Redis not connected. AI evaluation and code execution queues will not work.');
   }
 };
-setImmediate(loadEvaluationWorker);
+setImmediate(loadWorkers);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

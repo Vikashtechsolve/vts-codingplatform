@@ -33,6 +33,9 @@ RUN mkdir -p temp && chmod 755 temp
 # Create uploads directory for file uploads
 RUN mkdir -p uploads/logos && chmod 755 uploads/logos
 
+# Create logs directory
+RUN mkdir -p logs && chmod 755 logs
+
 # Expose the port the app runs on
 EXPOSE 5000
 
@@ -41,6 +44,6 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "const port = process.env.PORT || 5000; require('http').get('http://localhost:' + port + '/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))" || exit 1
 
-# Start the application
+# Default: start API server (code execution worker runs in-process via server.js)
+# To run worker separately: docker run ... node workers/codeExecutionWorker.js
 CMD ["node", "server.js"]
-
