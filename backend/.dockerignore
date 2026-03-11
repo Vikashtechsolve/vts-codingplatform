@@ -8,6 +8,10 @@ npm-debug.log
 temp/*
 uploads/*
 !uploads/.gitkeep
+logs/*
 .DS_Store
 *.log
-
+.cursor
+.vscode
+Dockerfile.worker
+railway-worker.json
