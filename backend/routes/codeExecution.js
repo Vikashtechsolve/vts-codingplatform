@@ -10,30 +10,47 @@ const JOB_TIMEOUT = parseInt(process.env.CODE_JOB_TIMEOUT || '60000', 10);
 
 let singleQueue = null;
 let batchQueue = null;
-let queuesReady = false;
 
 function initQueues() {
-  if (singleQueue) return;
+  if (singleQueue) return true;
   try {
     const opts = getBullQueueOptions();
     singleQueue = new Queue('code-execution-single', opts);
     batchQueue = new Queue('code-execution-batch', opts);
-    singleQueue.on('ready', () => { queuesReady = true; });
-    singleQueue.on('error', () => { queuesReady = false; });
-    batchQueue.on('error', () => {});
+
+    singleQueue.on('error', (err) => {
+      console.error('Code single-queue Redis error:', err.message);
+    });
+    batchQueue.on('error', (err) => {
+      console.error('Code batch-queue Redis error:', err.message);
+    });
+    singleQueue.on('ready', () => console.log('Code single-queue connected to Redis'));
+    batchQueue.on('ready', () => console.log('Code batch-queue connected to Redis'));
+
+    return true;
   } catch (err) {
     console.warn('Code execution queues unavailable:', err.message);
+    return false;
   }
 }
 
 initQueues();
 
-function queueAvailable(res) {
-  if (!singleQueue || !batchQueue || !queuesReady) {
-    res.status(503).json({ success: false, output: '', error: 'Code execution service unavailable. Please try again later.', executionTime: 0 });
+async function ensureQueues(res) {
+  if (!singleQueue || !batchQueue) {
+    if (!initQueues()) {
+      res.status(503).json({ success: false, output: '', error: 'Code execution service unavailable. Redis not configured.', executionTime: 0 });
+      return false;
+    }
+  }
+
+  try {
+    await singleQueue.isReady();
+    return true;
+  } catch (err) {
+    res.status(503).json({ success: false, output: '', error: 'Code execution service temporarily unavailable. Please try again in a moment.', executionTime: 0 });
     return false;
   }
-  return true;
 }
 
 async function isQueueFull(queue, res) {
@@ -52,7 +69,7 @@ router.post('/execute', [
   body('language').isIn(['java', 'cpp', 'c', 'python']).withMessage('Invalid language'),
   body('input').optional()
 ], async (req, res) => {
-  if (!queueAvailable(res)) return;
+  if (!(await ensureQueues(res))) return;
 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -90,7 +107,7 @@ router.post('/execute-batch', [
   body('language').isIn(['java', 'cpp', 'c', 'python']).withMessage('Invalid language'),
   body('testCases').isArray({ min: 1, max: 50 }).withMessage('testCases must be an array (1-50 items)')
 ], async (req, res) => {
-  if (!queueAvailable(res)) return;
+  if (!(await ensureQueues(res))) return;
 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -127,13 +144,13 @@ router.get('/health', async (req, res) => {
     return res.status(503).json({ status: 'unavailable', message: 'Queues not initialized' });
   }
   try {
+    await singleQueue.isReady();
     const [sWait, sActive, bWait, bActive] = await Promise.all([
       singleQueue.getWaitingCount(), singleQueue.getActiveCount(),
       batchQueue.getWaitingCount(), batchQueue.getActiveCount()
     ]);
     res.json({
       status: 'ok',
-      queuesReady,
       single: { waiting: sWait, active: sActive },
       batch: { waiting: bWait, active: bActive },
       maxQueueSize: MAX_QUEUE_SIZE,
