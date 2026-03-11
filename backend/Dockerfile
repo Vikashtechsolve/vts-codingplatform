@@ -1,7 +1,7 @@
-FROM node:18-slim
+FROM node:20-slim
 
-# Install only what's needed: compilers for code execution, git for evaluation worker
-# Use headless JRE instead of full JDK to save ~400MB, skip python3-pip (not needed)
+# Install compilers for code execution, git for evaluation worker
+# make + python3 needed for native module builds (better-sqlite3)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     default-jdk-headless \
@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 COPY . .
 

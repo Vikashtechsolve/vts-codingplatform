@@ -1,23 +1,23 @@
-FROM node:18-slim
+FROM node:20-slim
 
-# Compilers only — no git, no pip, no make (worker just compiles + runs student code)
+# Compilers for code execution + make/python3 for native module builds (better-sqlite3)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     default-jdk-headless \
     gcc \
     g++ \
+    make \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 COPY . .
 
 RUN mkdir -p temp logs && chmod 755 temp logs
 
 # No HEALTHCHECK — this is a queue worker with no HTTP server
-# No EXPOSE — worker does not listen on any port
 
 CMD ["node", "workers/codeExecutionWorker.js"]
