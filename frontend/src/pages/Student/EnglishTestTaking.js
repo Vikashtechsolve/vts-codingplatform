@@ -8,6 +8,14 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './EnglishTestTaking.css';
 
+const API_BASE = (process.env.REACT_APP_API_URL || '').replace(/\/api\/?$/, '');
+
+const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
+  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 const EnglishTestTaking = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
@@ -42,13 +50,19 @@ const EnglishTestTaking = () => {
   const [recordedBlobs, setRecordedBlobs] = useState({});
   const [recordAttempts, setRecordAttempts] = useState({});
   const [speakTimer, setSpeakTimer] = useState(0);
+  const [speakingUploadStatus, setSpeakingUploadStatus] = useState({});
+  const [recordedUrls, setRecordedUrls] = useState({});
   const [, setMicTested] = useState(false);
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
   const animFrameRef = useRef(null);
   const streamRef = useRef(null);
+  const speakTimerRef = useRef(null);
+  const resultRef = useRef(null);
 
   const { violations } = useExamSecurity(result?._id, true);
+
+  useEffect(() => { resultRef.current = result; }, [result]);
 
   const buildSections = useCallback((testData) => {
     if (!testData.englishSections || testData.englishSections.length === 0) {
@@ -120,8 +134,13 @@ const EnglishTestTaking = () => {
     return () => {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (speakTimerRef.current) clearInterval(speakTimerRef.current);
     };
   }, [fetchTestAndStart]);
+
+  useEffect(() => {
+    return () => { Object.values(recordedUrls).forEach(u => { if (u) URL.revokeObjectURL(u); }); };
+  }, [recordedUrls]);
 
   const isPractice = test?.settings?.practiceMode === true;
   const [practiceRevealed, setPracticeRevealed] = useState({});
@@ -212,22 +231,56 @@ const EnglishTestTaking = () => {
     });
   };
 
-  /** Save every answer in state to the backend (used before submit). Uses all keys in answers so none are missed. */
-  const saveAllAnswersBeforeSubmit = async () => {
-    if (!result?._id) {
-      console.log('[English Test Submit] saveAllAnswersBeforeSubmit: no resultId, skipping');
-      return;
+  const uploadSpeakingAudio = useCallback(async (questionId, blob) => {
+    const rid = resultRef.current?._id;
+    if (!rid || !blob) return null;
+    setSpeakingUploadStatus(prev => ({ ...prev, [questionId]: 'uploading' }));
+    try {
+      const formData = new FormData();
+      const ext = blob.type?.includes('mp4') ? 'mp4' : blob.type?.includes('ogg') ? 'ogg' : 'webm';
+      formData.append('audio', blob, `speaking-${questionId}.${ext}`);
+      formData.append('questionId', questionId);
+
+      const baseURL = axiosInstance.defaults.baseURL;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${baseURL}/results/${rid}/upload-audio`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || `Upload failed (${response.status})`);
+      }
+      const data = await response.json();
+      setSpeakingUploadStatus(prev => ({ ...prev, [questionId]: 'uploaded' }));
+      setAnswers(prev => ({ ...prev, [questionId]: data.audioUrl }));
+      return data.audioUrl;
+    } catch (err) {
+      console.error('Speaking upload error:', err);
+      setSpeakingUploadStatus(prev => ({ ...prev, [questionId]: 'failed' }));
+      return null;
     }
+  }, []);
+
+  const uploadAllPendingSpeakingAudio = useCallback(async () => {
+    if (!resultRef.current?._id) return;
+    const pendingIds = Object.keys(recordedBlobs).filter(
+      qId => recordedBlobs[qId] && speakingUploadStatus[qId] !== 'uploaded'
+    );
+    if (pendingIds.length === 0) return;
+    const uploads = pendingIds.map(qId => uploadSpeakingAudio(qId, recordedBlobs[qId]));
+    await Promise.allSettled(uploads);
+  }, [recordedBlobs, speakingUploadStatus, uploadSpeakingAudio]);
+
+  const saveAllAnswersBeforeSubmit = async () => {
+    if (!resultRef.current?._id) return;
+    await uploadAllPendingSpeakingAudio();
     const keys = Object.keys(answers || {});
-    console.log('[English Test Submit] saveAllAnswersBeforeSubmit: saving', keys.length, 'answers');
     const promises = keys.map(qId =>
       saveAnswer(qId, answers[qId], { note: notes[qId], flagged: flagged[qId] })
     );
-    const results = await Promise.allSettled(promises);
-    const rejected = results.filter((r, i) => r.status === 'rejected');
-    if (rejected.length > 0) {
-      console.warn('[English Test Submit] Some answer saves failed:', rejected.length, rejected);
-    }
+    await Promise.allSettled(promises);
   };
 
   const toggleFlag = (qId) => {
@@ -248,50 +301,55 @@ const EnglishTestTaking = () => {
     if (currentQuestionIdx > 0) setCurrentQuestionIdx(currentQuestionIdx - 1);
   };
 
-  const handleSubmitTest = async () => {
-    console.log('[English Test Submit] Submit button clicked');
-    if (submitting || !result?._id) {
-      console.log('[English Test Submit] Early return:', { submitting, hasResultId: !!result?._id, resultId: result?._id });
-      return;
-    }
-    setSubmitting(true);
+  const goToResult = useCallback((resultId) => {
     try {
-      console.log('[English Test Submit] Saving all answers before submit...');
-      await saveAllAnswersBeforeSubmit();
-      console.log('[English Test Submit] Answers saved. Calling POST submit:', { resultId: result._id, url: `/results/${result._id}/submit` });
-      const response = await axiosInstance.post(`/results/${result._id}/submit`, null, {
-        timeout: 300000
-      });
-      console.log('[English Test Submit] Submit response:', { status: response?.status, data: response?.data });
-      const submittedResult = response?.data;
-      const resultId = submittedResult?._id || result._id;
-      try {
-        if (submittedResult) {
-          sessionStorage.setItem('englishResultFromSubmit', JSON.stringify(submittedResult));
-        }
-        console.log('[English Test Submit] Navigating to result:', resultId);
-        navigate(`/student/english-result/${resultId}`, {
-          state: { resultFromSubmit: submittedResult },
-          replace: true
-        });
-      } catch (navErr) {
-        console.log('[English Test Submit] Navigate error, using window.location:', navErr);
+      navigate(`/student/english-result/${resultId}`, { replace: true });
+    } catch (_) {
+      // fallback
+    }
+    setTimeout(() => {
+      if (window.location.pathname.indexOf('english-result') === -1) {
         window.location.href = `/student/english-result/${resultId}`;
       }
-    } catch (error) {
-      console.error('[English Test Submit] Error:', error);
-      console.error('[English Test Submit] Error details:', {
-        message: error?.message,
-        code: error?.code,
-        responseStatus: error?.response?.status,
-        responseData: error?.response?.data,
-        responseHeaders: error?.response?.headers
+    }, 300);
+  }, [navigate]);
+
+  const handleSubmitTest = async () => {
+    if (submitting) return;
+    const rid = result?._id || resultRef.current?._id;
+    if (!rid) return;
+    setSubmitting(true);
+    setShowReview(false);
+    try {
+      await saveAllAnswersBeforeSubmit();
+      const response = await axiosInstance.post(`/results/${rid}/submit`, {}, {
+        timeout: 300000
       });
+      const finalId = response?.data?._id || rid;
+      goToResult(finalId);
+    } catch (error) {
+      const status = error?.response?.status;
+      const serverMsg = error?.response?.data?.message || '';
+      const alreadySubmitted = status === 400 && serverMsg.toLowerCase().includes('already');
+
+      if (alreadySubmitted) {
+        const existingId = error?.response?.data?.resultId || rid;
+        goToResult(existingId);
+        return;
+      }
+
       const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
-      const message = isTimeout
-        ? 'Submission is taking longer than usual. Your answers may have been saved. Please check your dashboard for the result in a moment.'
-        : (error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to submit test');
-      setModal({ isOpen: true, title: 'Error', message, type: 'error' });
+      if (isTimeout) {
+        goToResult(rid);
+        return;
+      }
+
+      setModal({
+        isOpen: true,
+        title: 'Submission Error',
+        message: serverMsg || error.message || 'Failed to submit test. Please try again.',
+        type: 'error'
+      });
       setSubmitting(false);
     }
   };
@@ -513,29 +571,63 @@ const EnglishTestTaking = () => {
     if (!q) return null;
     const qId = q._id;
     const plays = audioPlayCount[qId] || 0;
-    const maxPlays = q.maxReplays || 2;
+    const maxPlays = (q.maxReplays || 2) + 1;
+    const limitReached = plays >= maxPlays;
     const finished = audioFinished[qId];
     const subAnswers = answers[qId] || {};
 
-    const handlePlay = () => {
-      if (plays >= maxPlays + 1) return;
-      setAudioPlayCount(prev => ({ ...prev, [qId]: plays + 1 }));
+    const handlePlay = (e) => {
+      const newCount = plays + 1;
+      if (newCount > maxPlays) {
+        e.target.pause();
+        e.target.currentTime = 0;
+        return;
+      }
+      setAudioPlayCount(prev => ({ ...prev, [qId]: newCount }));
     };
 
     const handleAudioEnd = () => {
       setAudioFinished(prev => ({ ...prev, [qId]: true }));
+      if (plays >= maxPlays && audioRef.current) {
+        audioRef.current.removeAttribute('controls');
+      }
     };
+
+    const handleCanPlay = () => {
+      if (limitReached && audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
+
+    const audioSrc = resolveMediaUrl(q.audioUrl);
 
     return (
       <div className="question-content listening-question">
         <h3>{q.title}</h3>
         <div className="audio-player-card">
-          <audio ref={audioRef} src={q.audioUrl} onPlay={handlePlay} onEnded={handleAudioEnd} controls controlsList="nodownload" />
-          <div className="replay-info">Plays: {plays} / {maxPlays + 1} (including first play)</div>
-          {plays >= maxPlays + 1 && <p className="replay-limit">Replay limit reached</p>}
+          {!limitReached ? (
+            <audio
+              ref={audioRef}
+              src={audioSrc}
+              onPlay={handlePlay}
+              onEnded={handleAudioEnd}
+              onCanPlay={handleCanPlay}
+              controls
+              controlsList="nodownload noplaybackrate"
+            />
+          ) : (
+            <div className="audio-disabled-placeholder">Audio playback complete</div>
+          )}
+          <div className="replay-info">
+            Plays used: {plays} / {maxPlays}
+            {!limitReached && plays > 0 && ` (${maxPlays - plays} remaining)`}
+          </div>
+          {limitReached && <p className="replay-limit">All replays used. Answer the questions below.</p>}
         </div>
-        {finished && (
+        {(finished || limitReached) ? (
           <div className="listening-questions-list">
+            <h4>Answer the questions</h4>
             {q.questions?.map((sq, sIdx) => (
               <div key={sIdx} className="listening-sub-question">
                 <p className="sub-q-text">{sIdx + 1}. {sq.questionText}</p>
@@ -553,8 +645,9 @@ const EnglishTestTaking = () => {
               </div>
             ))}
           </div>
+        ) : (
+          <p className="listen-first-msg">Listen to the audio first. Questions will appear after the audio finishes playing.</p>
         )}
-        {!finished && <p className="listen-first-msg">Listen to the audio to unlock the questions.</p>}
       </div>
     );
   };
@@ -567,21 +660,36 @@ const EnglishTestTaking = () => {
     const attempts = recordAttempts[qId] || 0;
     const maxAttempts = q.maxAttempts || 2;
     const recorded = recordedBlobs[qId];
+    const uploadStatus = speakingUploadStatus[qId];
 
     const startRecording = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
-        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+        let mimeType = 'audio/webm';
+        if (!MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+            : MediaRecorder.isTypeSupported('audio/ogg') ? 'audio/ogg' : '';
+        }
+
+        const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
         const chunks = [];
         recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
         recorder.onstop = () => {
-          const blob = new Blob(chunks, { type: 'audio/webm' });
+          const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+          const url = URL.createObjectURL(blob);
           setRecordedBlobs(prev => ({ ...prev, [qId]: blob }));
+          setRecordedUrls(prev => {
+            if (prev[qId]) URL.revokeObjectURL(prev[qId]);
+            return { ...prev, [qId]: url };
+          });
           setRecordAttempts(prev => ({ ...prev, [qId]: attempts + 1 }));
+          setSpeakingUploadStatus(prev => ({ ...prev, [qId]: 'pending' }));
           stream.getTracks().forEach(t => t.stop());
+          uploadSpeakingAudio(qId, blob);
         };
-        recorder.start();
+        recorder.start(1000);
         setMediaRecorder(recorder);
         setIsRecording(true);
 
@@ -595,18 +703,30 @@ const EnglishTestTaking = () => {
 
         const maxSec = q.speakingTime?.max || 120;
         setSpeakTimer(maxSec);
-        const ti = setInterval(() => {
+        if (speakTimerRef.current) clearInterval(speakTimerRef.current);
+        speakTimerRef.current = setInterval(() => {
           setSpeakTimer(prev => {
-            if (prev <= 1) { clearInterval(ti); stopRecording(); return 0; }
+            if (prev <= 1) {
+              clearInterval(speakTimerRef.current);
+              speakTimerRef.current = null;
+              if (recorder.state !== 'inactive') recorder.stop();
+              setIsRecording(false);
+              if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+              return 0;
+            }
             return prev - 1;
           });
         }, 1000);
       } catch {
-        setModal({ isOpen: true, title: 'Error', message: 'Microphone access denied', type: 'error' });
+        setModal({ isOpen: true, title: 'Error', message: 'Microphone access denied. Please allow microphone access and try again.', type: 'error' });
       }
     };
 
     const stopRecording = () => {
+      if (speakTimerRef.current) {
+        clearInterval(speakTimerRef.current);
+        speakTimerRef.current = null;
+      }
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
       }
@@ -644,6 +764,14 @@ const EnglishTestTaking = () => {
       draw();
     };
 
+    const handleReRecord = () => {
+      if (recordedUrls[qId]) URL.revokeObjectURL(recordedUrls[qId]);
+      setRecordedUrls(prev => ({ ...prev, [qId]: null }));
+      setRecordedBlobs(prev => ({ ...prev, [qId]: null }));
+      setSpeakingUploadStatus(prev => ({ ...prev, [qId]: null }));
+      setAnswers(prev => { const next = { ...prev }; delete next[qId]; return next; });
+    };
+
     return (
       <div className="question-content speaking-question">
         <div className="speaking-prompt-card">
@@ -653,7 +781,7 @@ const EnglishTestTaking = () => {
             <div className="read-aloud-text"><p>{q.referenceText}</p></div>
           )}
           {q.speakingType === 'describe_image' && q.imageUrl && (
-            <img src={q.imageUrl} alt="Describe this" className="speaking-image" />
+            <img src={resolveMediaUrl(q.imageUrl)} alt="Describe this" className="speaking-image" />
           )}
         </div>
 
@@ -668,15 +796,28 @@ const EnglishTestTaking = () => {
             {isRecording && (
               <button type="button" onClick={stopRecording} className="btn btn-danger stop-btn">Stop Recording</button>
             )}
-            {recorded && !isRecording && (
+            {recorded && !isRecording && recordedUrls[qId] && (
               <div className="recording-playback">
-                <audio controls src={URL.createObjectURL(recorded)} />
+                <audio controls src={recordedUrls[qId]} />
+                <div className="upload-status-row">
+                  {uploadStatus === 'uploading' && <span className="upload-status uploading">Uploading audio...</span>}
+                  {uploadStatus === 'uploaded' && <span className="upload-status uploaded">Audio saved</span>}
+                  {uploadStatus === 'failed' && (
+                    <span className="upload-status failed">
+                      Upload failed
+                      <button type="button" className="btn btn-sm btn-secondary" onClick={() => uploadSpeakingAudio(qId, recorded)}>Retry</button>
+                    </span>
+                  )}
+                </div>
                 {attempts < maxAttempts && (
-                  <button type="button" onClick={() => { setRecordedBlobs(prev => ({ ...prev, [qId]: null })); }} className="btn btn-secondary">Re-record ({maxAttempts - attempts} left)</button>
+                  <button type="button" onClick={handleReRecord} className="btn btn-secondary">Re-record ({maxAttempts - attempts} left)</button>
                 )}
               </div>
             )}
           </div>
+          {!isRecording && !recorded && attempts === 0 && (
+            <p className="speaking-instructions">Click "Start Recording" and speak clearly into your microphone. Max duration: {q.speakingTime?.max || 120}s</p>
+          )}
           <div className="attempts-info">Attempts: {attempts} / {maxAttempts}</div>
         </div>
       </div>
@@ -762,35 +903,57 @@ const EnglishTestTaking = () => {
   };
 
   // ===== REVIEW PANEL =====
-  const renderReview = () => (
-    <div className="review-panel">
-      <h2>Review Your Answers</h2>
-      {sections.map((sec, sIdx) => (
-        <div key={sIdx} className="review-section">
-          <h3>{sec.sectionTitle}</h3>
-          <div className="review-questions">
-            {sec.questions.map((q, qIdx) => {
-              const qId = q.questionId?._id || q.questionId;
-              const answered = answers[qId] !== undefined;
-              const isFlagged = flagged[qId];
-              return (
-                <div key={qIdx} className={`review-item ${answered ? 'answered' : 'unanswered'} ${isFlagged ? 'flagged' : ''}`} onClick={() => { setCurrentSectionIdx(sIdx); setCurrentQuestionIdx(qIdx); setShowReview(false); }}>
-                  <span>Q{qIdx + 1}</span>
-                  {isFlagged && <span className="flag-icon">!</span>}
-                </div>
-              );
-            })}
+  const renderReview = () => {
+    const hasPendingSpeaking = Object.keys(recordedBlobs).some(
+      qId => recordedBlobs[qId] && speakingUploadStatus[qId] !== 'uploaded'
+    );
+
+    return (
+      <div className="review-panel">
+        <h2>Review Your Answers</h2>
+        {sections.map((sec, sIdx) => (
+          <div key={sIdx} className="review-section">
+            <h3>{sec.sectionTitle}</h3>
+            <div className="review-questions">
+              {sec.questions.map((q, qIdx) => {
+                const qId = q.questionId?._id || q.questionId;
+                const isSpeaking = q.type === 'english_speaking';
+                const answered = isSpeaking
+                  ? !!(recordedBlobs[qId] || answers[qId])
+                  : answers[qId] !== undefined;
+                const isFlagged = flagged[qId];
+                const speakingStatus = isSpeaking ? speakingUploadStatus[qId] : null;
+                return (
+                  <div
+                    key={qIdx}
+                    className={`review-item ${answered ? 'answered' : 'unanswered'} ${isFlagged ? 'flagged' : ''} ${speakingStatus === 'failed' ? 'upload-failed' : ''}`}
+                    onClick={() => { setCurrentSectionIdx(sIdx); setCurrentQuestionIdx(qIdx); setShowReview(false); }}
+                  >
+                    <span>Q{qIdx + 1}</span>
+                    {isFlagged && <span className="flag-icon">!</span>}
+                    {speakingStatus === 'uploading' && <span className="upload-icon">...</span>}
+                    {speakingStatus === 'uploaded' && <span className="upload-icon done">ok</span>}
+                    {speakingStatus === 'failed' && <span className="upload-icon fail">!</span>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        ))}
+        {hasPendingSpeaking && (
+          <div className="review-warning">
+            Some speaking recordings haven't been uploaded yet. They will be uploaded when you submit.
+          </div>
+        )}
+        <div className="review-actions">
+          <button className="btn btn-secondary" onClick={() => setShowReview(false)}>Back to Test</button>
+          <button className="btn btn-primary" disabled={submitting} onClick={handleSubmitTest}>
+            {submitting ? 'Submitting...' : 'Submit Test'}
+          </button>
         </div>
-      ))}
-      <div className="review-actions">
-        <button className="btn btn-secondary" onClick={() => setShowReview(false)}>Back to Test</button>
-        <button className="btn btn-primary" disabled={submitting} onClick={() => { if (window.confirm('Are you sure you want to submit?')) handleSubmitTest(); }}>
-          {submitting ? 'Submitting...' : 'Submit Test'}
-        </button>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (loading) return <div className="english-test-loading">Loading test...</div>;
   if (!test) return <div className="english-test-loading">Test not found.</div>;
@@ -899,7 +1062,9 @@ const EnglishTestTaking = () => {
               ) : currentSectionIdx < sections.length - 1 ? (
                 <button className="btn btn-primary" onClick={moveToNextSection}>Next Section</button>
               ) : (
-                <button className="btn btn-primary" onClick={() => setShowReview(true)}>Review & Submit</button>
+                <button className="btn btn-primary submit-test-btn" disabled={submitting} onClick={handleSubmitTest}>
+                  {submitting ? 'Submitting...' : 'Submit Test'}
+                </button>
               )}
             </div>
           </div>

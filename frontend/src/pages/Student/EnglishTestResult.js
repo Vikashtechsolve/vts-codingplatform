@@ -1,54 +1,36 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer } from 'recharts';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
 import './EnglishTestResult.css';
 
-const SECTION_ICONS = {
-  grammar: 'Aa',
-  vocabulary: 'Ab',
-  reading: 'Rc',
-  writing: 'Es',
-  speaking: 'Sp',
-  listening: 'Li'
+const SECTION_META = {
+  grammar: { icon: 'Aa', label: 'Grammar', color: '#6366f1' },
+  vocabulary: { icon: 'Ab', label: 'Vocabulary', color: '#8b5cf6' },
+  reading: { icon: 'Rc', label: 'Reading', color: '#0ea5e9' },
+  writing: { icon: 'Es', label: 'Writing', color: '#10b981' },
+  speaking: { icon: 'Sp', label: 'Speaking', color: '#f59e0b' },
+  listening: { icon: 'Li', label: 'Listening', color: '#ef4444' }
 };
 
-const STORAGE_KEY = 'englishResultFromSubmit';
+const API_BASE = (process.env.REACT_APP_API_URL || '').replace(/\/api\/?$/, '');
+
+const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
+  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 const EnglishTestResult = () => {
   const { resultId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const resultFromState = location.state?.resultFromSubmit;
-  const resultFromStorage = (() => {
-    if (resultFromState) return null;
-    try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (!raw) return null;
-      const data = JSON.parse(raw);
-      const id = data?._id?.toString?.() || data?._id;
-      if (id && resultId && id === resultId.toString()) return data;
-      return null;
-    } catch {
-      return null;
-    }
-  })();
-  const resultFromSubmit = resultFromState || resultFromStorage;
-  const [result, setResult] = useState(resultFromSubmit || null);
+  const [result, setResult] = useState(resultFromState || null);
   const [test, setTest] = useState(null);
-  const [loading, setLoading] = useState(!resultFromSubmit);
-  const [activeSection, setActiveSection] = useState(null);
+  const [loading, setLoading] = useState(!resultFromState);
+  const [expandedCards, setExpandedCards] = useState({});
   const [fetchError, setFetchError] = useState(null);
-
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (!raw || !resultId) return;
-      const data = JSON.parse(raw);
-      const id = data?._id?.toString?.() || data?._id;
-      if (id && resultId && id === resultId.toString()) sessionStorage.removeItem(STORAGE_KEY);
-    } catch (_) {}
-  }, [resultId]);
 
   const fetchResult = useCallback(async () => {
     if (!resultId) return;
@@ -62,65 +44,50 @@ const EnglishTestResult = () => {
         setTest(testRes.data);
       }
     } catch (error) {
-      console.error('Error fetching result:', error);
       setFetchError(error.response?.data?.message || error.message);
-      if (!resultFromSubmit) setResult(null);
+      if (!resultFromState) setResult(null);
     } finally {
       setLoading(false);
     }
-  }, [resultId, resultFromSubmit]);
+  }, [resultId, resultFromState]);
 
-  useEffect(() => {
-    if (!resultId) return;
-    fetchResult();
-  }, [resultId, fetchResult]);
+  useEffect(() => { if (resultId) fetchResult(); }, [resultId, fetchResult]);
 
   useEffect(() => {
     if (!result?.testId || test) return;
     const testId = typeof result.testId === 'object' ? result.testId._id : result.testId;
     if (!testId) return;
-    axiosInstance.get(`/tests/${testId}`)
-      .then((res) => setTest(res.data))
-      .catch(() => {});
+    axiosInstance.get(`/tests/${testId}`).then((res) => setTest(res.data)).catch(() => {});
   }, [result?.testId, test]);
 
-  if (loading && !result) return <div className="english-result-loading">Loading results...</div>;
+  const toggleCard = (id) => setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+
+  if (loading && !result) return <div className="etr-loading"><div className="etr-spinner" /><span>Loading your results...</span></div>;
   if (!result && fetchError) {
     return (
-      <div className="english-test-result container">
-        <div className="result-header">
-          <h1 className="page-title">Test Submitted</h1>
-          <button className="btn btn-secondary" onClick={() => navigate('/student/dashboard')}>Back to Dashboard</button>
-        </div>
-        <div className="result-submitted-message">
-          <p>Your test was submitted successfully.</p>
-          <p>If results do not load here, go to your Dashboard and open the result for this test.</p>
-          <button type="button" className="btn btn-primary" onClick={() => navigate('/student/dashboard')}>Go to Dashboard</button>
+      <div className="etr-page">
+        <div className="etr-fallback">
+          <div className="etr-fallback-icon">&#10003;</div>
+          <h2>Test Submitted Successfully</h2>
+          <p>Your results are being processed. Check your dashboard shortly.</p>
+          <button className="etr-btn etr-btn-primary" onClick={() => navigate('/student/dashboard')}>Go to Dashboard</button>
         </div>
       </div>
     );
   }
-  if (!result) return <div className="english-result-loading">Result not found.</div>;
+  if (!result) return <div className="etr-loading">Result not found.</div>;
 
   const sectionScores = result.sectionScores || [];
   const radarData = sectionScores.map(s => ({
-    section: s.sectionType?.charAt(0).toUpperCase() + s.sectionType?.slice(1),
+    section: SECTION_META[s.sectionType]?.label || s.sectionType,
     score: s.percentage || 0,
     fullMark: 100
   }));
 
-  const grade = result.percentage >= 90 ? 'A+' : result.percentage >= 80 ? 'A' : result.percentage >= 70 ? 'B+' : result.percentage >= 60 ? 'B' : result.percentage >= 50 ? 'C' : 'D';
-  const API_BASE = process.env.REACT_APP_API_URL || '';
+  const pct = result.percentage ?? 0;
+  const grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D';
+  const gradeColor = pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
 
-  const getSectionAnswers = (sectionType) => {
-    if (!result.answers?.length) return [];
-    if (!sectionType) return result.answers;
-    if (!test?.questions) return [];
-    const sectionQIds = test.questions.filter(q => q.sectionId === sectionType).map(q => q.questionId?._id || q.questionId);
-    return result.answers.filter(a => sectionQIds.includes(a.questionId?.toString?.() || a.questionId));
-  };
-
-  /** Get section type (e.g. 'grammar') for an answer from test.questions */
   const getAnswerSectionType = (answer) => {
     if (!test?.questions?.length) return answer.sectionId || null;
     const q = test.questions.find(
@@ -129,84 +96,36 @@ const EnglishTestResult = () => {
     return q?.sectionId || answer.sectionId || null;
   };
 
-  /** Get section label for display (e.g. 'Grammar') */
   const getAnswerSectionLabel = (answer) => {
     const sectionId = getAnswerSectionType(answer);
-    return sectionId ? String(sectionId).charAt(0).toUpperCase() + String(sectionId).slice(1) : null;
+    return sectionId ? SECTION_META[sectionId]?.label || sectionId : null;
   };
 
-  /** Format "Your answer" for display (string, number, array, essay) */
-  const formatYourAnswer = (a) => {
-    if (a.essayContent && typeof a.essayContent === 'string') return a.essayContent;
+  const getStatusIcon = (a) => {
+    if (a.isCorrect) return { icon: '✓', cls: 'correct', text: 'Correct' };
+    if (a.points > 0) return { icon: '◐', cls: 'partial', text: 'Partial' };
+    return { icon: '✗', cls: 'incorrect', text: 'Incorrect' };
+  };
+
+  const formatAnswer = (a) => {
+    if (a.essayContent && typeof a.essayContent === 'string') {
+      const plain = a.essayContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      return plain.length > 200 ? plain.slice(0, 200) + '...' : plain;
+    }
     if (a.answer === undefined || a.answer === null) return null;
-    if (typeof a.answer === 'string') return a.answer;
+    if (typeof a.answer === 'string') {
+      if (a.answer.startsWith('/uploads/')) return '(Audio recording)';
+      return a.answer;
+    }
     if (typeof a.answer === 'number') return String(a.answer);
     if (Array.isArray(a.answer)) {
       if (a.questionDetails?.subType === 'parajumble' && Array.isArray(a.questionDetails?.sentences)) {
-        const parts = a.answer.map(idx => a.questionDetails.sentences[idx]).filter(Boolean);
-        return parts.length ? parts.join(' → ') : a.answer.join(', ');
+        return a.answer.map(idx => a.questionDetails.sentences[idx]).filter(Boolean).join(' → ');
       }
-      return a.answer.map(v => (typeof v === 'object' ? JSON.stringify(v) : v)).join(', ');
+      return a.answer.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
     }
-    try { return JSON.stringify(a.answer); } catch (_) { return String(a.answer); }
-  };
-
-  const renderScoreBar = (label, score, max = 1) => {
-    const pct = Math.round((score / max) * 100);
-    return (
-      <div className="score-bar-row">
-        <span className="score-bar-label">{label}</span>
-        <div className="score-bar-track">
-          <div className="score-bar-fill" style={{ width: `${pct}%`, backgroundColor: pct >= 70 ? '#28a745' : pct >= 40 ? '#ffc107' : '#dc3545' }} />
-        </div>
-        <span className="score-bar-value">{pct}%</span>
-      </div>
-    );
-  };
-
-  const renderEssayFeedback = (answer) => {
-    const ev = answer.englishEvaluation;
-    if (!ev) return <p className="no-feedback">Evaluation pending</p>;
-    return (
-      <div className="ai-feedback-panel writing-only-feedback">
-        <h4>AI Review</h4>
-        {renderScoreBar('Grammar', ev.grammarScore || 0)}
-        {renderScoreBar('Vocabulary', ev.vocabularyScore || 0)}
-        {renderScoreBar('Coherence', ev.coherenceScore || 0)}
-        {renderScoreBar('Structure', ev.structureScore || 0)}
-        {renderScoreBar('Tone', ev.toneScore || 0)}
-        {renderScoreBar('Relevance', ev.relevanceScore || 0)}
-        {ev.detailedFeedback && <div className="feedback-text"><h5>Feedback</h5><p>{ev.detailedFeedback}</p></div>}
-        {ev.suggestions?.length > 0 && (
-          <div className="suggestions-list"><h5>Suggestions for Improvement</h5><ul>{ev.suggestions.map((s, i) => <li key={i}>{s}</li>)}</ul></div>
-        )}
-      </div>
-    );
-  };
-
-  const renderSpeakingFeedback = (answer) => {
-    const ev = answer.englishEvaluation;
-    if (!ev) return <p className="no-feedback">Evaluation pending</p>;
-    return (
-      <div className="ai-feedback-panel">
-        <h4>AI Evaluation</h4>
-        {answer.audioFileUrl && <div className="playback-section"><audio controls src={`${API_BASE}${answer.audioFileUrl}`} /></div>}
-        {ev.transcription && <div className="transcription-box"><h5>Transcription</h5><p>{ev.transcription}</p></div>}
-        {renderScoreBar('Pronunciation', ev.pronunciationScore || 0)}
-        {renderScoreBar('Fluency', ev.fluencyScore || 0)}
-        {renderScoreBar('Coherence', ev.coherenceScore || 0)}
-        {renderScoreBar('Vocabulary', ev.vocabularyScore || 0)}
-        {renderScoreBar('Grammar', ev.grammarScore || 0)}
-        {renderScoreBar('Confidence', ev.confidenceScore || 0)}
-        <div className="speaking-metrics">
-          {ev.speakingRate && <span>Speaking Rate: {ev.speakingRate} wpm</span>}
-          {ev.pauseAnalysis && <span>Pauses: {ev.pauseAnalysis.totalPauses}</span>}
-          {ev.fillerWords !== undefined && <span>Filler Words: {ev.fillerWords}</span>}
-          {ev.vocabularyDiversity !== undefined && <span>Vocab Diversity: {Math.round(ev.vocabularyDiversity * 100)}%</span>}
-        </div>
-        {ev.detailedFeedback && <div className="feedback-text"><h5>Feedback</h5><p>{ev.detailedFeedback}</p></div>}
-      </div>
-    );
+    if (typeof a.answer === 'object') return null;
+    return String(a.answer);
   };
 
   const getCorrectAnswerText = (a) => {
@@ -214,90 +133,211 @@ const EnglishTestResult = () => {
     if (!qd) return null;
     if (qd.options && (qd.correctAnswer === 0 || qd.correctAnswer)) {
       const idx = typeof qd.correctAnswer === 'number' ? qd.correctAnswer : parseInt(qd.correctAnswer, 10);
-      const opt = qd.options[idx];
-      return opt?.text || `Option ${idx + 1}`;
+      return qd.options[idx]?.text || `Option ${idx + 1}`;
     }
     return qd.correctAnswer != null ? String(qd.correctAnswer) : null;
   };
 
-  const renderSectionDetail = (sectionType) => {
-    const answers = getSectionAnswers(sectionType);
-    if (answers.length === 0) return <p className="no-answers-msg">No answers for this section.</p>;
+  const ScoreBar = ({ label, score, max = 1 }) => {
+    const val = Math.round((score / max) * 100);
+    const color = val >= 70 ? '#10b981' : val >= 40 ? '#f59e0b' : '#ef4444';
+    return (
+      <div className="etr-score-bar">
+        <div className="etr-score-bar-head">
+          <span className="etr-score-bar-label">{label}</span>
+          <span className="etr-score-bar-val" style={{ color }}>{val}%</span>
+        </div>
+        <div className="etr-score-bar-track"><div className="etr-score-bar-fill" style={{ width: `${val}%`, background: color }} /></div>
+      </div>
+    );
+  };
+
+  const MetricChip = ({ label, value, unit }) => (
+    <div className="etr-metric-chip">
+      <span className="etr-metric-val">{value}{unit && <small>{unit}</small>}</span>
+      <span className="etr-metric-label">{label}</span>
+    </div>
+  );
+
+  const renderEssayFeedback = (answer) => {
+    const ev = answer.englishEvaluation;
+    if (!ev) return <div className="etr-eval-pending">AI evaluation is being processed...</div>;
+    const plag = ev.plagiarism;
+    return (
+      <div className="etr-ai-panel etr-ai-writing">
+        <div className="etr-ai-panel-header"><span className="etr-ai-badge">AI Writing Review</span></div>
+        <div className="etr-score-bars-grid">
+          <ScoreBar label="Grammar" score={ev.grammarScore || 0} />
+          <ScoreBar label="Vocabulary" score={ev.vocabularyScore || 0} />
+          <ScoreBar label="Coherence" score={ev.coherenceScore || 0} />
+          <ScoreBar label="Structure" score={ev.structureScore || 0} />
+          <ScoreBar label="Tone" score={ev.toneScore || 0} />
+          <ScoreBar label="Relevance" score={ev.relevanceScore || 0} />
+        </div>
+        {ev.detailedFeedback && (
+          <div className="etr-feedback-block">
+            <h5>Detailed Feedback</h5>
+            <p>{ev.detailedFeedback}</p>
+          </div>
+        )}
+        {ev.suggestions?.length > 0 && (
+          <div className="etr-suggestions-block">
+            <h5>How to Improve</h5>
+            <ul>{ev.suggestions.map((s, i) => <li key={i}>{s}</li>)}</ul>
+          </div>
+        )}
+        {plag && (
+          <div className={`etr-plag-block etr-plag-${plag.suspicionLevel || 'none'}`}>
+            <div className="etr-plag-header">
+              <span>Originality Check</span>
+              <span className="etr-plag-score">{plag.originalityScore || 0}%</span>
+            </div>
+            {plag.feedback && <p>{plag.feedback}</p>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSpeakingFeedback = (answer) => {
+    const ev = answer.englishEvaluation;
+    if (!ev) return <div className="etr-eval-pending">AI evaluation is being processed...</div>;
+    return (
+      <div className="etr-ai-panel etr-ai-speaking">
+        <div className="etr-ai-panel-header"><span className="etr-ai-badge">AI Speaking Review</span></div>
+        {answer.audioFileUrl && (
+          <div className="etr-audio-player">
+            <audio controls src={resolveMediaUrl(answer.audioFileUrl)} />
+          </div>
+        )}
+        {ev.transcription && (
+          <div className="etr-transcription">
+            <h5>What You Said</h5>
+            <p>{ev.transcription}</p>
+          </div>
+        )}
+        <div className="etr-score-bars-grid">
+          <ScoreBar label="Pronunciation" score={ev.pronunciationScore || 0} />
+          <ScoreBar label="Fluency" score={ev.fluencyScore || 0} />
+          <ScoreBar label="Coherence" score={ev.coherenceScore || 0} />
+          <ScoreBar label="Vocabulary" score={ev.vocabularyScore || 0} />
+          <ScoreBar label="Grammar" score={ev.grammarScore || 0} />
+          <ScoreBar label="Confidence" score={ev.confidenceScore || 0} />
+        </div>
+        <div className="etr-metrics-row">
+          {ev.speakingRate > 0 && <MetricChip label="Speaking Rate" value={ev.speakingRate} unit=" wpm" />}
+          {ev.pauseAnalysis?.totalPauses > 0 && <MetricChip label="Pauses" value={ev.pauseAnalysis.totalPauses} />}
+          {ev.fillerWords > 0 && <MetricChip label="Filler Words" value={ev.fillerWords} />}
+          {ev.vocabularyDiversity > 0 && <MetricChip label="Vocab Diversity" value={Math.round(ev.vocabularyDiversity * 100)} unit="%" />}
+        </div>
+        {ev.detailedFeedback && (
+          <div className="etr-feedback-block">
+            <h5>Detailed Feedback</h5>
+            <p>{ev.detailedFeedback}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderAnswerCard = (a, i) => {
+    const sectionType = getAnswerSectionType(a);
+    const sectionLabel = getAnswerSectionLabel(a);
+    const status = getStatusIcon(a);
+    const isWriting = sectionType === 'writing';
+    const isSpeaking = sectionType === 'speaking';
+    const hasAiFeedback = isWriting || isSpeaking || a.englishEvaluation?.detailedFeedback || a.englishEvaluation?.feedback;
+    const hasSubAnswers = a.subAnswers?.length > 0;
+    const isExpanded = expandedCards[`q-${i}`];
+    const questionText = a.questionDetails?.questionText || a.questionDetails?.word || a.questionDetails?.prompt;
+    const yourAnswer = formatAnswer(a);
+    const meta = SECTION_META[sectionType] || {};
 
     return (
-      <div className="section-detail">
-        {answers.map((a, i) => {
-          const isWriting = getAnswerSectionType(a) === 'writing';
-          return (
-          <div key={i} className={`answer-card ${a.isCorrect ? 'correct' : a.points > 0 ? 'partial' : 'incorrect'} ${isWriting ? 'writing-result-card' : ''}`}>
-            <div className="answer-header">
-              <span>Question {i + 1}</span>
-              <span className="answer-score"><strong>Score:</strong> {a.points || 0} / {a.maxPoints || 0} pts</span>
+      <div key={a.questionId?.toString?.() || i} className={`etr-card etr-card-${status.cls}`}>
+        <div className="etr-card-top" onClick={() => toggleCard(`q-${i}`)}>
+          <div className="etr-card-left">
+            <div className={`etr-status-dot etr-status-${status.cls}`} title={status.text}>{status.icon}</div>
+            <div className="etr-card-info">
+              <span className="etr-card-q">Question {i + 1}</span>
+              {sectionLabel && <span className="etr-section-tag" style={{ borderColor: meta.color || '#888', color: meta.color || '#888' }}>{sectionLabel}</span>}
             </div>
-            {(a.questionDetails?.questionText || a.questionDetails?.word || a.questionDetails?.prompt) && (
-              <div className="question-preview">
-                <strong>Question:</strong> {a.questionDetails.questionText || a.questionDetails.word || a.questionDetails.prompt}
+          </div>
+          <div className="etr-card-right">
+            <div className="etr-card-score">
+              <span className="etr-card-pts">{a.points ?? 0}</span>
+              <span className="etr-card-max">/ {a.maxPoints ?? 0}</span>
+            </div>
+            <span className={`etr-expand-icon ${isExpanded ? 'open' : ''}`}>&#9662;</span>
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="etr-card-body">
+            {questionText && <div className="etr-q-text"><strong>Q:</strong> {questionText}</div>}
+
+            {yourAnswer && !isSpeaking && (
+              <div className={`etr-your-ans ${a.isCorrect ? 'correct' : a.points > 0 ? 'partial' : 'wrong'}`}>
+                <strong>Your Answer:</strong> {yourAnswer}
               </div>
             )}
-            {(formatYourAnswer(a) || (isWriting && (a.essayContent || a.answer))) && (
-              <div className="your-answer-preview">
-                <strong>Your answer:</strong>{' '}
-                {isWriting && (a.essayContent || a.answer) ? (
-                  (() => {
-                    const raw = typeof a.essayContent === 'string' ? a.essayContent : (a.answer || '');
-                    const plain = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-                    return plain ? <span>{plain}</span> : null;
-                  })()
-                ) : (
-                  formatYourAnswer(a)
-                )}
+
+            {!isWriting && !isSpeaking && a.isCorrect === false && getCorrectAnswerText(a) && (
+              <div className="etr-correct-ans">
+                <strong>Correct Answer:</strong> {getCorrectAnswerText(a)}
               </div>
             )}
-            {a.note && (
-              <div className="answer-note">
-                <strong>Your note:</strong> {a.note}
+
+            {!isWriting && !isSpeaking && a.isCorrect === false && a.questionDetails?.explanation && (
+              <div className="etr-explanation">
+                <strong>Explanation:</strong> {a.questionDetails.explanation}
               </div>
             )}
-            {getAnswerSectionType(a) === 'writing' && renderEssayFeedback(a)}
-            {getAnswerSectionType(a) === 'speaking' && renderSpeakingFeedback(a)}
-            {(a.englishEvaluation?.detailedFeedback || a.englishEvaluation?.feedback) && getAnswerSectionType(a) !== 'writing' && getAnswerSectionType(a) !== 'speaking' && (
-              <div className="feedback-text ai-feedback-inline">
-                <h5>Feedback</h5>
-                <p>{a.englishEvaluation.detailedFeedback || a.englishEvaluation.feedback}</p>
+
+            {a.note && <div className="etr-note"><strong>Your Note:</strong> {a.note}</div>}
+
+            {isWriting && renderEssayFeedback(a)}
+            {isSpeaking && renderSpeakingFeedback(a)}
+
+            {!isWriting && !isSpeaking && (a.englishEvaluation?.detailedFeedback || a.englishEvaluation?.feedback) && (
+              <div className="etr-ai-panel etr-ai-generic">
+                <div className="etr-ai-panel-header"><span className="etr-ai-badge">AI Feedback</span></div>
+                <p className="etr-ai-text">{a.englishEvaluation.detailedFeedback || a.englishEvaluation.feedback}</p>
                 {a.englishEvaluation?.suggestions?.length > 0 && (
-                  <ul className="suggestions-inline">{a.englishEvaluation.suggestions.map((s, j) => <li key={j}>{s}</li>)}</ul>
+                  <div className="etr-suggestions-block">
+                    <h5>Suggestions</h5>
+                    <ul>{a.englishEvaluation.suggestions.map((s, j) => <li key={j}>{s}</li>)}</ul>
+                  </div>
                 )}
               </div>
             )}
-            {a.subAnswers?.length > 0 && (
-              <div className="sub-answers-list">
+
+            {hasSubAnswers && (
+              <div className="etr-sub-answers">
+                <h5>Sub-Questions</h5>
                 {a.subAnswers.map((sa, sIdx) => {
                   const refAnswer = a.questionDetails?.questions?.[sa.subQuestionIndex]?.referenceAnswer;
+                  const subQText = a.questionDetails?.questions?.[sa.subQuestionIndex]?.questionText;
                   return (
-                    <div key={sIdx} className={`sub-answer ${sa.isCorrect ? 'correct' : 'incorrect'}`}>
-                      <span>Q{sa.subQuestionIndex + 1}: {sa.isCorrect ? 'Correct' : 'Incorrect'}</span>
-                      <span>{sa.points}/{sa.maxPoints}</span>
-                      {!sa.isCorrect && refAnswer && (
-                        <div className="sub-answer-reference">Reference: {refAnswer}</div>
-                      )}
-                      {sa.feedback && (
-                        <div className="sub-answer-feedback">Feedback: {sa.feedback}</div>
-                      )}
+                    <div key={sIdx} className={`etr-sub-item ${sa.isCorrect ? 'correct' : 'wrong'}`}>
+                      <div className="etr-sub-top">
+                        <span className={`etr-sub-icon ${sa.isCorrect ? 'correct' : 'wrong'}`}>{sa.isCorrect ? '✓' : '✗'}</span>
+                        <span className="etr-sub-label">{subQText || `Part ${sa.subQuestionIndex + 1}`}</span>
+                        <span className="etr-sub-score">{sa.points}/{sa.maxPoints}</span>
+                      </div>
+                      {!sa.isCorrect && refAnswer && <div className="etr-sub-ref">Expected: {refAnswer}</div>}
+                      {sa.feedback && <div className="etr-sub-feedback">{sa.feedback}</div>}
                     </div>
                   );
                 })}
               </div>
             )}
-            {getAnswerSectionType(a) !== 'writing' && getAnswerSectionType(a) !== 'speaking' && a.isCorrect === false && (a.questionDetails?.explanation || getCorrectAnswerText(a)) && (
-              <div className="wrong-answer-review">
-                <h5>Review</h5>
-                {getCorrectAnswerText(a) && <p><strong>Correct answer:</strong> {getCorrectAnswerText(a)}</p>}
-                {a.questionDetails?.explanation && <p><strong>Explanation:</strong> {a.questionDetails.explanation}</p>}
-              </div>
+
+            {!hasAiFeedback && !hasSubAnswers && a.isCorrect && (
+              <div className="etr-correct-msg">Great job! You answered this correctly.</div>
             )}
           </div>
-          );
-        })}
+        )}
       </div>
     );
   };
@@ -305,172 +345,105 @@ const EnglishTestResult = () => {
   const showPeerComparison = result.percentile != null && result.percentile > 0;
 
   return (
-    <div className="english-test-result container">
-      <div className="result-header">
+    <div className="etr-page">
+      <div className="etr-header">
         <div>
-          <h1 className="page-title">{test?.title || 'English Test Result'}</h1>
-          <p className="result-subtitle">Submitted {result.submittedAt ? new Date(result.submittedAt).toLocaleString() : 'N/A'}</p>
+          <h1 className="etr-title">{test?.title || 'English Test Result'}</h1>
+          <p className="etr-subtitle">Submitted {result.submittedAt ? new Date(result.submittedAt).toLocaleString() : 'N/A'}</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => navigate('/student/dashboard')}>Back to Dashboard</button>
+        <button className="etr-btn etr-btn-secondary" onClick={() => navigate('/student/dashboard')}>Back to Dashboard</button>
       </div>
 
-      {/* Summary cards - same style as other test types */}
-      <div className="result-summary-modern">
-        <div className="stat-card-modern score">
-          <h3>Score</h3>
-          <p className="stat-number-modern">{result.totalScore ?? 0} / {result.maxScore ?? 0}</p>
+      {/* Hero score section */}
+      <div className="etr-hero">
+        <div className="etr-hero-score">
+          <svg viewBox="0 0 120 120" className="etr-ring">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border-color)" strokeWidth="8" />
+            <circle cx="60" cy="60" r="52" fill="none" stroke={gradeColor} strokeWidth="8"
+              strokeDasharray={`${(pct / 100) * 327} 327`} strokeLinecap="round"
+              transform="rotate(-90 60 60)" className="etr-ring-fill" />
+          </svg>
+          <div className="etr-ring-text">
+            <span className="etr-ring-pct" style={{ color: gradeColor }}>{pct}%</span>
+            <span className="etr-ring-grade" style={{ color: gradeColor }}>{grade}</span>
+          </div>
         </div>
-        <div className="stat-card-modern percentage">
-          <h3>Percentage</h3>
-          <p className="stat-number-modern">{result.percentage ?? 0}%</p>
-        </div>
-        <div className="stat-card-modern time">
-          <h3>Time Spent</h3>
-          <p className="stat-number-modern">
-            {result.timeSpent != null
-              ? `${Math.floor(result.timeSpent / 60)}m ${result.timeSpent % 60}s`
-              : '—'}
-          </p>
-        </div>
-        <div className="stat-card-modern grade-card">
-          <h3>Grade</h3>
-          <p className={`stat-grade stat-grade-${String(grade).replace('+', 'plus')}`}>{grade}</p>
-        </div>
-      </div>
-
-      {showPeerComparison && (
-        <div className="peer-comparison-banner">
-          <span className="peer-label">Peer comparison</span>
-          <span className="peer-value">You scored better than {result.percentile}% of test-takers</span>
-        </div>
-      )}
-
-      {radarData.length > 0 && (
-        <div className="radar-card">
-          <h3 className="section-title-modern">Section Performance</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={radarData}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey="section" tick={{ fill: 'var(--text-primary)', fontSize: 12 }} />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} />
-              <Radar name="Score" dataKey="score" stroke="#007bff" fill="#007bff" fillOpacity={0.25} />
-              <Legend />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      <div className="section-scores-wrap">
-        <h3 className="section-title-modern">Scores by Section</h3>
-        <div className="section-scores-grid">
-        {sectionScores.map(s => (
-          <div
-            key={s.sectionType}
-            className={`section-score-card ${activeSection === s.sectionType ? 'active' : ''}`}
-            onClick={() => setActiveSection(activeSection === s.sectionType ? null : s.sectionType)}
-          >
-            <div className="ss-icon">{SECTION_ICONS[s.sectionType] || '?'}</div>
-            <div className="ss-info">
-              <span className="ss-name">{s.sectionType?.charAt(0).toUpperCase() + s.sectionType?.slice(1)}</span>
-              <span className="ss-score">{s.score} / {s.maxScore}</span>
+        <div className="etr-hero-stats">
+          <div className="etr-stat">
+            <span className="etr-stat-value">{result.totalScore ?? 0}<small>/{result.maxScore ?? 0}</small></span>
+            <span className="etr-stat-label">Total Score</span>
+          </div>
+          <div className="etr-stat">
+            <span className="etr-stat-value">
+              {result.timeSpent != null ? `${Math.floor(result.timeSpent / 60)}m ${result.timeSpent % 60}s` : '—'}
+            </span>
+            <span className="etr-stat-label">Time Spent</span>
+          </div>
+          <div className="etr-stat">
+            <span className="etr-stat-value">{result.answers?.length ?? 0}</span>
+            <span className="etr-stat-label">Questions</span>
+          </div>
+          {showPeerComparison && (
+            <div className="etr-stat etr-stat-peer">
+              <span className="etr-stat-value">Top {100 - result.percentile}%</span>
+              <span className="etr-stat-label">Peer Rank</span>
             </div>
-            <div className={`ss-pct ${s.percentage >= 70 ? 'good' : s.percentage >= 40 ? 'avg' : 'poor'}`}>{s.percentage}%</div>
-          </div>
-        ))}
+          )}
         </div>
-        {activeSection && (
-          <div className="section-detail-expanded">
-            <h4>{activeSection?.charAt(0).toUpperCase() + activeSection?.slice(1)} Details</h4>
-            {renderSectionDetail(activeSection)}
-          </div>
-        )}
       </div>
 
-      {/* Detailed results - every question/answer shown (no grouping so none are missed) */}
-      <div className="questions-results-section">
-        <h2 className="section-title-modern">Detailed Results ({result.answers?.length ?? 0} questions)</h2>
-        {result.answers?.length > 0 ? (
-          <div className="section-detail all-answers-list">
-            {result.answers.map((a, i) => {
-              const isWriting = getAnswerSectionType(a) === 'writing';
-              return (
-              <div key={a.questionId?.toString?.() || i} className={`answer-card ${a.isCorrect ? 'correct' : a.points > 0 ? 'partial' : 'incorrect'} ${isWriting ? 'writing-result-card' : ''}`}>
-                <div className="answer-header">
-                  <span>
-                    Question {i + 1}
-                    {getAnswerSectionLabel(a) && <span className="answer-section-badge">{getAnswerSectionLabel(a)}</span>}
-                  </span>
-                  <span className="answer-score"><strong>Score:</strong> {a.points ?? 0} / {a.maxPoints ?? 0} pts</span>
-                </div>
-                {(a.questionDetails?.questionText || a.questionDetails?.word || a.questionDetails?.prompt) && (
-                  <div className="question-preview">
-                    <strong>Question:</strong> {a.questionDetails.questionText || a.questionDetails.word || a.questionDetails.prompt}
+      {/* Section performance */}
+      {sectionScores.length > 0 && (
+        <div className="etr-sections-block">
+          <h2 className="etr-block-title">Section Performance</h2>
+          <div className="etr-sections-layout">
+            <div className="etr-section-cards">
+              {sectionScores.map(s => {
+                const meta = SECTION_META[s.sectionType] || {};
+                const sp = s.percentage || 0;
+                return (
+                  <div key={s.sectionType} className="etr-sec-card">
+                    <div className="etr-sec-icon" style={{ background: meta.color || '#888' }}>{meta.icon || '?'}</div>
+                    <div className="etr-sec-info">
+                      <span className="etr-sec-name">{meta.label || s.sectionType}</span>
+                      <div className="etr-sec-bar-wrap">
+                        <div className="etr-sec-bar" style={{ width: `${sp}%`, background: sp >= 70 ? '#10b981' : sp >= 40 ? '#f59e0b' : '#ef4444' }} />
+                      </div>
+                    </div>
+                    <div className="etr-sec-right">
+                      <span className="etr-sec-pct" style={{ color: sp >= 70 ? '#10b981' : sp >= 40 ? '#f59e0b' : '#ef4444' }}>{sp}%</span>
+                      <span className="etr-sec-pts">{s.score}/{s.maxScore}</span>
+                    </div>
                   </div>
-                )}
-                {(formatYourAnswer(a) || (isWriting && (a.essayContent || a.answer))) && (
-                  <div className="your-answer-preview">
-                    <strong>Your answer:</strong>{' '}
-                    {isWriting && (a.essayContent || a.answer) ? (
-                      (() => {
-                        const raw = typeof a.essayContent === 'string' ? a.essayContent : (a.answer || '');
-                        const plain = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-                        return plain ? <span>{plain}</span> : null;
-                      })()
-                    ) : (
-                      formatYourAnswer(a)
-                    )}
-                  </div>
-                )}
-                {a.note && (
-                  <div className="answer-note">
-                    <strong>Your note:</strong> {a.note}
-                  </div>
-                )}
-                {isWriting && renderEssayFeedback(a)}
-                {getAnswerSectionType(a) === 'speaking' && renderSpeakingFeedback(a)}
-                {/* AI feedback for grammar and other non-writing/speaking types */}
-                {(a.englishEvaluation?.detailedFeedback || a.englishEvaluation?.feedback) && getAnswerSectionType(a) !== 'writing' && getAnswerSectionType(a) !== 'speaking' && (
-                  <div className="feedback-text ai-feedback-inline">
-                    <h5>AI Feedback</h5>
-                    <p>{a.englishEvaluation.detailedFeedback || a.englishEvaluation.feedback}</p>
-                    {a.englishEvaluation?.suggestions?.length > 0 && (
-                      <ul className="suggestions-inline">{a.englishEvaluation.suggestions.map((s, i) => <li key={i}>{s}</li>)}</ul>
-                    )}
-                  </div>
-                )}
-                {a.subAnswers?.length > 0 && (
-                  <div className="sub-answers-list">
-                    {a.subAnswers.map((sa, sIdx) => {
-                      const refAnswer = a.questionDetails?.questions?.[sa.subQuestionIndex]?.referenceAnswer;
-                      return (
-                        <div key={sIdx} className={`sub-answer ${sa.isCorrect ? 'correct' : 'incorrect'}`}>
-                          <span>Q{sa.subQuestionIndex + 1}: {sa.isCorrect ? 'Correct' : 'Incorrect'}</span>
-                          <span>{sa.points}/{sa.maxPoints}</span>
-                          {!sa.isCorrect && refAnswer && (
-                            <div className="sub-answer-reference">Reference: {refAnswer}</div>
-                          )}
-                          {sa.feedback && (
-                            <div className="sub-answer-feedback">AI feedback: {sa.feedback}</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {getAnswerSectionType(a) !== 'writing' && getAnswerSectionType(a) !== 'speaking' && a.isCorrect === false && (a.questionDetails?.explanation || getCorrectAnswerText(a)) && (
-                  <div className="wrong-answer-review">
-                    <h5>Review</h5>
-                    {getCorrectAnswerText(a) && <p><strong>Correct answer:</strong> {getCorrectAnswerText(a)}</p>}
-                    {a.questionDetails?.explanation && <p><strong>Explanation:</strong> {a.questionDetails.explanation}</p>}
-                  </div>
-                )}
+                );
+              })}
+            </div>
+            {radarData.length > 2 && (
+              <div className="etr-radar-wrap">
+                <ResponsiveContainer width="100%" height={280}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="var(--border-color)" />
+                    <PolarAngleAxis dataKey="section" tick={{ fill: 'var(--text-primary)', fontSize: 11 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                    <Radar dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} strokeWidth={2} />
+                  </RadarChart>
+                </ResponsiveContainer>
               </div>
-            );
-            })}
+            )}
           </div>
-        ) : (
-          <p className="no-answers-msg">No answers recorded for this test.</p>
-        )}
+        </div>
+      )}
+
+      {/* Detailed answers */}
+      <div className="etr-answers-block">
+        <h2 className="etr-block-title">Detailed Results <span className="etr-count">({result.answers?.length ?? 0} questions)</span></h2>
+        <div className="etr-answers-list">
+          {result.answers?.length > 0 ? (
+            result.answers.map((a, i) => renderAnswerCard(a, i))
+          ) : (
+            <p className="etr-empty">No answers recorded.</p>
+          )}
+        </div>
       </div>
     </div>
   );

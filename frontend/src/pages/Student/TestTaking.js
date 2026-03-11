@@ -743,7 +743,6 @@ const TestTaking = () => {
       setTestCaseResults([]);
       
       const questionData = question.questionId;
-      // Get visible test cases (non-hidden)
       const visibleTestCases = questionData.testCases?.filter(tc => !tc.isHidden) || [];
       
       if (visibleTestCases.length === 0) {
@@ -752,42 +751,22 @@ const TestTaking = () => {
         return;
       }
 
-      // Run code against all visible test cases
-      const results = [];
-      for (let i = 0; i < visibleTestCases.length; i++) {
-        const testCase = visibleTestCases[i];
-        try {
-          const response = await axiosInstance.post('/code-execution/execute', {
-            code,
-            language: selectedLanguage,
-            input: testCase.input
-          });
+      const response = await axiosInstance.post('/code-execution/execute-batch', {
+        code,
+        language: selectedLanguage,
+        testCases: visibleTestCases.map(tc => ({ input: tc.input, expectedOutput: tc.expectedOutput }))
+      });
 
-          const expectedNormalized = normalizeOutput(testCase.expectedOutput);
-          const actualNormalized = normalizeOutput(response.data.output || '');
-          const passed = response.data.success && expectedNormalized === actualNormalized;
-          
-          results.push({
-            testCaseIndex: i + 1,
-            input: testCase.input,
-            expectedOutput: testCase.expectedOutput,
-            actualOutput: response.data.output || '',
-            error: response.data.error || '',
-            passed,
-            executionTime: response.data.executionTime || 0
-          });
-        } catch (error) {
-          results.push({
-            testCaseIndex: i + 1,
-            input: testCase.input,
-            expectedOutput: testCase.expectedOutput,
-            actualOutput: '',
-            error: error.response?.data?.error || error.message || 'Execution failed',
-            passed: false,
-            executionTime: 0
-          });
-        }
-      }
+      const batchResults = response.data.results || [];
+      const results = batchResults.map((r, i) => ({
+        testCaseIndex: i + 1,
+        input: visibleTestCases[i]?.input || '',
+        expectedOutput: visibleTestCases[i]?.expectedOutput || '',
+        actualOutput: r.output || '',
+        error: r.error || response.data.compilationError || '',
+        passed: r.passed,
+        executionTime: r.executionTime || 0
+      }));
 
       setTestCaseResults(results);
       setIsRunningTests(false);
@@ -796,13 +775,13 @@ const TestTaking = () => {
       const totalCount = results.length;
       
       if (passedCount === totalCount) {
-        showModal('All Test Cases Passed!', `✅ All ${totalCount} sample test case(s) passed!`, 'success');
+        showModal('All Test Cases Passed!', `All ${totalCount} sample test case(s) passed!`, 'success');
       } else {
         showModal('Some Test Cases Failed', `${passedCount} out of ${totalCount} sample test case(s) passed.`, 'warning');
       }
     } catch (error) {
       setIsRunningTests(false);
-      console.error('❌ Error executing code:', error);
+      console.error('Error executing code:', error);
       const errorMsg = error.response?.data?.error || 
                       error.response?.data?.message || 
                       error.message || 
@@ -831,90 +810,50 @@ const TestTaking = () => {
           return;
         }
         
-        // Run ALL test cases (both visible and hidden) and calculate score
         const allTestCases = question.questionId.testCases || [];
         const visibleTestCases = allTestCases.filter(tc => !tc.isHidden);
         const hiddenTestCases = allTestCases.filter(tc => tc.isHidden);
-        
+
+        const batchPayload = allTestCases.map(tc => ({ input: tc.input, expectedOutput: tc.expectedOutput }));
+        const batchResponse = await axiosInstance.post('/code-execution/execute-batch', {
+          code,
+          language: selectedLanguage,
+          testCases: batchPayload
+        });
+
+        const batchResults = batchResponse.data.results || [];
         let testCasesPassed = 0;
         const visibleResults = [];
         const hiddenResults = [];
 
-        // Run visible test cases
-        for (let i = 0; i < visibleTestCases.length; i++) {
-          const testCase = visibleTestCases[i];
-          try {
-            const response = await axiosInstance.post('/code-execution/execute', {
-              code,
-              language: selectedLanguage,
-              input: testCase.input
-            });
+        batchResults.forEach((r, idx) => {
+          const tc = allTestCases[idx];
+          const isHidden = tc?.isHidden;
+          if (r.passed) testCasesPassed++;
 
-            const expectedNormalized = normalizeOutput(testCase.expectedOutput);
-            const actualNormalized = normalizeOutput(response.data.output || '');
-            const passed = response.data.success && expectedNormalized === actualNormalized;
-            if (passed) testCasesPassed++;
-            
-            visibleResults.push({
-              testCaseIndex: i + 1,
-              input: testCase.input,
-              expectedOutput: testCase.expectedOutput,
-              actualOutput: response.data.output || '',
-              passed,
-              isHidden: false,
-              executionTime: response.data.executionTime || 0
-            });
-          } catch (error) {
-            visibleResults.push({
-              testCaseIndex: i + 1,
-              input: testCase.input,
-              expectedOutput: testCase.expectedOutput,
-              actualOutput: '',
-              passed: false,
-              isHidden: false,
-              error: error.response?.data?.error || error.message,
-              executionTime: 0
-            });
-          }
-        }
-
-        // Run hidden test cases
-        for (let i = 0; i < hiddenTestCases.length; i++) {
-          const testCase = hiddenTestCases[i];
-          try {
-            const response = await axiosInstance.post('/code-execution/execute', {
-              code,
-              language: selectedLanguage,
-              input: testCase.input
-            });
-
-            const expectedNormalized = normalizeOutput(testCase.expectedOutput);
-            const actualNormalized = normalizeOutput(response.data.output || '');
-            const passed = response.data.success && expectedNormalized === actualNormalized;
-            if (passed) testCasesPassed++;
-            
+          if (isHidden) {
             hiddenResults.push({
-              testCaseIndex: i + 1,
-              input: '[Hidden]', // Don't show actual input
-              expectedOutput: '[Hidden]', // Don't show expected output
-              actualOutput: passed ? '[Passed]' : '[Failed]',
-              passed,
-              isHidden: true,
-              executionTime: response.data.executionTime || 0
-            });
-          } catch (error) {
-            hiddenResults.push({
-              testCaseIndex: i + 1,
+              testCaseIndex: hiddenResults.length + 1,
               input: '[Hidden]',
               expectedOutput: '[Hidden]',
-              actualOutput: '[Failed]',
-              passed: false,
+              actualOutput: r.passed ? '[Passed]' : '[Failed]',
+              passed: r.passed,
               isHidden: true,
-              error: 'Execution failed',
-              executionTime: 0
+              executionTime: r.executionTime || 0
+            });
+          } else {
+            visibleResults.push({
+              testCaseIndex: visibleResults.length + 1,
+              input: tc?.input || '',
+              expectedOutput: tc?.expectedOutput || '',
+              actualOutput: r.output || '',
+              passed: r.passed,
+              isHidden: false,
+              error: r.error || batchResponse.data.compilationError || '',
+              executionTime: r.executionTime || 0
             });
           }
-        }
+        });
 
         await axiosInstance.post(`/results/${result._id}/answer`, {
           questionId,
@@ -924,7 +863,6 @@ const TestTaking = () => {
           totalTestCases: allTestCases.length
         });
         
-        // Show submission summary with detailed results
         setSubmissionSummary({
           visibleResults,
           hiddenResults,
