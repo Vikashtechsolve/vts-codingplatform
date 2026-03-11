@@ -1,21 +1,28 @@
-FROM node:20-slim
+# Stage 1: Build native modules (better-sqlite3 needs make/g++/python3)
+FROM node:20-slim AS builder
 
-# Install compilers for code execution, git for evaluation worker
-# make + python3 needed for native module builds (better-sqlite3)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
-    default-jdk-headless \
-    gcc \
     g++ \
     make \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --omit=dev
+
+# Stage 2: Production image — only runtime deps, no compilers
+FROM node:20-slim
+
+# git is needed at runtime by evaluation worker (clones student repos)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install --omit=dev && npm cache clean --force
-
+# Copy pre-built node_modules from builder (includes compiled better-sqlite3)
+COPY --from=builder /app/node_modules ./node_modules
 COPY . .
 
 RUN mkdir -p temp uploads/logos logs && chmod 755 temp uploads/logos logs
