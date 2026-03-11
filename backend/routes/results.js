@@ -27,22 +27,9 @@ const {
   checkPlagiarism
 } = require('../utils/englishAiEvaluator');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { uploadToR2 } = require('../utils/r2Storage');
 
-const speakingUploadDir = path.join(__dirname, '..', 'uploads', 'speaking');
-if (!fs.existsSync(speakingUploadDir)) fs.mkdirSync(speakingUploadDir, { recursive: true });
-
-const speakingStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(speakingUploadDir, req.params.resultId || 'unknown');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
-
-const uploadSpeaking = multer({ storage: speakingStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadSpeaking = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const normalizeOptionIndexes = (indexes = []) => {
   if (!Array.isArray(indexes)) return [];
@@ -353,7 +340,7 @@ router.post('/:resultId/submit', auth, async (req, res) => {
     }
 
     if (result.status === 'completed') {
-      return res.status(400).json({ message: 'Test already submitted' });
+      return res.status(400).json({ message: 'Test already submitted', resultId: result._id });
     }
 
     // Re-evaluate all MCQ/aptitude answers before final submission
@@ -600,8 +587,7 @@ router.post('/:resultId/submit', auth, async (req, res) => {
         try {
           const speakingQ = await EnglishSpeakingQuestion.findById(answer.questionId);
           if (speakingQ) {
-            const audioPath = path.join(__dirname, '..', answer.audioFileUrl);
-            const eval_ = await evaluateSpeaking(audioPath, speakingQ);
+            const eval_ = await evaluateSpeaking(answer.audioFileUrl, speakingQ);
             answer.englishEvaluation = {
               pronunciationScore: eval_.pronunciationScore, fluencyScore: eval_.fluencyScore,
               coherenceScore: eval_.coherenceScore, vocabularyScore: eval_.vocabularyScore, grammarScore: eval_.grammarScore,
@@ -1026,13 +1012,19 @@ router.post('/:resultId/upload-audio', auth, uploadSpeaking.single('audio'), asy
     const answerIndex = result.answers.findIndex(a => a.questionId.toString() === questionId);
     if (answerIndex === -1) return res.status(400).json({ message: 'Question not found in test' });
 
-    const audioUrl = `/uploads/speaking/${req.params.resultId}/${req.file.filename}`;
+    const filename = `${Date.now()}-${req.file.originalname}`;
+    const r2Key = `uploads/speaking/${req.params.resultId}/${filename}`;
+    console.log(`📤 Uploading speaking audio to R2: ${r2Key} (${req.file.size} bytes)`);
+    const audioUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
+    console.log(`✅ Speaking audio uploaded: ${audioUrl}`);
+
     result.answers[answerIndex].audioFileUrl = audioUrl;
     result.answers[answerIndex].answer = audioUrl;
     await result.save();
 
     res.json({ audioUrl, message: 'Audio uploaded successfully' });
   } catch (error) {
+    console.error('❌ Speaking audio upload error:', error.message);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

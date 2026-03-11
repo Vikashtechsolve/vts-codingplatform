@@ -39,7 +39,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files
+// Serve legacy uploaded files from disk (fallback for files not yet migrated to R2)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check endpoint

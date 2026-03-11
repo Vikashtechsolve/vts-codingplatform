@@ -68,22 +68,32 @@ const callOpenAI = async (messages, temperature = 0.3) => {
   return parsed;
 };
 
-const callWhisper = async (audioFilePath) => {
+const callWhisper = async (audioBufferOrPath, filenameHint) => {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
-  const FormData = (await import('form-data')).default;
+  let fileBuffer;
+  let fileName;
+  if (Buffer.isBuffer(audioBufferOrPath)) {
+    fileBuffer = audioBufferOrPath;
+    fileName = filenameHint || 'audio.webm';
+  } else {
+    fileBuffer = fs.readFileSync(audioBufferOrPath);
+    fileName = path.basename(audioBufferOrPath);
+  }
+
+  const ext = path.extname(fileName).toLowerCase();
+  const mimeMap = { '.webm': 'audio/webm', '.mp3': 'audio/mpeg', '.mp4': 'audio/mp4', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.flac': 'audio/flac' };
+
+  const blob = new Blob([fileBuffer], { type: mimeMap[ext] || 'audio/webm' });
   const form = new FormData();
-  form.append('file', fs.createReadStream(audioFilePath));
+  form.append('file', blob, fileName);
   form.append('model', 'whisper-1');
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'word');
 
   const response = await fetch(`${OPENAI_BASE_URL}/audio/transcriptions`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      ...form.getHeaders()
-    },
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
     body: form
   });
 
@@ -229,14 +239,23 @@ You MUST return valid JSON only, no other text: { "grammarScore": 0-10, "vocabul
 /**
  * Evaluate a speaking response using Whisper + GPT
  */
-const evaluateSpeaking = async (audioFilePath, question) => {
+const evaluateSpeaking = async (audioFilePathOrUrl, question) => {
   try {
-    const absolutePath = path.resolve(audioFilePath);
-    if (!fs.existsSync(absolutePath)) {
-      throw new Error(`Audio file not found: ${absolutePath}`);
+    let whisperResult;
+    const isUrl = audioFilePathOrUrl.startsWith('http://') || audioFilePathOrUrl.startsWith('https://');
+    if (isUrl) {
+      const { downloadFromR2, getKeyFromUrl } = require('./r2Storage');
+      const key = getKeyFromUrl(audioFilePathOrUrl);
+      const buffer = await downloadFromR2(key);
+      const filename = path.basename(key);
+      whisperResult = await callWhisper(buffer, filename);
+    } else {
+      const absolutePath = path.resolve(audioFilePathOrUrl);
+      if (!fs.existsSync(absolutePath)) {
+        throw new Error(`Audio file not found: ${absolutePath}`);
+      }
+      whisperResult = await callWhisper(absolutePath);
     }
-
-    const whisperResult = await callWhisper(absolutePath);
     const transcription = whisperResult.text || '';
     const duration = whisperResult.duration || 0;
     const words = whisperResult.words || [];

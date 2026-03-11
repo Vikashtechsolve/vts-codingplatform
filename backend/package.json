@@ -18,6 +18,7 @@
     "watch": "nodemon --watch . --ext js --exec node server.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1005.0",
     "axios": "^1.13.5",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.6.2",

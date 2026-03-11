@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const { auth, authorize } = require('../middleware/auth');
 const tenantMiddleware = require('../middleware/tenant');
+const { uploadToR2, deleteFromR2, getKeyFromUrl } = require('../utils/r2Storage');
 const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 const Test = require('../models/Test');
@@ -16,29 +16,14 @@ router.use(auth);
 router.use(authorize('vendor_admin'));
 router.use(tenantMiddleware);
 
-// Log middleware chain (after all auth checks)
 router.use((req, res, next) => {
   console.log('✅ All middleware passed for vendor admin route:', req.path);
   console.log('   User:', req.user?.email, 'Role:', req.user?.role, 'VendorId:', req.vendorId);
   next();
 });
 
-// Configure multer for logo uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, '../uploads/logos');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `vendor-${req.vendorId}-${Date.now()}${path.extname(file.originalname)}`);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif/;
@@ -88,22 +73,26 @@ router.post('/vendor/logo', upload.single('logo'), async (req, res) => {
 
     const vendor = await Vendor.findById(req.vendorId);
     if (!vendor) {
-      fs.unlinkSync(req.file.path);
       return res.status(404).json({ message: 'Vendor not found' });
     }
 
     if (vendor.logo) {
-      const oldLogoPath = path.join(__dirname, '../uploads/logos', path.basename(vendor.logo));
-      if (fs.existsSync(oldLogoPath)) {
-        fs.unlinkSync(oldLogoPath);
-      }
+      const oldKey = getKeyFromUrl(vendor.logo);
+      if (oldKey) await deleteFromR2(oldKey);
     }
 
-    vendor.logo = `/uploads/logos/${req.file.filename}`;
+    const filename = `vendor-${req.vendorId}-${Date.now()}${path.extname(req.file.originalname)}`;
+    const r2Key = `uploads/logos/${filename}`;
+    console.log(`📤 Uploading vendor logo to R2: ${r2Key}`);
+    const publicUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
+    console.log(`✅ Vendor logo uploaded: ${publicUrl}`);
+
+    vendor.logo = publicUrl;
     await vendor.save();
 
     res.json({ logo: vendor.logo });
   } catch (error) {
+    console.error('❌ Logo upload error:', error.message);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

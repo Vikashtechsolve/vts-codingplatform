@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const { body, validationResult } = require('express-validator');
 const { auth, authorize } = require('../middleware/auth');
 const tenantMiddleware = require('../middleware/tenant');
+const { uploadToR2 } = require('../utils/r2Storage');
 const EnglishGrammarQuestion = require('../models/EnglishGrammarQuestion');
 const EnglishVocabularyQuestion = require('../models/EnglishVocabularyQuestion');
 const EnglishReadingQuestion = require('../models/EnglishReadingQuestion');
@@ -17,25 +17,8 @@ router.use(auth);
 router.use(authorize('vendor_admin'));
 router.use(tenantMiddleware);
 
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-const listeningDir = path.join(uploadsDir, 'listening');
-const englishImagesDir = path.join(uploadsDir, 'english', 'images');
-[listeningDir, englishImagesDir].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-});
-
-const audioStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, listeningDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
-
-const imageStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, englishImagesDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
-
 const uploadAudio = multer({
-  storage: audioStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.mp3', '.wav', '.ogg', '.webm', '.m4a'];
@@ -46,7 +29,7 @@ const uploadAudio = multer({
 });
 
 const uploadImage = multer({
-  storage: imageStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -480,7 +463,12 @@ router.post('/speaking', uploadImage.single('image'), async (req, res) => {
       return res.status(400).json({ message: 'Reference text is required for read aloud' });
     }
 
-    const imageUrl = req.file ? `/uploads/english/images/${req.file.filename}` : (req.body.imageUrl || '');
+    let imageUrl = req.body.imageUrl || '';
+    if (req.file) {
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const r2Key = `uploads/english/images/${filename}`;
+      imageUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
+    }
 
     const parsedSpeakingTime = speakingTime ? (typeof speakingTime === 'string' ? JSON.parse(speakingTime) : speakingTime) : { min: 30, max: 120 };
     const parsedWeights = evaluationWeights ? (typeof evaluationWeights === 'string' ? JSON.parse(evaluationWeights) : evaluationWeights) : {};
@@ -536,7 +524,11 @@ router.put('/speaking/:id', uploadImage.single('image'), async (req, res) => {
   try {
     const question = await EnglishSpeakingQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
-    if (req.file) req.body.imageUrl = `/uploads/english/images/${req.file.filename}`;
+    if (req.file) {
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const r2Key = `uploads/english/images/${filename}`;
+      req.body.imageUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
+    }
     if (req.body.speakingTime && typeof req.body.speakingTime === 'string') req.body.speakingTime = JSON.parse(req.body.speakingTime);
     if (req.body.evaluationWeights && typeof req.body.evaluationWeights === 'string') req.body.evaluationWeights = JSON.parse(req.body.evaluationWeights);
     updateAllowedFields(question, req.body);
@@ -580,7 +572,12 @@ router.post('/listening', uploadAudio.single('audio'), async (req, res) => {
       }
     }
 
-    const audioUrl = req.file ? `/uploads/listening/${req.file.filename}` : req.body.audioUrl;
+    let audioUrl = req.body.audioUrl;
+    if (req.file) {
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const r2Key = `uploads/listening/${filename}`;
+      audioUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
+    }
 
     const question = new EnglishListeningQuestion({
       title: title.trim(),
@@ -637,7 +634,11 @@ router.put('/listening/:id', uploadAudio.single('audio'), async (req, res) => {
   try {
     const question = await EnglishListeningQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
-    if (req.file) req.body.audioUrl = `/uploads/listening/${req.file.filename}`;
+    if (req.file) {
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const r2Key = `uploads/listening/${filename}`;
+      req.body.audioUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
+    }
     if (req.body.questions && typeof req.body.questions === 'string') req.body.questions = JSON.parse(req.body.questions);
     updateAllowedFields(question, req.body);
     await question.save();

@@ -6,613 +6,411 @@ const fs = require('fs');
 const path = require('path');
 const { auth } = require('../middleware/auth');
 
-// Simple code execution service
-// Note: In production, use a proper sandboxed execution environment
+const TEMP_DIR = path.join(__dirname, '../temp');
+const MAX_OUTPUT_SIZE = 64 * 1024; // 64 KB max output per execution
+const EXECUTION_TIMEOUT = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
+const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_EXECUTIONS || '5', 10);
+const MAX_QUEUE_SIZE = parseInt(process.env.MAX_QUEUE_SIZE || '50', 10);
+const CLEANUP_INTERVAL = 2 * 60 * 1000; // 2 minutes
+const MAX_FILE_AGE = 5 * 60 * 1000; // 5 minutes
 
+// --- Fix 2: Concurrency-limited execution queue ---
+let activeExecutions = 0;
+const waitQueue = [];
+
+function acquireSlot() {
+  return new Promise((resolve) => {
+    if (activeExecutions < MAX_CONCURRENT) {
+      activeExecutions++;
+      return resolve();
+    }
+    waitQueue.push(resolve);
+  });
+}
+
+function releaseSlot() {
+  activeExecutions--;
+  if (waitQueue.length > 0) {
+    activeExecutions++;
+    const next = waitQueue.shift();
+    next();
+  }
+}
+
+function getQueueDepth() {
+  return waitQueue.length;
+}
+
+// --- Fix 5: Temp directory cleanup ---
+function cleanupTempDir() {
+  if (!fs.existsSync(TEMP_DIR)) return;
+  const now = Date.now();
+  try {
+    fs.readdirSync(TEMP_DIR).forEach(entry => {
+      if (entry === '.write-test') return;
+      const entryPath = path.join(TEMP_DIR, entry);
+      try {
+        const stat = fs.statSync(entryPath);
+        if (now - stat.mtimeMs > MAX_FILE_AGE) {
+          fs.rmSync(entryPath, { recursive: true, force: true });
+        }
+      } catch { /* ignore individual file errors */ }
+    });
+  } catch (err) {
+    console.error('Temp cleanup error:', err.message);
+  }
+}
+
+cleanupTempDir();
+setInterval(cleanupTempDir, CLEANUP_INTERVAL);
+
+// --- Fix 3: Helper to run a process with output size cap ---
+function runProcess(cmd, args, opts, input) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], ...opts });
+    let output = '';
+    let error = '';
+    let outputSize = 0;
+    let killed = false;
+    const startTime = Date.now();
+
+    if (input) {
+      proc.stdin.write(input);
+      proc.stdin.end();
+    } else {
+      proc.stdin.end();
+    }
+
+    proc.stdout.on('data', (data) => {
+      outputSize += data.length;
+      if (outputSize <= MAX_OUTPUT_SIZE) {
+        output += data.toString();
+      } else if (!killed) {
+        killed = true;
+        proc.kill('SIGKILL');
+      }
+    });
+
+    proc.stderr.on('data', (data) => {
+      const chunk = data.toString();
+      if (error.length < MAX_OUTPUT_SIZE) {
+        error += chunk;
+      }
+    });
+
+    const timeoutId = setTimeout(() => {
+      if (!killed) {
+        killed = true;
+        proc.kill('SIGKILL');
+      }
+    }, EXECUTION_TIMEOUT);
+
+    proc.on('close', (code) => {
+      clearTimeout(timeoutId);
+      if (killed && outputSize > MAX_OUTPUT_SIZE) {
+        resolve({
+          success: false,
+          output: output.trim(),
+          error: 'Output size limit exceeded (64 KB max)',
+          executionTime: Date.now() - startTime
+        });
+      } else if (killed) {
+        resolve({
+          success: false,
+          output: output.trim(),
+          error: `Execution timeout (${EXECUTION_TIMEOUT}ms exceeded)`,
+          executionTime: Date.now() - startTime
+        });
+      } else {
+        resolve({
+          success: code === 0,
+          output: output.trim(),
+          error: error.trim(),
+          executionTime: Date.now() - startTime
+        });
+      }
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timeoutId);
+      reject(err);
+    });
+  });
+}
+
+// --- Helpers to ensure temp dir is ready ---
+function ensureTempDir() {
+  if (!fs.existsSync(TEMP_DIR)) {
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
+  }
+}
+
+function cleanupFiles(...paths) {
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
+    } catch { /* best effort */ }
+  }
+}
+
+// --- Language-specific compile + run helpers ---
+
+function preparePython(code, tempDir, id) {
+  const filePath = path.join(tempDir, `code_${id}.py`);
+  fs.writeFileSync(filePath, code);
+  return { type: 'interpreted', filePath, cleanup: [filePath] };
+}
+
+function prepareJava(code, tempDir, id) {
+  const classMatch = code.match(/public\s+class\s+(\w+)/);
+  let className = 'Solution';
+  let modifiedCode = code;
+
+  if (classMatch) {
+    className = classMatch[1];
+  } else {
+    const lines = code.split('\n');
+    const imports = [];
+    const codeLines = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('import ') && trimmed.endsWith(';')) {
+        imports.push(trimmed);
+      } else {
+        codeLines.push(line);
+      }
+    }
+    const importSection = imports.length > 0 ? imports.join('\n') + '\n\n' : '';
+    const nonEmpty = codeLines.filter(l => l.trim().length > 0);
+    const wrapped = nonEmpty.map(l => '        ' + l).join('\n');
+    modifiedCode = `${importSection}public class Solution {\n    public static void main(String[] args) {\n${wrapped}\n    }\n}`;
+  }
+
+  const execDir = path.join(tempDir, `java_${id}`);
+  fs.mkdirSync(execDir, { recursive: true });
+  const filePath = path.join(execDir, `${className}.java`);
+  fs.writeFileSync(filePath, modifiedCode);
+  return { type: 'java', filePath, execDir, className, cleanup: [execDir] };
+}
+
+function prepareCpp(code, tempDir, id) {
+  const filePath = path.join(tempDir, `code_${id}.cpp`);
+  const executablePath = path.join(tempDir, `code_${id}_bin`);
+  fs.writeFileSync(filePath, code);
+  return { type: 'compiled', filePath, executablePath, compiler: 'g++', compilerName: 'G++', cleanup: [filePath, executablePath] };
+}
+
+function prepareC(code, tempDir, id) {
+  const filePath = path.join(tempDir, `code_${id}.c`);
+  const executablePath = path.join(tempDir, `code_${id}_bin`);
+  fs.writeFileSync(filePath, code);
+  return { type: 'compiled', filePath, executablePath, compiler: 'gcc', compilerName: 'GCC', cleanup: [filePath, executablePath] };
+}
+
+async function compileCode(prepared) {
+  if (prepared.type === 'interpreted') return { success: true };
+
+  if (prepared.type === 'java') {
+    try {
+      const result = await runProcess('javac', [prepared.filePath], { cwd: prepared.execDir }, null);
+      if (!result.success) {
+        return { success: false, error: result.error || 'Compilation failed' };
+      }
+      return { success: true };
+    } catch (err) {
+      if (err.code === 'ENOENT') return { success: false, error: 'Java compiler (javac) not found on server.' };
+      return { success: false, error: `Compilation error: ${err.message}` };
+    }
+  }
+
+  if (prepared.type === 'compiled') {
+    try {
+      const result = await runProcess(prepared.compiler, [prepared.filePath, '-o', prepared.executablePath], {}, null);
+      if (!result.success) {
+        return { success: false, error: result.error || 'Compilation failed' };
+      }
+      return { success: true };
+    } catch (err) {
+      if (err.code === 'ENOENT') return { success: false, error: `${prepared.compilerName} compiler not found on server.` };
+      return { success: false, error: `Compilation error: ${err.message}` };
+    }
+  }
+
+  return { success: false, error: 'Unknown language type' };
+}
+
+async function runCode(prepared, input) {
+  if (prepared.type === 'interpreted') {
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    try {
+      return await runProcess(pythonCmd, [prepared.filePath], { cwd: path.dirname(prepared.filePath) }, input);
+    } catch (err) {
+      if (err.code === 'ENOENT') throw new Error('Python interpreter not found. Please install Python 3.');
+      throw err;
+    }
+  }
+
+  if (prepared.type === 'java') {
+    try {
+      return await runProcess('java', ['-cp', prepared.execDir, prepared.className], {}, input);
+    } catch (err) {
+      if (err.code === 'ENOENT') throw new Error('Java runtime not found on server.');
+      throw err;
+    }
+  }
+
+  if (prepared.type === 'compiled') {
+    return await runProcess(prepared.executablePath, [], {}, input);
+  }
+
+  throw new Error('Unknown language type');
+}
+
+function prepareCode(code, language, tempDir, id) {
+  switch (language) {
+    case 'python': return preparePython(code, tempDir, id);
+    case 'java': return prepareJava(code, tempDir, id);
+    case 'cpp': return prepareCpp(code, tempDir, id);
+    case 'c': return prepareC(code, tempDir, id);
+    default: throw new Error('Unsupported language');
+  }
+}
+
+// --- Single execution endpoint (kept for custom test cases) ---
 router.post('/execute', [
   auth,
   body('code').notEmpty().withMessage('Code is required'),
   body('language').isIn(['java', 'cpp', 'c', 'python']).withMessage('Invalid language'),
   body('input').optional()
 ], async (req, res) => {
+  if (getQueueDepth() >= MAX_QUEUE_SIZE) {
+    return res.status(429).json({
+      success: false, output: '', error: 'Server busy. Please try again in a moment.', executionTime: 0
+    });
+  }
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false, output: '', error: errors.array().map(e => e.msg).join(', '), executionTime: 0
+    });
+  }
+
+  const { code, language, input } = req.body;
+  if (!code || !code.trim()) {
+    return res.status(400).json({ success: false, output: '', error: 'Code cannot be empty', executionTime: 0 });
+  }
+
+  await acquireSlot();
+  let prepared;
   try {
-    console.log('🔧 Code execution request:', { 
-      language: req.body.language, 
-      codeLength: req.body.code?.length,
-      hasInput: !!req.body.input,
-      userId: req.user?._id 
-    });
-    
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
-      const errorMessages = errors.array().map(e => e.msg).join(', ');
-      return res.status(400).json({ 
-        success: false,
-        output: '',
-        error: errorMessages,
-        executionTime: 0
-      });
+    ensureTempDir();
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    prepared = prepareCode(code, language, TEMP_DIR, id);
+
+    const compileResult = await compileCode(prepared);
+    if (!compileResult.success) {
+      return res.json({ success: false, output: '', error: compileResult.error, executionTime: 0 });
     }
 
-    const { code, language, input } = req.body;
-    
-    if (!code || !code.trim()) {
-      return res.status(400).json({ 
-        success: false,
-        output: '',
-        error: 'Code cannot be empty',
-        executionTime: 0
-      });
-    }
-    
-    const tempDir = path.join(__dirname, '../temp');
-    
-    // Ensure temp directory exists and has write permissions
-    try {
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-        console.log('📁 Created temp directory:', tempDir);
-      }
-      // Test write permissions
-      const testFile = path.join(tempDir, '.write-test');
-      fs.writeFileSync(testFile, 'test');
-      fs.unlinkSync(testFile);
-    } catch (err) {
-      console.error('❌ Temp directory error:', err);
-      return res.status(500).json({
-        success: false,
-        output: '',
-        error: `File system error: ${err.message}. Please check server configuration.`,
-        executionTime: 0
-      });
-    }
-
-    const timestamp = Date.now();
-    let result;
-
-    try {
-      console.log(`▶️ Executing ${language} code...`);
-      switch (language) {
-        case 'python':
-          result = await executePython(code, input || '', tempDir, timestamp);
-          break;
-        case 'java':
-          result = await executeJava(code, input || '', tempDir, timestamp);
-          break;
-        case 'cpp':
-          result = await executeCpp(code, input || '', tempDir, timestamp);
-          break;
-        case 'c':
-          result = await executeC(code, input || '', tempDir, timestamp);
-          break;
-        default:
-          return res.status(400).json({ 
-            success: false,
-            output: '',
-            error: 'Unsupported language',
-            executionTime: 0
-          });
-      }
-
-      console.log('✅ Code executed:', { 
-        success: result.success, 
-        hasOutput: !!result.output, 
-        hasError: !!result.error,
-        executionTime: result.executionTime 
-      });
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Code execution error:', error);
-      res.status(500).json({
-        success: false,
-        output: '',
-        error: error.message || 'Execution failed. Please check your code syntax.',
-        executionTime: 0
-      });
-    }
+    const result = await runCode(prepared, input || '');
+    res.json(result);
   } catch (error) {
-    console.error('❌ Server error:', error);
-    res.status(500).json({ 
-      success: false,
-      output: '',
-      error: error.message || 'Server error. Please try again.',
-      executionTime: 0
+    res.status(500).json({
+      success: false, output: '', error: error.message || 'Execution failed.', executionTime: 0
     });
+  } finally {
+    if (prepared) cleanupFiles(...prepared.cleanup);
+    releaseSlot();
   }
 });
 
-function executePython(code, input, tempDir, timestamp) {
-  return new Promise((resolve, reject) => {
-    const filePath = path.join(tempDir, `code_${timestamp}.py`);
-    
-    try {
-      fs.writeFileSync(filePath, code);
-      console.log('📝 Python file created:', filePath);
-    } catch (err) {
-      return reject(new Error(`Failed to create Python file: ${err.message}`));
+// --- Fix 1: Batch test case execution endpoint ---
+router.post('/execute-batch', [
+  auth,
+  body('code').notEmpty().withMessage('Code is required'),
+  body('language').isIn(['java', 'cpp', 'c', 'python']).withMessage('Invalid language'),
+  body('testCases').isArray({ min: 1, max: 50 }).withMessage('testCases must be an array (1-50 items)')
+], async (req, res) => {
+  if (getQueueDepth() >= MAX_QUEUE_SIZE) {
+    return res.status(429).json({
+      success: false, error: 'Server busy. Please try again in a moment.', results: []
+    });
+  }
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false, error: errors.array().map(e => e.msg).join(', '), results: []
+    });
+  }
+
+  const { code, language, testCases } = req.body;
+  if (!code || !code.trim()) {
+    return res.status(400).json({ success: false, error: 'Code cannot be empty', results: [] });
+  }
+
+  await acquireSlot();
+  let prepared;
+  try {
+    ensureTempDir();
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    prepared = prepareCode(code, language, TEMP_DIR, id);
+
+    const compileResult = await compileCode(prepared);
+    if (!compileResult.success) {
+      const failedResults = testCases.map(() => ({
+        success: false, output: '', error: compileResult.error, executionTime: 0, passed: false
+      }));
+      return res.json({
+        success: false,
+        compilationError: compileResult.error,
+        results: failedResults,
+        testCasesPassed: 0,
+        total: testCases.length
+      });
     }
 
-    const startTime = Date.now();
-    let timeoutId;
-    
-    // Try python3 first, fallback to python
-    // In deployment, python3 should be available (installed via Dockerfile)
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    
-    // Spawn Python process to execute the code
-    const pythonProcess = spawn(pythonCmd, [filePath], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: tempDir
-    });
+    const results = [];
+    let passed = 0;
 
-    let output = '';
-    let error = '';
-
-    if (input) {
-      pythonProcess.stdin.write(input);
-      pythonProcess.stdin.end();
-    }
-
-    pythonProcess.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      error += data.toString();
-    });
-
-    pythonProcess.on('close', (code) => {
-      clearTimeout(timeoutId);
-      const executionTime = Date.now() - startTime;
-      
+    for (const tc of testCases) {
       try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+        const result = await runCode(prepared, tc.input || '');
+        const normalize = (s) => (s || '').trim().replace(/\r\n/g, '\n').replace(/\s+$/gm, '');
+        const expectedNorm = normalize(tc.expectedOutput);
+        const actualNorm = normalize(result.output);
+        const tcPassed = result.success && expectedNorm === actualNorm;
+        if (tcPassed) passed++;
+
+        results.push({
+          success: result.success,
+          output: result.output,
+          error: result.error,
+          executionTime: result.executionTime,
+          passed: tcPassed
+        });
       } catch (err) {
-        console.error('Error cleaning up Python file:', err);
+        results.push({
+          success: false, output: '', error: err.message || 'Execution failed', executionTime: 0, passed: false
+        });
       }
-
-      resolve({
-        success: code === 0,
-        output: output.trim(),
-        error: error.trim(),
-        executionTime
-      });
-    });
-
-    pythonProcess.on('error', (err) => {
-      clearTimeout(timeoutId);
-      try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      } catch (cleanupErr) {
-        console.error('Error cleaning up Python file:', cleanupErr);
-      }
-      
-      if (err.code === 'ENOENT') {
-        reject(new Error(`Python interpreter not found. Please install Python 3.`));
-      } else {
-        reject(new Error(`Failed to execute Python: ${err.message}`));
-      }
-    });
-
-    // Timeout - use environment variable or default to 5 seconds
-    const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
-    timeoutId = setTimeout(() => {
-      pythonProcess.kill('SIGKILL');
-      try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      } catch (cleanupErr) {
-        console.error('Error cleaning up Python file:', cleanupErr);
-      }
-      reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
-    }, timeout);
-  });
-}
-
-function executeJava(code, input, tempDir, timestamp) {
-  return new Promise((resolve, reject) => {
-    // Extract class name from code
-    const classMatch = code.match(/public\s+class\s+(\w+)/);
-    let className = 'Solution';
-    let modifiedCode = code;
-    
-    if (classMatch) {
-      className = classMatch[1];
-      // Code already has a class, use it as-is
-      modifiedCode = code;
-    } else {
-      // If no public class found, extract imports and wrap the rest in Solution class
-      const lines = code.split('\n');
-      const imports = [];
-      const codeLines = [];
-      
-      // Extract import statements (must be at the top level, not inside class)
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine.startsWith('import ') && trimmedLine.endsWith(';')) {
-          imports.push(trimmedLine); // Use trimmed import (no indentation)
-        } else {
-          codeLines.push(line);
-        }
-      }
-      
-      // Build the modified code with imports at top level, then wrapped class
-      const importSection = imports.length > 0 ? imports.join('\n') + '\n\n' : '';
-      // Remove empty lines from codeLines and wrap non-empty lines
-      const nonEmptyCodeLines = codeLines.filter(line => line.trim().length > 0);
-      const wrappedCode = nonEmptyCodeLines.map(line => '        ' + line).join('\n');
-      modifiedCode = `${importSection}public class Solution {\n    public static void main(String[] args) {\n${wrappedCode}\n    }\n}`;
-    }
-    
-    // Create a unique subdirectory for this execution to avoid conflicts
-    const execDir = path.join(tempDir, `java_${timestamp}`);
-    if (!fs.existsSync(execDir)) {
-      fs.mkdirSync(execDir, { recursive: true });
-      console.log('📁 Created Java execution directory:', execDir);
-    }
-    
-    // File name must match class name exactly (Java requirement)
-    const filePath = path.join(execDir, `${className}.java`);
-    
-    try {
-      fs.writeFileSync(filePath, modifiedCode);
-      console.log('📝 Java file created:', filePath, 'Class:', className);
-    } catch (err) {
-      return reject(new Error(`Failed to create Java file: ${err.message}`));
     }
 
-    const startTime = Date.now();
-    let timeoutId;
-    const compileProcess = spawn('javac', [filePath]);
-
-    let compileError = '';
-
-    compileProcess.stderr.on('data', (data) => {
-      compileError += data.toString();
+    res.json({
+      success: true,
+      results,
+      testCasesPassed: passed,
+      total: testCases.length
     });
-
-    compileProcess.on('close', (compileCode) => {
-      if (compileCode !== 0) {
-        // Clean up directory
-        if (fs.existsSync(execDir)) {
-          try {
-            fs.readdirSync(execDir).forEach(file => {
-              fs.unlinkSync(path.join(execDir, file));
-            });
-            fs.rmdirSync(execDir);
-          } catch (cleanupErr) {
-            console.error('Error cleaning up:', cleanupErr);
-          }
-        }
-        return resolve({
-          success: false,
-          output: '',
-          error: compileError.trim() || 'Compilation failed',
-          executionTime: Date.now() - startTime
-        });
-      }
-
-      console.log('✅ Java compilation successful, running...');
-      const classPath = execDir;
-      const runProcess = spawn('java', ['-cp', classPath, className]);
-
-      let output = '';
-      let error = '';
-
-      if (input) {
-        runProcess.stdin.write(input);
-        runProcess.stdin.end();
-      }
-
-      runProcess.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      runProcess.stderr.on('data', (data) => {
-        error += data.toString();
-      });
-
-      runProcess.on('close', (runCode) => {
-        clearTimeout(timeoutId);
-        const executionTime = Date.now() - startTime;
-        // Clean up entire directory
-        if (fs.existsSync(execDir)) {
-          try {
-            fs.readdirSync(execDir).forEach(file => {
-              fs.unlinkSync(path.join(execDir, file));
-            });
-            fs.rmdirSync(execDir);
-          } catch (err) {
-            console.error('Error cleaning up Java execution directory:', err);
-          }
-        }
-
-        resolve({
-          success: runCode === 0,
-          output: output.trim(),
-          error: error.trim(),
-          executionTime
-        });
-      });
-
-      runProcess.on('error', (err) => {
-        clearTimeout(timeoutId);
-        // Clean up directory
-        if (fs.existsSync(execDir)) {
-          try {
-            fs.readdirSync(execDir).forEach(file => {
-              fs.unlinkSync(path.join(execDir, file));
-            });
-            fs.rmdirSync(execDir);
-          } catch (cleanupErr) {
-            console.error('Error cleaning up:', cleanupErr);
-          }
-        }
-        
-        if (err.code === 'ENOENT') {
-          const errorMsg = `Java runtime not found. Please install Java on the server. ` +
-                          `For deployment, ensure Java JRE/JDK is installed and java is in PATH.`;
-          console.error('❌', errorMsg);
-          reject(new Error(errorMsg));
-        } else {
-          reject(new Error(`Failed to execute Java: ${err.message}`));
-        }
-      });
-
-      const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
-      timeoutId = setTimeout(() => {
-        runProcess.kill('SIGKILL');
-        // Clean up directory
-        if (fs.existsSync(execDir)) {
-          try {
-            fs.readdirSync(execDir).forEach(file => {
-              fs.unlinkSync(path.join(execDir, file));
-            });
-            fs.rmdirSync(execDir);
-          } catch (cleanupErr) {
-            console.error('Error cleaning up:', cleanupErr);
-          }
-        }
-        reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
-      }, timeout);
+  } catch (error) {
+    res.status(500).json({
+      success: false, error: error.message || 'Execution failed.', results: []
     });
-
-    compileProcess.on('error', (err) => {
-      // Clean up directory
-      if (fs.existsSync(execDir)) {
-        try {
-          fs.readdirSync(execDir).forEach(file => {
-            fs.unlinkSync(path.join(execDir, file));
-          });
-          fs.rmdirSync(execDir);
-        } catch (cleanupErr) {
-          console.error('Error cleaning up:', cleanupErr);
-        }
-      }
-      
-      if (err.code === 'ENOENT') {
-        const errorMsg = `Java compiler (javac) not found. Please install Java JDK on the server. ` +
-                        `For deployment, ensure Java JDK is installed and javac is in PATH.`;
-        console.error('❌', errorMsg);
-        reject(new Error(errorMsg));
-      } else {
-        reject(new Error(`Failed to compile Java: ${err.message}`));
-      }
-    });
-  });
-}
-
-function executeCpp(code, input, tempDir, timestamp) {
-  return new Promise((resolve, reject) => {
-    const filePath = path.join(tempDir, `code_${timestamp}.cpp`);
-    const executablePath = path.join(tempDir, `code_${timestamp}`);
-    
-    fs.writeFileSync(filePath, code);
-
-    const startTime = Date.now();
-    const compileProcess = spawn('g++', [filePath, '-o', executablePath]);
-
-    let compileError = '';
-
-    compileProcess.stderr.on('data', (data) => {
-      compileError += data.toString();
-    });
-
-    compileProcess.on('error', (err) => {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      if (err.code === 'ENOENT') {
-        const errorMsg = `G++ compiler not found. Please install G++ on the server. ` +
-                        `For deployment, ensure G++ is installed: sudo apt-get install g++`;
-        console.error('❌', errorMsg);
-        reject(new Error(errorMsg));
-      } else {
-        reject(new Error(`Failed to compile C++: ${err.message}`));
-      }
-    });
-
-    compileProcess.on('close', (compileCode) => {
-      if (compileCode !== 0) {
-        fs.unlinkSync(filePath);
-        return resolve({
-          success: false,
-          output: '',
-          error: compileError.trim(),
-          executionTime: Date.now() - startTime
-        });
-      }
-
-      const runProcess = spawn(executablePath);
-
-      let output = '';
-      let error = '';
-
-      if (input) {
-        runProcess.stdin.write(input);
-        runProcess.stdin.end();
-      }
-
-      runProcess.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      runProcess.stderr.on('data', (data) => {
-        error += data.toString();
-      });
-
-      let runTimeoutId;
-      
-      runProcess.on('close', (runCode) => {
-        clearTimeout(runTimeoutId);
-        const executionTime = Date.now() - startTime;
-        try {
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        } catch (cleanupErr) {
-          console.error('Error cleaning up C++ files:', cleanupErr);
-        }
-
-        resolve({
-          success: runCode === 0,
-          output: output.trim(),
-          error: error.trim(),
-          executionTime
-        });
-      });
-
-      runProcess.on('error', (err) => {
-        clearTimeout(runTimeoutId);
-        try {
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        } catch (cleanupErr) {
-          console.error('Error cleaning up C++ files:', cleanupErr);
-        }
-        reject(err);
-      });
-
-      const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
-      runTimeoutId = setTimeout(() => {
-        runProcess.kill('SIGKILL');
-        try {
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        } catch (cleanupErr) {
-          console.error('Error cleaning up C++ files:', cleanupErr);
-        }
-        reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
-      }, timeout);
-    });
-  });
-}
-
-function executeC(code, input, tempDir, timestamp) {
-  return new Promise((resolve, reject) => {
-    const filePath = path.join(tempDir, `code_${timestamp}.c`);
-    const executablePath = path.join(tempDir, `code_${timestamp}`);
-    
-    fs.writeFileSync(filePath, code);
-
-    const startTime = Date.now();
-    const compileProcess = spawn('gcc', [filePath, '-o', executablePath]);
-
-    let compileError = '';
-
-    compileProcess.stderr.on('data', (data) => {
-      compileError += data.toString();
-    });
-
-    compileProcess.on('error', (err) => {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      if (err.code === 'ENOENT') {
-        const errorMsg = `GCC compiler not found. Please install GCC on the server. ` +
-                        `For deployment, ensure GCC is installed: sudo apt-get install gcc`;
-        console.error('❌', errorMsg);
-        reject(new Error(errorMsg));
-      } else {
-        reject(new Error(`Failed to compile C: ${err.message}`));
-      }
-    });
-
-    compileProcess.on('close', (compileCode) => {
-      if (compileCode !== 0) {
-        fs.unlinkSync(filePath);
-        return resolve({
-          success: false,
-          output: '',
-          error: compileError.trim(),
-          executionTime: Date.now() - startTime
-        });
-      }
-
-      const runProcess = spawn(executablePath);
-
-      let output = '';
-      let error = '';
-
-      if (input) {
-        runProcess.stdin.write(input);
-        runProcess.stdin.end();
-      }
-
-      runProcess.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      runProcess.stderr.on('data', (data) => {
-        error += data.toString();
-      });
-
-      let runTimeoutId;
-      
-      runProcess.on('close', (runCode) => {
-        clearTimeout(runTimeoutId);
-        const executionTime = Date.now() - startTime;
-        try {
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        } catch (cleanupErr) {
-          console.error('Error cleaning up C files:', cleanupErr);
-        }
-
-        resolve({
-          success: runCode === 0,
-          output: output.trim(),
-          error: error.trim(),
-          executionTime
-        });
-      });
-
-      runProcess.on('error', (err) => {
-        clearTimeout(runTimeoutId);
-        try {
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        } catch (cleanupErr) {
-          console.error('Error cleaning up C files:', cleanupErr);
-        }
-        reject(err);
-      });
-
-      const timeout = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
-      runTimeoutId = setTimeout(() => {
-        runProcess.kill('SIGKILL');
-        try {
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
-        } catch (cleanupErr) {
-          console.error('Error cleaning up C files:', cleanupErr);
-        }
-        reject(new Error(`Execution timeout (${timeout}ms exceeded)`));
-      }, timeout);
-    });
-  });
-}
+  } finally {
+    if (prepared) cleanupFiles(...prepared.cleanup);
+    releaseSlot();
+  }
+});
 
 module.exports = router;
-
