@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axios';
+import { getPublicApiOrigin } from '../../config/apiBase';
 import './VendorAdminCommon.css';
 import './Settings.css';
 
@@ -65,7 +66,7 @@ const VendorSettings = () => {
         <h2>Logo</h2>
         {vendor?.logo && (
           <img 
-            src={`${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}${vendor.logo}`} 
+            src={`${getPublicApiOrigin() || ''}${vendor.logo}`} 
             alt="Logo" 
             className="logo-preview"
           />

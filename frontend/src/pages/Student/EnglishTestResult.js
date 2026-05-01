@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { getPublicApiOrigin } from '../../config/apiBase';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
 import './EnglishTestResult.css';
 
@@ -13,7 +14,7 @@ const SECTION_META = {
   listening: { icon: 'Li', label: 'Listening', color: '#ef4444' }
 };
 
-const API_BASE = (process.env.REACT_APP_API_URL || '').replace(/\/api\/?$/, '');
+const API_BASE = getPublicApiOrigin();
 
 const resolveMediaUrl = (url) => {
   if (!url) return '';

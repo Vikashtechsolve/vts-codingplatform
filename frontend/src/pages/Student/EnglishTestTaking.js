@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
+import { getPublicApiOrigin } from '../../config/apiBase';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
 import Modal from '../../components/Modal';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './EnglishTestTaking.css';
 
-const API_BASE = (process.env.REACT_APP_API_URL || '').replace(/\/api\/?$/, '');
+const API_BASE = getPublicApiOrigin();
 
 const resolveMediaUrl = (url) => {
   if (!url) return '';

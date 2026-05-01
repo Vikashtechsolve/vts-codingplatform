@@ -1,43 +1,11 @@
 import axios from 'axios';
+import { getAxiosBaseURL } from '../config/apiBase';
 
-// Get API URL from environment variable or use default
-// IMPORTANT: React only reads env variables that start with REACT_APP_
-let API_URL = process.env.REACT_APP_API_URL;
+const API_URL = getAxiosBaseURL();
 
-// Debug: Log what we're getting
-console.log('🔧 REACT_APP_API_URL raw:', process.env.REACT_APP_API_URL);
-console.log('🔧 Type:', typeof process.env.REACT_APP_API_URL);
-
-// Fallback to default if not set or empty
-if (!API_URL || API_URL.trim() === '' || API_URL === 'undefined') {
-  API_URL = 'http://localhost:5000/api';
-  console.log('⚠️ Using default API URL:', API_URL);
-} else {
-  console.log('✅ Using API URL from .env:', API_URL);
-}
-
-// Ensure API_URL is a valid full URL
-if (!API_URL.startsWith('http://') && !API_URL.startsWith('https://')) {
-  console.error('❌ Invalid API_URL format. Must start with http:// or https://');
-  API_URL = 'http://localhost:5000/api';
-}
-
-// Ensure API_URL ends with /api (but don't double it)
-if (!API_URL.endsWith('/api')) {
-  if (API_URL.endsWith('/')) {
-    API_URL = API_URL + 'api';
-  } else {
-    API_URL = API_URL + '/api';
-  }
-}
-
-console.log('🔧 Final API Base URL:', API_URL);
-
-// Validate the URL
-if (!API_URL || API_URL === 'undefined' || API_URL.length < 10) {
-  console.error('❌ CRITICAL: API_URL is invalid!', API_URL);
-  API_URL = 'http://localhost:5000/api';
-  console.log('🔧 Forced to use:', API_URL);
+const isDev = process.env.NODE_ENV === 'development';
+if (isDev) {
+  console.log('🔧 API Base URL:', API_URL || '(missing)');
 }
 
 // Create axios instance with base URL
@@ -51,13 +19,22 @@ const axiosInstance = axios.create({
 // Add token to requests if available
 axiosInstance.interceptors.request.use(
   (config) => {
+    if (!config.baseURL && process.env.NODE_ENV !== 'development') {
+      return Promise.reject(
+        new Error(
+          'API URL is not configured. Set REACT_APP_API_URL for the production build or runtime-config.js.'
+        )
+      );
+    }
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     // Debug: Log the full URL being requested
-    const fullURL = config.baseURL + config.url;
-    console.log('🌐 Making request to:', fullURL);
+    if (isDev) {
+      const fullURL = (config.baseURL || '') + (config.url || '');
+      console.log('🌐 Making request to:', fullURL);
+    }
     return config;
   },
   (error) => {

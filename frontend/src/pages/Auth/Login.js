@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getMixedContentApiWarning } from '../../config/apiBase';
 import './Auth.css';
 
 const Login = () => {
@@ -8,8 +9,13 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [configWarning, setConfigWarning] = useState(null);
   const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setConfigWarning(getMixedContentApiWarning());
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -69,6 +75,7 @@ const Login = () => {
     <div className="auth-container">
       <div className="auth-card">
         <h1 className="auth-title gradient-text">Login</h1>
+        {configWarning && <div className="error">{configWarning}</div>}
         {error && <div className="error">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
