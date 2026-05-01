@@ -21,6 +21,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -28,14 +29,34 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware
-// app.use(cors({
-//   origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002','https://vts-codingplatform.vercel.app/login'],
-//   credentials: true,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization']
-// }));
-app.use(cors());
+// CORS: default reflects the request Origin (works for any frontend domain + Authorization header).
+// Optional lockdown: set ALLOWED_ORIGINS="https://app.vercel.app,https://www.example.com" (comma-separated, no paths).
+const parseAllowedOrigins = () => {
+  const raw = process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGIN || '';
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+};
+const allowedOrigins = parseAllowedOrigins();
+const corsOptions =
+  allowedOrigins.length > 0
+    ? {
+        origin(origin, callback) {
+          if (!origin) return callback(null, true);
+          if (allowedOrigins.includes(origin)) return callback(null, true);
+          console.warn(`[CORS] Blocked origin: ${origin}`);
+          return callback(null, false);
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+      }
+    : {
+        origin: true,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+      };
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
