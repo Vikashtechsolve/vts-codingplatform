@@ -1,0 +1,5 @@
+# Netlify (or Cloudflare Pages) fallback for same-origin API proxy.
+# Vercel reads vercel.json instead. Edit the destination if you change backends.
+/api/*       https://vts-codingplatform-production.up.railway.app/api/:splat   200!
+/uploads/*   https://vts-codingplatform-production.up.railway.app/uploads/:splat 200!
+/*           /index.html   200

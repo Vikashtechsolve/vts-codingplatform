@@ -67,11 +67,9 @@ export function getAxiosBaseURL() {
     if (process.env.NODE_ENV === 'development') {
       return DEV_FALLBACK;
     }
-    console.error(
-      '[Coding Platform] Missing API URL in production. Set REACT_APP_API_URL in your build environment ' +
-        '(e.g. Vercel), use /api for same-origin proxying, or set window.__RUNTIME_CONFIG__.REACT_APP_API_URL in public/runtime-config.js.'
-    );
-    return '';
+    // Production default: same-origin proxy (vercel.json / _redirects forward to backend).
+    // Avoids ISP blocks on third-party API domains (e.g. Jio + railway.app).
+    return resolveRelativeApiPath('/api');
   }
 
   if (picked.startsWith('/') && !picked.startsWith('//')) {
