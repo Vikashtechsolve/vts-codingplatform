@@ -6,6 +6,7 @@ import PrivateRoute from './components/PrivateRoute';
 import Navbar from './components/Layout/Navbar';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
+import Diagnostics from './pages/Diagnostics';
 
 // Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
@@ -124,6 +125,7 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/diagnostics" element={<Diagnostics />} />
               
               {/* Super Admin Routes */}
               <Route
