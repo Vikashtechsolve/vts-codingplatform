@@ -74,6 +74,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Diagnostic echo — reveals what the API actually saw from the client (origin, ip, headers).
+app.all('/api/_diag', (req, res) => {
+  res.json({
+    ok: true,
+    method: req.method,
+    receivedAt: new Date().toISOString(),
+    origin: req.headers.origin || null,
+    referer: req.headers.referer || null,
+    userAgent: req.headers['user-agent'] || null,
+    forwardedFor: req.headers['x-forwarded-for'] || null,
+    clientIp: req.ip,
+    allowedOriginsConfigured: allowedOrigins.length > 0 ? allowedOrigins : '(open: any origin reflected)',
+  });
+});
+
 // Evaluation queue health (for debugging AI project evaluation)
 app.get('/api/health/evaluation', async (req, res) => {
   try {

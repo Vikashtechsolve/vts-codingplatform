@@ -4,9 +4,10 @@
  * Priority: runtime-config.js → REACT_APP_API_URL (inlined at build time) → dev localhost.
  *
  * Same-origin mode (fixes many “works on my laptop, not others” / Network Error cases):
- *   Set REACT_APP_API_URL=/api
- *   On Vercel: set BACKEND_ORIGIN=https://your-backend.up.railway.app (see frontend/middleware.js).
- *   Browsers only call your frontend host for /api and /uploads (restricted networks often block Railway directly).
+ *   Set REACT_APP_API_URL=/api  (or leave unset — production defaults to /api)
+ *   On Vercel: vercel.json rewrites /api/* and /uploads/* to your real backend.
+ *   On Netlify/Cloudflare Pages: public/_redirects does the same.
+ *   Browsers only call your frontend host (restricted networks often block Railway directly).
  *
  * Absolute URL mode:
  *   Use https://... for the API when the site is https:// — http:// APIs are blocked as mixed content for everyone on strict browsers.

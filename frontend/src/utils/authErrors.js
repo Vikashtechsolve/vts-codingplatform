@@ -21,7 +21,8 @@ export function formatAuthRequestError(error, fallbackMessage) {
     return (
       `Cannot reach the API server (${baseURL || 'no base URL'}). Likely causes: ` +
       'API server is down/sleeping, this network blocks the API host (some ISPs/VPNs block *.railway.app), ' +
-      'CORS preflight rejected, or HTTPS site calling HTTP API.' +
+      'CORS preflight rejected, or HTTPS site calling HTTP API. ' +
+      'For ISP blocks, use REACT_APP_API_URL=/api with vercel.json rewrites or a custom domain on the backend.' +
       DIAG_HINT
     );
   }
