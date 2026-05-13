@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://vts-codingplatform-production.up.railway.app/api/:path*"
+      "destination": "http://3.110.195.230:5000/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://vts-codingplatform-production.up.railway.app/uploads/:path*"
+      "destination": "http://3.110.195.230:5000/uploads/:path*"
     }
   ]
 }
