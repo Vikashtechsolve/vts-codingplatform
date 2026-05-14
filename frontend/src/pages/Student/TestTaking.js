@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import axiosInstance from '../../utils/axios';
+import {
+  CODE_REQUEST_TIMEOUT_BATCH_MS,
+  CODE_REQUEST_TIMEOUT_EXECUTE_MS
+} from '../../config/codeExecution';
 import Modal from '../../components/Modal';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
 import { parseSchemaSql } from '../../utils/schemaParser';
@@ -694,7 +698,7 @@ const TestTaking = () => {
         code,
         language: selectedLanguage,
         input: customTestCase.input
-      });
+      }, { timeout: CODE_REQUEST_TIMEOUT_EXECUTE_MS });
 
       const expectedNormalized = normalizeOutput(customTestCase.expectedOutput);
       const actualNormalized = normalizeOutput(response.data.output || '');
@@ -712,7 +716,10 @@ const TestTaking = () => {
     } catch (error) {
       setIsRunningTests(false);
       console.error('❌ Error executing custom test case:', error);
-      const errorMsg = error.response?.data?.error || error.message || 'Error executing code';
+      let errorMsg = error.response?.data?.error || error.message || 'Error executing code';
+      if (error.code === 'ECONNABORTED') {
+        errorMsg = 'Request timed out. Is the code-worker running with the same Redis URL as the API?';
+      }
       setCustomTestResult({
         input: customTestCase.input,
         expectedOutput: customTestCase.expectedOutput,
@@ -755,7 +762,7 @@ const TestTaking = () => {
         code,
         language: selectedLanguage,
         testCases: visibleTestCases.map(tc => ({ input: tc.input, expectedOutput: tc.expectedOutput }))
-      });
+      }, { timeout: CODE_REQUEST_TIMEOUT_BATCH_MS });
 
       const batchResults = response.data.results || [];
       const results = batchResults.map((r, i) => ({
@@ -782,10 +789,13 @@ const TestTaking = () => {
     } catch (error) {
       setIsRunningTests(false);
       console.error('Error executing code:', error);
-      const errorMsg = error.response?.data?.error || 
-                      error.response?.data?.message || 
-                      error.message || 
+      let errorMsg = error.response?.data?.error ||
+                      error.response?.data?.message ||
+                      error.message ||
                       'Error executing code. Please check your code and try again.';
+      if (error.code === 'ECONNABORTED') {
+        errorMsg = 'Request timed out. Is the code-worker running with the same Redis URL and app version as the API?';
+      }
       showModal('Code Execution Error', errorMsg, 'error');
     }
   };
@@ -819,7 +829,7 @@ const TestTaking = () => {
           code,
           language: selectedLanguage,
           testCases: batchPayload
-        });
+        }, { timeout: CODE_REQUEST_TIMEOUT_BATCH_MS });
 
         const batchResults = batchResponse.data.results || [];
         let testCasesPassed = 0;
@@ -965,7 +975,10 @@ const TestTaking = () => {
     } catch (error) {
       setLoading(false);
       console.error('❌ Error submitting answer:', error);
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error saving answer';
+      let errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error saving answer';
+      if (error.code === 'ECONNABORTED') {
+        errorMsg = 'Request timed out while running tests. Check that the code-worker is running and matches the API.';
+      }
       showModal('Error', errorMsg, 'error');
     }
   };

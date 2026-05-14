@@ -12,6 +12,35 @@ const {
 const MAX_QUEUE_SIZE = parseInt(process.env.MAX_QUEUE_SIZE || '100', 10);
 const JOB_TIMEOUT = parseInt(process.env.CODE_JOB_TIMEOUT || '60000', 10);
 
+/** Wall-clock cap for HTTP handler — job.finished() never resolves if no worker picks the job. */
+const HTTP_WAIT_EXECUTE_MS = parseInt(process.env.CODE_HTTP_WAIT_EXECUTE_MS || '120000', 10);
+const HTTP_WAIT_BATCH_MS = parseInt(process.env.CODE_HTTP_WAIT_BATCH_MS || '300000', 10);
+const HTTP_WAIT_BATCH_MAX_MS = parseInt(process.env.CODE_HTTP_WAIT_BATCH_MAX_MS || '600000', 10);
+
+/**
+ * @param {object} job Bull job
+ * @param {number} ms
+ * @param {string} label
+ */
+async function awaitJobFinishedOrHttpTimeout(job, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new Error(
+          `${label}: no response after ${ms}ms. Ensure the code-worker process is running with the same ` +
+            `REDIS_URL and the same deployment (queue names) as this API.`
+        )
+      );
+    }, ms);
+  });
+  try {
+    return await Promise.race([job.finished(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let singleQueue = null;
 let batchQueue = null;
 
@@ -110,20 +139,27 @@ router.post('/execute', [
 
   if (await isQueueFull(singleQueue, res)) return;
 
+  let job;
   try {
-    const job = await singleQueue.add(
+    job = await singleQueue.add(
       { code, language, input: input || '' },
       { timeout: JOB_TIMEOUT, removeOnComplete: { age: 300, count: 500 }, removeOnFail: { age: 600, count: 200 } }
     );
 
-    const result = await job.finished();
+    const httpMs = Math.max(HTTP_WAIT_EXECUTE_MS, JOB_TIMEOUT + 15000);
+    const result = await awaitJobFinishedOrHttpTimeout(job, httpMs, 'execute');
     res.json(result);
   } catch (err) {
     const msg = err.message || 'Execution failed';
     console.error('[code-execution/execute]', msg, err.stack || '');
-    const isTimeout = msg.includes('timed out');
-    res.status(isTimeout ? 408 : 500).json({
-      success: false, output: '', error: isTimeout ? 'Execution timed out. Please simplify your code.' : msg, executionTime: 0
+    const stalled = msg.includes('no response after');
+    const isJobTimeout = msg.includes('timed out');
+    if (stalled && job) job.remove().catch(() => {});
+    res.status(stalled ? 503 : isJobTimeout ? 408 : 500).json({
+      success: false,
+      output: '',
+      error: stalled ? msg : isJobTimeout ? 'Execution timed out. Please simplify your code.' : msg,
+      executionTime: 0
     });
   }
 });
@@ -149,20 +185,31 @@ router.post('/execute-batch', [
 
   if (await isQueueFull(batchQueue, res)) return;
 
+  const n = testCases.length;
+  const batchHttpMs = Math.min(
+    HTTP_WAIT_BATCH_MAX_MS,
+    Math.max(HTTP_WAIT_BATCH_MS, JOB_TIMEOUT + 30000, n * 25000)
+  );
+
+  let job;
   try {
-    const job = await batchQueue.add(
+    job = await batchQueue.add(
       { code, language, testCases },
       { timeout: JOB_TIMEOUT, removeOnComplete: { age: 300, count: 500 }, removeOnFail: { age: 600, count: 200 } }
     );
 
-    const result = await job.finished();
+    const result = await awaitJobFinishedOrHttpTimeout(job, batchHttpMs, 'execute-batch');
     res.json(result);
   } catch (err) {
     const msg = err.message || 'Execution failed';
     console.error('[code-execution/execute-batch]', msg, err.stack || '');
-    const isTimeout = msg.includes('timed out');
-    res.status(isTimeout ? 408 : 500).json({
-      success: false, error: isTimeout ? 'Execution timed out. Please simplify your code.' : msg, results: []
+    const stalled = msg.includes('no response after');
+    const isJobTimeout = msg.includes('timed out');
+    if (stalled && job) job.remove().catch(() => {});
+    res.status(stalled ? 503 : isJobTimeout ? 408 : 500).json({
+      success: false,
+      error: stalled ? msg : isJobTimeout ? 'Execution timed out. Please simplify your code.' : msg,
+      results: []
     });
   }
 });

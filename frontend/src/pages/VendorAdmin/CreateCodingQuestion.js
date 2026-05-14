@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
+import { CODE_REQUEST_TIMEOUT_EXECUTE_MS } from '../../config/codeExecution';
 import Modal from '../../components/Modal';
 import Editor from '@monaco-editor/react';
 import './CreateCodingQuestion.css';
@@ -180,7 +181,7 @@ const CreateCodingQuestion = () => {
         code,
         language: selectedLanguage,
         input: testCase.input
-      });
+      }, { timeout: CODE_REQUEST_TIMEOUT_EXECUTE_MS });
 
       const expectedNormalized = normalizeOutput(testCase.expectedOutput);
       const actualNormalized = normalizeOutput(response.data.output || '');
@@ -246,7 +247,7 @@ const CreateCodingQuestion = () => {
             code,
             language: selectedLanguage,
             input: testCase.input
-          });
+          }, { timeout: CODE_REQUEST_TIMEOUT_EXECUTE_MS });
 
           const expectedNormalized = normalizeOutput(testCase.expectedOutput);
           const actualNormalized = normalizeOutput(response.data.output || '');
