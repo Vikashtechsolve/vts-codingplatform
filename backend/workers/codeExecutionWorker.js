@@ -311,24 +311,6 @@ batchQueue.on('completed', (job) => {
 });
 batchQueue.on('failed', (job, err) => console.error(`  Batch job ${job.id} failed:`, err.message));
 
-// --- Queue stats export (for health checks from API server) ---
-async function getCodeQueueStats() {
-  const [sWait, sActive, sCompleted, sFailed] = await Promise.all([
-    singleQueue.getWaitingCount(), singleQueue.getActiveCount(),
-    singleQueue.getCompletedCount(), singleQueue.getFailedCount()
-  ]);
-  const [bWait, bActive, bCompleted, bFailed] = await Promise.all([
-    batchQueue.getWaitingCount(), batchQueue.getActiveCount(),
-    batchQueue.getCompletedCount(), batchQueue.getFailedCount()
-  ]);
-  return {
-    single: { waiting: sWait, active: sActive, completed: sCompleted, failed: sFailed },
-    batch:  { waiting: bWait, active: bActive, completed: bCompleted, failed: bFailed },
-    totalWaiting: sWait + bWait,
-    totalActive: sActive + bActive
-  };
-}
-
 // --- Graceful shutdown ---
 let shuttingDown = false;
 async function shutdown(signal) {
@@ -367,4 +349,4 @@ console.log(`  Output cap: ${MAX_OUTPUT_SIZE / 1024} KB`);
 console.log(`  Temp dir: ${TEMP_DIR}`);
 console.log('  Waiting for jobs...\n');
 
-module.exports = { singleQueue, batchQueue, getCodeQueueStats };
+module.exports = { singleQueue, batchQueue };

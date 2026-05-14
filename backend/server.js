@@ -123,11 +123,12 @@ app.get('/api/health/evaluation', async (req, res) => {
   }
 });
 
-// Code execution queue health
+// Code execution queue health (use API queue clients only — never require codeExecutionWorker here
+// or the API process would register Bull processors and steal jobs without compilers when CODE_WORKER_STANDALONE=true)
+const codeExecutionRoutes = require('./routes/codeExecution');
 app.get('/api/health/code-execution', async (req, res) => {
   try {
-    const { getCodeQueueStats } = require('./workers/codeExecutionWorker');
-    const stats = await getCodeQueueStats();
+    const stats = await codeExecutionRoutes.getCodeQueueStats();
     res.json({
       status: 'OK',
       codeExecution: {
@@ -159,7 +160,7 @@ app.use('/api/interviews', require('./routes/interviews'));
 app.use('/api/interview-sessions', require('./routes/interviewSessions'));
 app.use('/api/students', require('./routes/students'));
 app.use('/api/results', require('./routes/results'));
-app.use('/api/code-execution', require('./routes/codeExecution'));
+app.use('/api/code-execution', codeExecutionRoutes);
 app.use('/api/dataset-templates', require('./routes/datasetTemplates'));
 app.use('/api/sql-questions', require('./routes/sqlQuestions'));
 app.use('/api/sql-execution', require('./routes/sqlExecution'));

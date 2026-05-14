@@ -66,6 +66,29 @@ async function isQueueFull(queue, res) {
   return false;
 }
 
+/** Stats only — no job processors. Used by GET /api/health/code-execution (never load codeExecutionWorker on API). */
+async function getCodeQueueStats() {
+  if (!singleQueue || !batchQueue) initQueues();
+  if (!singleQueue || !batchQueue) {
+    throw new Error('Code execution queues not initialized');
+  }
+  await singleQueue.isReady();
+  const [sWait, sActive, sCompleted, sFailed] = await Promise.all([
+    singleQueue.getWaitingCount(), singleQueue.getActiveCount(),
+    singleQueue.getCompletedCount(), singleQueue.getFailedCount()
+  ]);
+  const [bWait, bActive, bCompleted, bFailed] = await Promise.all([
+    batchQueue.getWaitingCount(), batchQueue.getActiveCount(),
+    batchQueue.getCompletedCount(), batchQueue.getFailedCount()
+  ]);
+  return {
+    single: { waiting: sWait, active: sActive, completed: sCompleted, failed: sFailed },
+    batch: { waiting: bWait, active: bActive, completed: bCompleted, failed: bFailed },
+    totalWaiting: sWait + bWait,
+    totalActive: sActive + bActive
+  };
+}
+
 // Single execution endpoint (custom test cases, one-off runs)
 router.post('/execute', [
   auth,
@@ -97,6 +120,7 @@ router.post('/execute', [
     res.json(result);
   } catch (err) {
     const msg = err.message || 'Execution failed';
+    console.error('[code-execution/execute]', msg, err.stack || '');
     const isTimeout = msg.includes('timed out');
     res.status(isTimeout ? 408 : 500).json({
       success: false, output: '', error: isTimeout ? 'Execution timed out. Please simplify your code.' : msg, executionTime: 0
@@ -135,6 +159,7 @@ router.post('/execute-batch', [
     res.json(result);
   } catch (err) {
     const msg = err.message || 'Execution failed';
+    console.error('[code-execution/execute-batch]', msg, err.stack || '');
     const isTimeout = msg.includes('timed out');
     res.status(isTimeout ? 408 : 500).json({
       success: false, error: isTimeout ? 'Execution timed out. Please simplify your code.' : msg, results: []
@@ -166,3 +191,4 @@ router.get('/health', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getCodeQueueStats = getCodeQueueStats;
