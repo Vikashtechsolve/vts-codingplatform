@@ -6,18 +6,29 @@ const path = require('path');
 
 dotenv.config();
 
-// Prevent Redis connection errors from crashing the process (register before any Redis usage)
+// Log infra flakiness without taking down the whole API (Podman would otherwise restart constantly).
+function isLikelyRedisInfrastructureError(reason) {
+  if (!reason || typeof reason !== 'object') return false;
+  const code = reason.code;
+  const msg = String(reason.message || '');
+  if (code === 'ECONNREFUSED' && reason.port === 6379) return true;
+  if (['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET'].includes(code)) {
+    if (msg.includes('6379') || /redis/i.test(msg)) return true;
+  }
+  return false;
+}
+
 process.on('unhandledRejection', (reason) => {
-  const isRedisError = reason && typeof reason === 'object' && (
-    (reason.code === 'ECONNREFUSED' && reason.port === 6379) ||
-    (reason.message && (String(reason.message).includes('ECONNREFUSED') || String(reason.message).includes('6379')))
-  );
-  if (isRedisError) {
-    console.warn('⚠️ Redis connection refused. Ensure REDIS_URL is set (Railway public URL in .env or Variables).');
+  if (isLikelyRedisInfrastructureError(reason)) {
+    console.warn('⚠️ Redis connection issue (ignored for process lifetime):', reason.message || reason);
     return;
   }
   console.error('Unhandled Rejection:', reason);
-  process.exit(1);
+  // Previously this always called process.exit(1), which stopped the container and took down the site
+  // on any stray async error. Prefer staying up; set EXIT_ON_UNHANDLED_REJECTION=true for fail-fast.
+  if (process.env.EXIT_ON_UNHANDLED_REJECTION === 'true') {
+    process.exit(1);
+  }
 });
 
 const app = express();
@@ -196,6 +207,13 @@ app.use((err, req, res, next) => {
 const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/coding-platform';
 console.log('Attempting to connect to MongoDB...');
 console.log('MongoDB URI:', mongoURI.replace(/\/\/.*@/, '//***:***@')); // Hide credentials
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB driver error:', err.message);
+});
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️ MongoDB disconnected — driver will retry; requests may fail until reconnected.');
+});
 
 mongoose.connect(mongoURI)
 .then(() => {
