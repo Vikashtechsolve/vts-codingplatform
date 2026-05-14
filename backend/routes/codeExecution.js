@@ -4,6 +4,10 @@ const { body, validationResult } = require('express-validator');
 const Queue = require('bull');
 const { auth } = require('../middleware/auth');
 const { getBullQueueOptions } = require('../config/redis');
+const {
+  CODE_EXECUTION_SINGLE,
+  CODE_EXECUTION_BATCH
+} = require('../config/bullQueueNames');
 
 const MAX_QUEUE_SIZE = parseInt(process.env.MAX_QUEUE_SIZE || '100', 10);
 const JOB_TIMEOUT = parseInt(process.env.CODE_JOB_TIMEOUT || '60000', 10);
@@ -15,8 +19,8 @@ function initQueues() {
   if (singleQueue) return true;
   try {
     const opts = getBullQueueOptions();
-    singleQueue = new Queue('code-execution-single', opts);
-    batchQueue = new Queue('code-execution-batch', opts);
+    singleQueue = new Queue(CODE_EXECUTION_SINGLE, opts);
+    batchQueue = new Queue(CODE_EXECUTION_BATCH, opts);
 
     singleQueue.on('error', (err) => {
       console.error('Code single-queue Redis error:', err.message);

@@ -7,6 +7,10 @@ const dotenv = require('dotenv');
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const { getBullQueueOptions } = require('../config/redis');
+const {
+  CODE_EXECUTION_SINGLE,
+  CODE_EXECUTION_BATCH
+} = require('../config/bullQueueNames');
 
 // --- Configuration ---
 const TEMP_DIR = path.join(__dirname, '../temp');
@@ -17,8 +21,8 @@ const CLEANUP_INTERVAL = 2 * 60 * 1000;
 const MAX_FILE_AGE = 5 * 60 * 1000;
 
 // --- Bull Queues ---
-const singleQueue = new Queue('code-execution-single', getBullQueueOptions());
-const batchQueue = new Queue('code-execution-batch', getBullQueueOptions());
+const singleQueue = new Queue(CODE_EXECUTION_SINGLE, getBullQueueOptions());
+const batchQueue = new Queue(CODE_EXECUTION_BATCH, getBullQueueOptions());
 
 singleQueue.on('ready', () => console.log('  Single-execution queue ready.'));
 batchQueue.on('ready', () => console.log('  Batch-execution queue ready.'));

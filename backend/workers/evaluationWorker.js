@@ -15,8 +15,9 @@ const githubCloner = require('../utils/githubCloner');
 const aiEvaluator = require('../utils/aiEvaluator');
 const scoringEngine = require('../utils/scoringEngine');
 const { getBullQueueOptions } = require('../config/redis');
+const { PROJECT_EVALUATION } = require('../config/bullQueueNames');
 
-const evaluationQueue = new Queue('project-evaluation', getBullQueueOptions());
+const evaluationQueue = new Queue(PROJECT_EVALUATION, getBullQueueOptions());
 
 evaluationQueue.on('ready', () => {
   console.log('✅ Redis: Connected. Evaluation queue ready.');
