@@ -17,6 +17,7 @@
     "dev": "nodemon server.js",
     "dev:worker": "nodemon workers/evaluationWorker.js",
     "dev:code-worker": "nodemon workers/codeExecutionWorker.js",
+    "peek:code-queue": "node scripts/peek-code-queue.js",
     "watch": "nodemon --watch . --ext js --exec node server.js"
   },
   "dependencies": {

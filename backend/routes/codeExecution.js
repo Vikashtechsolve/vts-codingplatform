@@ -12,33 +12,42 @@ const {
 const MAX_QUEUE_SIZE = parseInt(process.env.MAX_QUEUE_SIZE || '100', 10);
 const JOB_TIMEOUT = parseInt(process.env.CODE_JOB_TIMEOUT || '60000', 10);
 
-/** Wall-clock cap for HTTP handler — job.finished() never resolves if no worker picks the job. */
+/** Wall-clock cap for HTTP handler when no worker or job hangs. */
 const HTTP_WAIT_EXECUTE_MS = parseInt(process.env.CODE_HTTP_WAIT_EXECUTE_MS || '120000', 10);
 const HTTP_WAIT_BATCH_MS = parseInt(process.env.CODE_HTTP_WAIT_BATCH_MS || '300000', 10);
 const HTTP_WAIT_BATCH_MAX_MS = parseInt(process.env.CODE_HTTP_WAIT_BATCH_MAX_MS || '600000', 10);
+/** Poll Redis for job state (avoids Bull pub/sub, unreliable on ElastiCache Serverless). */
+const CODE_JOB_POLL_MS = parseInt(process.env.CODE_JOB_POLL_MS || '1500', 10);
 
 /**
- * @param {object} job Bull job
- * @param {number} ms
+ * Wait until job completes or fails by polling Redis — NOT job.finished(), which
+ * depends on global:completed pub/sub and often never fires on ElastiCache Serverless.
+ *
+ * @param {import('bull').Queue} queue
+ * @param {object} job Bull job (must have .id)
+ * @param {number} httpMs max wall time
  * @param {string} label
  */
-async function awaitJobFinishedOrHttpTimeout(job, ms, label) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      reject(
-        new Error(
-          `${label}: no response after ${ms}ms. Ensure the code-worker process is running with the same ` +
-            `REDIS_URL and the same deployment (queue names) as this API.`
-        )
-      );
-    }, ms);
-  });
-  try {
-    return await Promise.race([job.finished(), timeout]);
-  } finally {
-    clearTimeout(timer);
+async function awaitJobResultPolled(queue, job, httpMs, label) {
+  const id = job.id;
+  const deadline = Date.now() + httpMs;
+  while (Date.now() < deadline) {
+    const fresh = await queue.getJob(id);
+    if (fresh) {
+      const state = await fresh.getState();
+      if (state === 'completed') {
+        return fresh.returnvalue;
+      }
+      if (state === 'failed') {
+        throw new Error(fresh.failedReason || 'Job failed');
+      }
+    }
+    await new Promise((r) => setTimeout(r, CODE_JOB_POLL_MS));
   }
+  throw new Error(
+    `${label}: no response after ${httpMs}ms. Ensure the code-worker container is running with the same ` +
+      `REDIS_URL and the same app version (queue names in config/bullQueueNames.js) as this API.`
+  );
 }
 
 let singleQueue = null;
@@ -147,7 +156,7 @@ router.post('/execute', [
     );
 
     const httpMs = Math.max(HTTP_WAIT_EXECUTE_MS, JOB_TIMEOUT + 15000);
-    const result = await awaitJobFinishedOrHttpTimeout(job, httpMs, 'execute');
+    const result = await awaitJobResultPolled(singleQueue, job, httpMs, 'execute');
     res.json(result);
   } catch (err) {
     const msg = err.message || 'Execution failed';
@@ -198,7 +207,7 @@ router.post('/execute-batch', [
       { timeout: JOB_TIMEOUT, removeOnComplete: { age: 300, count: 500 }, removeOnFail: { age: 600, count: 200 } }
     );
 
-    const result = await awaitJobFinishedOrHttpTimeout(job, batchHttpMs, 'execute-batch');
+    const result = await awaitJobResultPolled(batchQueue, job, batchHttpMs, 'execute-batch');
     res.json(result);
   } catch (err) {
     const msg = err.message || 'Execution failed';

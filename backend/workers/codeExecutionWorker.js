@@ -253,15 +253,21 @@ singleQueue.process(WORKER_CONCURRENCY, async (job) => {
 // --- Batch execution processor (compile once, run N test cases) ---
 batchQueue.process(WORKER_CONCURRENCY, async (job) => {
   const { code, language, testCases } = job.data;
+  const n = Array.isArray(testCases) ? testCases.length : 0;
+  console.log(`[code-worker] batch job ${job.id} start (${n} cases, ${language})`);
   ensureTempDir();
   const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${job.id}`;
   let prepared;
   try {
+    if (!Array.isArray(testCases) || testCases.length === 0) {
+      return { success: false, error: 'Missing or empty testCases', results: [], testCasesPassed: 0, total: 0 };
+    }
     prepared = prepareCode(code, language, id);
 
     const comp = await compileCode(prepared);
     if (!comp.success) {
-      const failedResults = testCases.map(() => ({
+      const cases = Array.isArray(testCases) ? testCases : [];
+      const failedResults = cases.map(() => ({
         success: false, output: '', error: comp.error, executionTime: 0, passed: false
       }));
       return {
@@ -269,7 +275,7 @@ batchQueue.process(WORKER_CONCURRENCY, async (job) => {
         compilationError: comp.error,
         results: failedResults,
         testCasesPassed: 0,
-        total: testCases.length
+        total: cases.length
       };
     }
 
@@ -289,6 +295,7 @@ batchQueue.process(WORKER_CONCURRENCY, async (job) => {
 
     return { success: true, results, testCasesPassed: passed, total: testCases.length };
   } catch (err) {
+    console.error(`[code-worker] batch job ${job.id} error:`, err.message);
     return { success: false, error: err.message || 'Execution failed', results: [], testCasesPassed: 0, total: 0 };
   } finally {
     if (prepared) cleanupFiles(...prepared.cleanup);
@@ -305,9 +312,7 @@ singleQueue.on('failed', (job, err) => console.error(`  Single job ${job.id} fai
 
 batchQueue.on('completed', (job) => {
   const rv = job.returnvalue;
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`  Batch job ${job.id} done: ${rv?.testCasesPassed || 0}/${rv?.total || 0} passed`);
-  }
+  console.log(`[code-worker] batch job ${job.id} done: ${rv?.testCasesPassed ?? '?'}/${rv?.total ?? '?'} passed`);
 });
 batchQueue.on('failed', (job, err) => console.error(`  Batch job ${job.id} failed:`, err.message));
 
@@ -347,6 +352,7 @@ console.log(`  Concurrency: ${WORKER_CONCURRENCY} parallel jobs`);
 console.log(`  Timeout: ${EXECUTION_TIMEOUT}ms per run`);
 console.log(`  Output cap: ${MAX_OUTPUT_SIZE / 1024} KB`);
 console.log(`  Temp dir: ${TEMP_DIR}`);
+console.log(`  Queues: ${CODE_EXECUTION_SINGLE} | ${CODE_EXECUTION_BATCH}`);
 console.log('  Waiting for jobs...\n');
 
 module.exports = { singleQueue, batchQueue };
