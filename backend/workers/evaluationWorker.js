@@ -592,18 +592,29 @@ async function getQueueStats() {
   };
 }
 
-// Graceful shutdown handler
-process.on('SIGTERM', async () => {
-  console.log('📴 SIGTERM received, closing worker gracefully...');
-  await evaluationQueue.close();
+// Graceful shutdown handler (async handlers must not leave floating rejections)
+let evalWorkerShuttingDown = false;
+async function shutdownEvaluationWorker(signal) {
+  if (evalWorkerShuttingDown) return;
+  evalWorkerShuttingDown = true;
+  console.log(`📴 ${signal} received, closing worker gracefully...`);
+  try {
+    await evaluationQueue.close().catch((err) => {
+      console.error('evaluationQueue.close error:', err && err.message ? err.message : err);
+    });
+  } catch (err) {
+    console.error('Shutdown error:', err && err.message ? err.message : err);
+  }
   process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  console.log('📴 SIGINT received, closing worker gracefully...');
-  await evaluationQueue.close();
-  process.exit(0);
-});
+}
+function onEvalWorkerShutdown(signal) {
+  void shutdownEvaluationWorker(signal).catch((err) => {
+    console.error('Fatal shutdown error:', err && err.message ? err.message : err);
+    process.exit(1);
+  });
+}
+process.on('SIGTERM', () => onEvalWorkerShutdown('SIGTERM'));
+process.on('SIGINT', () => onEvalWorkerShutdown('SIGINT'));
 
 // Connect to MongoDB if not already connected
 if (mongoose.connection.readyState === 0) {

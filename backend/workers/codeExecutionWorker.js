@@ -326,13 +326,33 @@ async function getCodeQueueStats() {
 }
 
 // --- Graceful shutdown ---
+let shuttingDown = false;
 async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} received, shutting down code execution worker...`);
-  await Promise.all([singleQueue.close(), batchQueue.close()]);
+  try {
+    await Promise.all([
+      singleQueue.close().catch((err) => {
+        console.error('singleQueue.close error:', err && err.message ? err.message : err);
+      }),
+      batchQueue.close().catch((err) => {
+        console.error('batchQueue.close error:', err && err.message ? err.message : err);
+      })
+    ]);
+  } catch (err) {
+    console.error('Shutdown error:', err && err.message ? err.message : err);
+  }
   process.exit(0);
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+function onShutdownSignal(signal) {
+  void shutdown(signal).catch((err) => {
+    console.error('Fatal shutdown error:', err && err.message ? err.message : err);
+    process.exit(1);
+  });
+}
+process.on('SIGTERM', () => onShutdownSignal('SIGTERM'));
+process.on('SIGINT', () => onShutdownSignal('SIGINT'));
 
 console.log('='.repeat(50));
 console.log('Code Execution Worker Started');

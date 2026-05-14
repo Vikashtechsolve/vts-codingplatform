@@ -1,7 +1,12 @@
 /**
  * Redis Configuration
- * Uses REDIS_URL only. Set to Railway public Redis URL in both local and deployment.
+ * Uses REDIS_URL only (Railway, ElastiCache, etc.).
+ *
+ * Bull uses blocking Redis commands. ioredis defaults (maxRetriesPerRequest: 20) break
+ * those clients — required for AWS ElastiCache Serverless and correct queue behavior.
  */
+
+const Redis = require('ioredis');
 
 function getRedisUrl() {
   const redisUrl = process.env.REDIS_URL?.trim();
@@ -27,27 +32,36 @@ function getBullQueueOptions() {
     throw new Error('REDIS_URL is required. Set it in .env or deployment Variables.');
   }
 
-  // Bull uses ioredis — pass URL string directly, NOT as {url: "..."}
+  // Custom clients so Bull/ioredis work with blocking commands (BRPOP, etc.) and
+  // ElastiCache Serverless. Do not use plain `redis: url` — that omits these options.
   return {
-    redis: redisUrl,
+    createClient(type, clientOpts) {
+      return new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        ...(clientOpts && typeof clientOpts === 'object' ? clientOpts : {})
+      });
+    },
     defaultJobOptions: {
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
       removeOnComplete: { age: 86400, count: 1000 },
       removeOnFail: { age: 604800 }
     },
-    settings: { enableReadyCheck: true }
+    settings: { enableReadyCheck: false }
   };
 }
 
 async function testRedisConnection() {
-  const Redis = require('ioredis');
   const redisUrl = getRedisUrl();
 
   if (!redisUrl) return false;
 
   try {
-    const client = new Redis(redisUrl);
+    const client = new Redis(redisUrl, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false
+    });
     const pong = await client.ping();
     await client.quit();
 
