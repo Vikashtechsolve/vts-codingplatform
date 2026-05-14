@@ -39,6 +39,15 @@ function getBullQueueOptions() {
       return new Redis(redisUrl, {
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
+        connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT_MS || '15000', 10),
+        retryStrategy(times) {
+          return Math.min(times * 300, 10000);
+        },
+        reconnectOnError(err) {
+          const t = err.message || '';
+          if (/READONLY|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|ECONNRESET/i.test(t)) return true;
+          return false;
+        },
         ...(clientOpts && typeof clientOpts === 'object' ? clientOpts : {})
       });
     },
@@ -60,7 +69,11 @@ async function testRedisConnection() {
   try {
     const client = new Redis(redisUrl, {
       maxRetriesPerRequest: null,
-      enableReadyCheck: false
+      enableReadyCheck: false,
+      connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT_MS || '15000', 10),
+      retryStrategy(times) {
+        return Math.min(times * 300, 10000);
+      }
     });
     const pong = await client.ping();
     await client.quit();

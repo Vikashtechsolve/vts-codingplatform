@@ -316,21 +316,36 @@ batchQueue.on('completed', (job) => {
 });
 batchQueue.on('failed', (job, err) => console.error(`  Batch job ${job.id} failed:`, err.message));
 
-// --- Graceful shutdown ---
+// Standalone: `node workers/codeExecutionWorker.js`. Embedded in API: server.js owns SIGTERM/SIGINT.
+const isStandaloneCodeWorkerProcess = require.main === module;
+
+let closeCodeQueuesPromise = null;
+async function closeCodeExecutionQueues() {
+  if (closeCodeQueuesPromise) return closeCodeQueuesPromise;
+  closeCodeQueuesPromise = (async () => {
+    try {
+      await Promise.all([
+        singleQueue.close().catch((err) => {
+          console.error('singleQueue.close error:', err && err.message ? err.message : err);
+        }),
+        batchQueue.close().catch((err) => {
+          console.error('batchQueue.close error:', err && err.message ? err.message : err);
+        })
+      ]);
+    } catch (err) {
+      console.error('closeCodeExecutionQueues error:', err && err.message ? err.message : err);
+    }
+  })();
+  return closeCodeQueuesPromise;
+}
+
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`${signal} received, shutting down code execution worker...`);
   try {
-    await Promise.all([
-      singleQueue.close().catch((err) => {
-        console.error('singleQueue.close error:', err && err.message ? err.message : err);
-      }),
-      batchQueue.close().catch((err) => {
-        console.error('batchQueue.close error:', err && err.message ? err.message : err);
-      })
-    ]);
+    await closeCodeExecutionQueues();
   } catch (err) {
     console.error('Shutdown error:', err && err.message ? err.message : err);
   }
@@ -342,8 +357,10 @@ function onShutdownSignal(signal) {
     process.exit(1);
   });
 }
-process.on('SIGTERM', () => onShutdownSignal('SIGTERM'));
-process.on('SIGINT', () => onShutdownSignal('SIGINT'));
+if (isStandaloneCodeWorkerProcess) {
+  process.on('SIGTERM', () => onShutdownSignal('SIGTERM'));
+  process.on('SIGINT', () => onShutdownSignal('SIGINT'));
+}
 
 console.log('='.repeat(50));
 console.log('Code Execution Worker Started');
@@ -355,4 +372,4 @@ console.log(`  Temp dir: ${TEMP_DIR}`);
 console.log(`  Queues: ${CODE_EXECUTION_SINGLE} | ${CODE_EXECUTION_BATCH}`);
 console.log('  Waiting for jobs...\n');
 
-module.exports = { singleQueue, batchQueue };
+module.exports = { singleQueue, batchQueue, closeCodeExecutionQueues };

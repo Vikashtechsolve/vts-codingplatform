@@ -593,16 +593,30 @@ async function getQueueStats() {
   };
 }
 
-// Graceful shutdown handler (async handlers must not leave floating rejections)
+// When loaded by server.js (or routes), signals are handled there so HTTP + Mongo drain together.
+// When run as `node workers/evaluationWorker.js`, we handle SIGTERM/SIGINT here only.
+const isStandaloneEvalWorkerProcess = require.main === module;
+
+let closeEvalPromise = null;
+async function closeEvaluationQueue() {
+  if (closeEvalPromise) return closeEvalPromise;
+  closeEvalPromise = (async () => {
+    try {
+      await evaluationQueue.close();
+    } catch (err) {
+      console.error('evaluationQueue.close error:', err && err.message ? err.message : err);
+    }
+  })();
+  return closeEvalPromise;
+}
+
 let evalWorkerShuttingDown = false;
 async function shutdownEvaluationWorker(signal) {
   if (evalWorkerShuttingDown) return;
   evalWorkerShuttingDown = true;
   console.log(`📴 ${signal} received, closing worker gracefully...`);
   try {
-    await evaluationQueue.close().catch((err) => {
-      console.error('evaluationQueue.close error:', err && err.message ? err.message : err);
-    });
+    await closeEvaluationQueue();
   } catch (err) {
     console.error('Shutdown error:', err && err.message ? err.message : err);
   }
@@ -614,8 +628,10 @@ function onEvalWorkerShutdown(signal) {
     process.exit(1);
   });
 }
-process.on('SIGTERM', () => onEvalWorkerShutdown('SIGTERM'));
-process.on('SIGINT', () => onEvalWorkerShutdown('SIGINT'));
+if (isStandaloneEvalWorkerProcess) {
+  process.on('SIGTERM', () => onEvalWorkerShutdown('SIGTERM'));
+  process.on('SIGINT', () => onEvalWorkerShutdown('SIGINT'));
+}
 
 // Connect to MongoDB if not already connected
 if (mongoose.connection.readyState === 0) {
@@ -639,5 +655,6 @@ if (mongoose.connection.readyState === 0) {
 module.exports = {
   evaluationQueue,
   addEvaluationJob,
-  getQueueStats
+  getQueueStats,
+  closeEvaluationQueue
 };

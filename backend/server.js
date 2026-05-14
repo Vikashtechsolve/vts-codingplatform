@@ -12,8 +12,8 @@ function isLikelyRedisInfrastructureError(reason) {
   const code = reason.code;
   const msg = String(reason.message || '');
   if (code === 'ECONNREFUSED' && reason.port === 6379) return true;
-  if (['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET'].includes(code)) {
-    if (msg.includes('6379') || /redis/i.test(msg)) return true;
+  if (['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET', 'EAI_AGAIN'].includes(code)) {
+    if (msg.includes('6379') || /redis|cache\.amazonaws/i.test(msg)) return true;
   }
   return false;
 }
@@ -30,6 +30,77 @@ process.on('unhandledRejection', (reason) => {
     process.exit(1);
   }
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+/** SIGTERM/SIGINT: drain HTTP, close Bull queues, then Mongo (single handler — workers do not exit the process when embedded). */
+function installApiGracefulShutdown(httpServer) {
+  const graceMs = parseInt(process.env.SHUTDOWN_GRACE_MS || '28000', 10);
+  let shuttingDown = false;
+
+  async function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`📴 ${signal} — API graceful shutdown (HTTP → queues → Mongo)...`);
+
+    const forceTimer = setTimeout(() => {
+      console.error('⚠️ Shutdown grace period elapsed; exiting.');
+      process.exit(1);
+    }, graceMs);
+
+    try {
+      await new Promise((resolve, reject) => {
+        httpServer.close((err) => (err ? reject(err) : resolve()));
+      });
+    } catch (e) {
+      console.error('httpServer.close:', e.message || e);
+    }
+
+    try {
+      const ew = require('./workers/evaluationWorker');
+      if (typeof ew.closeEvaluationQueue === 'function') {
+        await ew.closeEvaluationQueue();
+      }
+    } catch (e) {
+      console.warn('Evaluation queue close skipped:', e.message || e);
+    }
+
+    try {
+      const resolved = require.resolve('./workers/codeExecutionWorker');
+      const cached = require.cache[resolved];
+      if (cached && typeof cached.exports.closeCodeExecutionQueues === 'function') {
+        await cached.exports.closeCodeExecutionQueues();
+      }
+    } catch (_) {
+      /* code worker not loaded (standalone worker or Redis skipped load) */
+    }
+
+    try {
+      await mongoose.connection.close();
+    } catch (e) {
+      console.error('mongoose.close:', e.message || e);
+    }
+
+    clearTimeout(forceTimer);
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM').catch((e) => {
+      console.error('SIGTERM shutdown error:', e);
+      process.exit(1);
+    });
+  });
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT').catch((e) => {
+      console.error('SIGINT shutdown error:', e);
+      process.exit(1);
+    });
+  });
+}
 
 const app = express();
 app.set('trust proxy', 1);
@@ -229,7 +300,7 @@ mongoose.connect(mongoURI)
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log('='.repeat(50));
   console.log('🚀 Server Started Successfully!');
   console.log('='.repeat(50));
@@ -239,4 +310,6 @@ app.listen(PORT, () => {
   console.log('='.repeat(50));
   console.log('📝 Waiting for requests...\n');
 });
+
+installApiGracefulShutdown(httpServer);
 
