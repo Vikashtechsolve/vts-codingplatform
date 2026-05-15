@@ -3,8 +3,35 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
 dotenv.config();
+
+function isProbablyContainer() {
+  try {
+    return fs.existsSync('/.dockerenv') || fs.existsSync('/run/.containerenv');
+  } catch {
+    return false;
+  }
+}
+
+/** Persists across `podman logs` scroll-off; copy out with `podman cp api:/app/logs/shutdown-audit.log .` */
+function appendShutdownAudit(line) {
+  const logPath = path.join(__dirname, 'logs', 'shutdown-audit.log');
+  try {
+    if (!fs.existsSync(path.dirname(logPath))) {
+      fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    }
+    fs.appendFileSync(logPath, `${line}\n`);
+  } catch {
+    /* ignore */
+  }
+  try {
+    process.stderr.write(`[shutdown-audit] ${line}\n`);
+  } catch {
+    /* ignore */
+  }
+}
 
 // Log infra flakiness without taking down the whole API (Podman would otherwise restart constantly).
 function isLikelyRedisInfrastructureError(reason) {
@@ -44,7 +71,12 @@ function installApiGracefulShutdown(httpServer) {
   async function shutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
+    const auditLine = `${new Date().toISOString()} signal=${signal} pid=${process.pid} uptimeSec=${Math.floor(process.uptime())} GRACEFUL_SHUTDOWN`;
+    appendShutdownAudit(auditLine);
     console.log(`📴 ${signal} — API graceful shutdown (HTTP → queues → Mongo)...`);
+    console.log(
+      '[hint] Exit 0 after this line means the process received SIGTERM or SIGINT (e.g. podman/docker stop, systemd, or SSH user session end with rootless Podman). Fix host: loginctl enable-linger + systemd user unit; do not rely on manual podman run alone.'
+    );
 
     const forceTimer = setTimeout(() => {
       console.error('⚠️ Shutdown grace period elapsed; exiting.');
@@ -309,6 +341,11 @@ const httpServer = app.listen(PORT, () => {
   console.log(`🔐 Auth endpoint: http://localhost:${PORT}/api/auth/login`);
   console.log('='.repeat(50));
   console.log('📝 Waiting for requests...\n');
+  if (isProbablyContainer()) {
+    console.log(
+      '[deploy] Running in a container. If the container stops with Exited (0) while idle, the host sent SIGTERM/SIGINT or ended your user session (common with rootless Podman over SSH). Run: sudo loginctl enable-linger ubuntu && manage the container with a systemd user unit (see backend/deploy/systemd/). Shutdown evidence: /app/logs/shutdown-audit.log'
+    );
+  }
 });
 
 installApiGracefulShutdown(httpServer);
