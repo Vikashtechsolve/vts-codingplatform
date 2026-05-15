@@ -1,0 +1,40 @@
+# Managed by systemd --user: systemd restarts the whole `podman run` when the app exits.
+# Podman's own `--restart always` is unreliable without podman-restart.service; do not depend on it alone.
+#
+# Install: ./deploy/install-podman-api-user.sh
+# Or manually:
+#   sudo loginctl enable-linger ubuntu
+#   systemctl --user enable --now podman-restart.service
+#   cp this file ~/.config/systemd/user/platform-api.service
+#   # edit env-file path if needed
+#   systemctl --user daemon-reload && systemctl --user enable --now platform-api.service
+
+[Unit]
+Description=Platform API (Podman, user)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+TimeoutStopSec=90
+KillMode=mixed
+Environment=PODMAN_SYSTEMD_UNIT=%n
+
+ExecStartPre=-/usr/bin/podman rm -f api
+ExecStart=/usr/bin/podman run \
+  --name api \
+  --replace \
+  --restart=no \
+  -p 5000:5000 \
+  --env-file %h/vts-codingplatform/backend/.env.production \
+  platform-api:latest
+
+ExecStop=/usr/bin/podman stop -t 45 api
+ExecStopPost=-/usr/bin/podman rm -f api
+
+[Install]
+WantedBy=default.target

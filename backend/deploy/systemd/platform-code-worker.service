@@ -1,0 +1,28 @@
+# System Docker (root). systemd restarts `docker run` when the worker exits.
+# Install: sudo cp ... /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now platform-code-worker
+
+[Unit]
+Description=Platform code worker (Docker)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStopSec=90
+KillMode=mixed
+
+ExecStartPre=-/usr/bin/docker rm -f code-worker
+ExecStart=/usr/bin/docker run \
+  --name code-worker \
+  --restart=no \
+  --env-file /home/ubuntu/vts-codingplatform/backend/codeworker.env \
+  platform-code-worker:latest
+
+ExecStop=/usr/bin/docker stop -t 45 code-worker
+ExecStopPost=-/usr/bin/docker rm -f code-worker
+
+[Install]
+WantedBy=multi-user.target
