@@ -1,0 +1,31 @@
+# Code worker on rootless Podman (same pattern as platform-api.user.service).
+# Install: ./deploy/install-podman-code-worker-user.sh
+
+[Unit]
+Description=Platform code worker (Podman, user)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+TimeoutStopSec=90
+KillMode=mixed
+Environment=PODMAN_SYSTEMD_UNIT=%n
+
+ExecStartPre=-/usr/bin/podman rm -f code-worker
+ExecStart=/usr/bin/podman run \
+  --name code-worker \
+  --replace \
+  --restart=no \
+  --env-file %h/vts-codingplatform/backend/codeworker.env \
+  platform-code-worker:latest
+
+ExecStop=/usr/bin/podman stop -t 45 code-worker
+ExecStopPost=-/usr/bin/podman rm -f code-worker
+
+[Install]
+WantedBy=default.target
