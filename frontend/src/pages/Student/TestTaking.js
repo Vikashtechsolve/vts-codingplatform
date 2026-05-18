@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import axiosInstance from '../../utils/axios';
 import {
@@ -8,6 +8,9 @@ import {
 } from '../../config/codeExecution';
 import Modal from '../../components/Modal';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
+import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
+import { isDocumentFullscreen } from '../../utils/fullscreen';
+import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import { parseSchemaSql } from '../../utils/schemaParser';
 import './TestTaking.css';
 
@@ -151,6 +154,9 @@ function SchemaView({ schemaSql }) {
 const TestTaking = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromShareLink = isFromShareLink(location);
+  const [fullscreenReady, setFullscreenReady] = useState(false);
   const [test, setTest] = useState(null);
   const [result, setResult] = useState(null);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
@@ -180,11 +186,28 @@ const TestTaking = () => {
     );
   };
   
-  const { violations } = useExamSecurity(
+  const { violations, isFullscreen, requestFullscreen } = useExamSecurity(
     result?._id || null,
     handleMaxViolations,
-    handleViolationWarning
+    handleViolationWarning,
+    { autoRequestFullscreen: !fromShareLink }
   );
+
+  useEffect(() => {
+    if (isFullscreen || isDocumentFullscreen()) {
+      setFullscreenReady(true);
+      clearShareLinkAttempt();
+    }
+  }, [isFullscreen, result]);
+
+  useEffect(() => {
+    if (!result || fullscreenReady) return;
+    if (fromShareLink) return;
+    const t = setTimeout(() => {
+      if (isDocumentFullscreen()) setFullscreenReady(true);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [result, fullscreenReady, fromShareLink]);
   const [codeExecutionResult, setCodeExecutionResult] = useState(null);
   const [testCaseResults, setTestCaseResults] = useState([]); // For visible test case execution results
   // eslint-disable-next-line no-unused-vars
@@ -1091,8 +1114,23 @@ const TestTaking = () => {
   const visibleTestCases = questionData.testCases?.filter(tc => !tc.isHidden) || [];
   const hiddenTestCasesCount = questionData.testCases?.filter(tc => tc.isHidden).length || 0;
 
+  const showFullscreenGate = result && !fullscreenReady && !isFullscreen;
+
   return (
     <div className="test-taking-container">
+      {showFullscreenGate && (
+        <ExamFullscreenPrompt
+          title="Enter fullscreen to start the test"
+          subtitle="Click below to maximize your screen and begin. This matches the secure start flow from the student portal."
+          onEntered={async () => {
+            await requestFullscreen();
+            if (isDocumentFullscreen()) {
+              setFullscreenReady(true);
+              clearShareLinkAttempt();
+            }
+          }}
+        />
+      )}
       <Modal 
         isOpen={modal.isOpen} 
         onClose={modal.title === 'Confirm Submission' ? () => {} : closeModal}

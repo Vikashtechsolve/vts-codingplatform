@@ -14,18 +14,19 @@ const InterviewSession = require('../models/InterviewSession');
 router.use(auth);
 router.use(authorize('super_admin'));
 
+const LOGO_ALLOWED_EXT = /\.(jpe?g|png|gif|webp)$/i;
+const LOGO_ALLOWED_MIME = /^image\/(jpeg|png|gif|webp)$/i;
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (LOGO_ALLOWED_EXT.test(ext) && LOGO_ALLOWED_MIME.test(file.mimetype)) {
       return cb(null, true);
     }
-    cb(new Error('Only image files are allowed'));
-  }
+    cb(new Error('Only PNG, JPG, GIF, or WebP images are allowed (max 5 MB)'));
+  },
 });
 
 // Get all vendors (with normalized interviewCredits — handle legacy number or object)

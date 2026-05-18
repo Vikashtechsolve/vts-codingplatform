@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import ExportReportModal from '../../components/ExportReportModal';
 import './VendorAdminCommon.css';
 import './TestResults.css';
 import './InterviewResults.css';
@@ -10,6 +11,7 @@ const InterviewResults = () => {
   const [sessions, setSessions] = useState([]);
   const [interview, setInterview] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,7 +37,7 @@ const InterviewResults = () => {
 
   return (
     <div className="container interview-results">
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <Link to="/vendor-admin/interviews" className="btn btn-secondary" style={{ marginBottom: '12px', display: 'inline-block' }}>
             ← Back to Interviews
@@ -47,7 +49,18 @@ const InterviewResults = () => {
             </p>
           )}
         </div>
+        <button type="button" className="btn btn-primary" onClick={() => setExportOpen(true)}>
+          Download Excel report
+        </button>
       </div>
+
+      <ExportReportModal
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        optionsUrl={`/vendor-admin/interviews/${interviewId}/report-options`}
+        exportUrl={`/vendor-admin/interviews/${interviewId}/export`}
+        title={title}
+      />
 
       {sessions.length === 0 ? (
         <div className="empty-state">

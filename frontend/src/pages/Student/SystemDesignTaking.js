@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
+import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
+import { isDocumentFullscreen } from '../../utils/fullscreen';
+import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import ArchitectureBuilder from '../../components/SystemDesign/ArchitectureBuilder';
 import './SystemDesignTaking.css';
 
@@ -32,6 +35,9 @@ const SCALING_STRATEGIES = [
 const SystemDesignTaking = () => {
   const { problemId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromShareLink = isFromShareLink(location);
+  const [fullscreenReady, setFullscreenReady] = useState(false);
   const [problem, setProblem] = useState(null);
   const [submission, setSubmission] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -76,8 +82,27 @@ const SystemDesignTaking = () => {
     submission?._id || null,
     handleMaxViolations,
     handleViolationWarning,
-    { violationEndpoint: submission ? `/system-design-submissions/${submission._id}/violation` : null }
+    {
+      violationEndpoint: submission ? `/system-design-submissions/${submission._id}/violation` : null,
+      autoRequestFullscreen: !fromShareLink,
+    }
   );
+
+  useEffect(() => {
+    if (isFullscreen || isDocumentFullscreen()) {
+      setFullscreenReady(true);
+      clearShareLinkAttempt();
+    }
+  }, [isFullscreen, submission]);
+
+  useEffect(() => {
+    if (!submission || fullscreenReady) return;
+    if (fromShareLink) return;
+    const t = setTimeout(() => {
+      if (isDocumentFullscreen()) setFullscreenReady(true);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [submission, fullscreenReady, fromShareLink]);
 
   // Keep refs in sync for use in beforeunload / auto-save
   useEffect(() => { submissionRef.current = submission; }, [submission]);
@@ -253,9 +278,23 @@ const SystemDesignTaking = () => {
 
   const sections = submission.sections || {};
   const isTimeLow = timeLeft !== null && timeLeft < 600000;
+  const showFullscreenGate = submission && !fullscreenReady && !isFullscreen;
 
   return (
     <div className="sdt-container">
+      {showFullscreenGate && (
+        <ExamFullscreenPrompt
+          title="Enter fullscreen to start"
+          subtitle="Maximize your screen to continue this system design assessment securely."
+          onEntered={async () => {
+            await requestFullscreen();
+            if (isDocumentFullscreen()) {
+              setFullscreenReady(true);
+              clearShareLinkAttempt();
+            }
+          }}
+        />
+      )}
       {/* Top bar */}
       <div className="sdt-topbar">
         <div className="sdt-topbar-left">

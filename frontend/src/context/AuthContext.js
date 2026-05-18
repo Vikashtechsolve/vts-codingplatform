@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axiosInstance from '../utils/axios';
 import { formatAuthRequestError } from '../utils/authErrors';
+import { normalizeAuthUser, getUserVendorId } from '../utils/user';
+import { setCachedBranding, clearBrandingCache } from '../utils/brandingCache';
 
 const AuthContext = createContext();
 
@@ -17,7 +19,7 @@ export const AuthProvider = ({ children }) => {
   const getStoredUser = () => {
     try {
       const storedUser = localStorage.getItem('user');
-      return storedUser ? JSON.parse(storedUser) : null;
+      return storedUser ? normalizeAuthUser(JSON.parse(storedUser)) : null;
     } catch (error) {
       console.error('Error parsing stored user:', error);
       return null;
@@ -36,15 +38,22 @@ export const AuthProvider = ({ children }) => {
 
       if (storedToken && storedUser) {
         // Set user immediately from localStorage for instant UI
-        setUser(storedUser);
+        setUser(normalizeAuthUser(storedUser));
         setToken(storedToken);
         
         // Then validate token with backend
         try {
           const response = await axiosInstance.get('/auth/me');
-          setUser(response.data);
-          // Update localStorage with fresh user data
-          localStorage.setItem('user', JSON.stringify(response.data));
+          const normalized = normalizeAuthUser(response.data);
+          const vendorId = getUserVendorId(normalized) || response.data?.vendorId;
+          if (vendorId) {
+            normalized.vendorId = String(vendorId);
+            if (normalized?.branding?.logo) {
+              setCachedBranding(vendorId, normalized.branding);
+            }
+          }
+          setUser(normalized);
+          localStorage.setItem('user', JSON.stringify(normalized));
         } catch (error) {
           // Token is invalid, clear everything
           console.error('Token validation failed:', error);
@@ -70,7 +79,7 @@ export const AuthProvider = ({ children }) => {
         
         if (newToken && newUser) {
           setToken(newToken);
-          setUser(newUser);
+          setUser(normalizeAuthUser(newUser));
         } else {
           setToken(null);
           setUser(null);
@@ -87,11 +96,20 @@ export const AuthProvider = ({ children }) => {
       const response = await axiosInstance.post('/auth/login', { email, password });
       const { token: newToken, user: userData } = response.data;
       
+      const normalized = normalizeAuthUser(userData);
+      const vendorId = getUserVendorId(normalized) || userData?.vendorId;
+      if (vendorId) {
+        normalized.vendorId = String(vendorId);
+        if (normalized?.branding) {
+          setCachedBranding(vendorId, normalized.branding);
+        }
+      }
       localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('user', JSON.stringify(normalized));
       setToken(newToken);
-      setUser(userData);
-      
+      setUser(normalized);
+      window.dispatchEvent(new CustomEvent('platform:branding-changed'));
+
       return { success: true };
     } catch (error) {
       return {
@@ -106,10 +124,11 @@ export const AuthProvider = ({ children }) => {
       const response = await axiosInstance.post('/auth/register', userData);
       const { token: newToken, user: userDataResponse } = response.data;
       
+      const normalized = normalizeAuthUser(userDataResponse);
       localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userDataResponse));
+      localStorage.setItem('user', JSON.stringify(normalized));
       setToken(newToken);
-      setUser(userDataResponse);
+      setUser(normalized);
       
       return { success: true };
     } catch (error) {
@@ -123,8 +142,22 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    clearBrandingCache();
     setToken(null);
     setUser(null);
+  };
+
+  const updateUserBranding = (branding) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = normalizeAuthUser({ ...prev, branding });
+      const vendorId = getUserVendorId(next);
+      if (vendorId && branding?.logo) {
+        setCachedBranding(vendorId, branding);
+      }
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
   };
 
   const value = {
@@ -133,7 +166,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    isAuthenticated: !!user
+    updateUserBranding,
+    isAuthenticated: !!user,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

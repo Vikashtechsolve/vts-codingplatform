@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
-import { getPublicApiOrigin } from '../../config/apiBase';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import './VendorAdminCommon.css';
 import './ResultDetails.css';
 
@@ -16,8 +16,6 @@ const SECTION_LABELS = {
   english_speaking: 'Speaking',
   english_listening: 'Listening',
 };
-
-const API_BASE = getPublicApiOrigin();
 
 /** Safely convert any value to a string for React rendering (avoids "Objects are not valid as a React child") */
 const safeText = (v) => {
@@ -314,7 +312,7 @@ const ResultDetails = () => {
           {answer.audioFileUrl && (
             <div className="speaking-audio-preview">
               <strong>Recording:</strong>
-              <audio controls src={`${API_BASE}${answer.audioFileUrl}`} />
+              <audio controls src={resolveMediaUrl(answer.audioFileUrl)} />
             </div>
           )}
           {!answer.audioFileUrl && (

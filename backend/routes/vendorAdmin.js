@@ -9,8 +9,17 @@ const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 const Test = require('../models/Test');
 const Result = require('../models/Result');
+const Interview = require('../models/Interview');
+const Assignment = require('../models/Assignment');
+const SystemDesignProblem = require('../models/SystemDesignProblem');
 const CodingQuestion = require('../models/CodingQuestion');
 const MCQQuestion = require('../models/MCQQuestion');
+const {
+  buildReportData,
+  generateExcelBuffer,
+  sanitizeFilename,
+  getColumnDefs,
+} = require('../utils/reports');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -22,19 +31,29 @@ router.use((req, res, next) => {
   next();
 });
 
+const LOGO_MAX_BYTES = 5 * 1024 * 1024;
+const LOGO_ALLOWED_EXT = /\.(jpe?g|png|gif|webp)$/i;
+const LOGO_ALLOWED_MIME = /^image\/(jpeg|png|gif|webp)$/i;
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: LOGO_MAX_BYTES },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (LOGO_ALLOWED_EXT.test(ext) && LOGO_ALLOWED_MIME.test(file.mimetype)) {
       return cb(null, true);
     }
-    cb(new Error('Only image files are allowed'));
-  }
+    cb(new Error('Only PNG, JPG, GIF, or WebP images are allowed (max 5 MB)'));
+  },
 });
+
+const handleMulterError = (err, req, res, next) => {
+  if (!err) return next();
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: 'Logo file is too large. Maximum size is 5 MB.' });
+  }
+  return res.status(400).json({ message: err.message || 'Invalid file upload' });
+};
 
 // Get vendor info
 router.get('/vendor', async (req, res) => {
@@ -49,26 +68,40 @@ router.get('/vendor', async (req, res) => {
   }
 });
 
-// Update vendor settings
+// Update vendor settings (merge into existing settings — do not wipe fields)
 router.put('/vendor', async (req, res) => {
   try {
-    const { settings } = req.body;
-    const vendor = await Vendor.findByIdAndUpdate(
-      req.vendorId,
-      { settings },
-      { new: true, runValidators: true }
-    );
+    const { settings: incoming } = req.body;
+    const vendor = await Vendor.findById(req.vendorId);
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    const current = vendor.settings?.toObject?.() || vendor.settings || {};
+    vendor.settings = {
+      primaryColor: incoming?.primaryColor ?? current.primaryColor ?? '#ED0331',
+      secondaryColor: incoming?.secondaryColor ?? current.secondaryColor ?? '#87021C',
+      theme: incoming?.theme ?? current.theme ?? 'light',
+    };
+    vendor.markModified('settings');
+    await vendor.save();
+
     res.json(vendor);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Upload logo
-router.post('/vendor/logo', upload.single('logo'), async (req, res) => {
+// Upload logo (stored in Cloudflare R2)
+router.post('/vendor/logo', (req, res, next) => {
+  upload.single('logo')(req, res, (err) => {
+    if (err) return handleMulterError(err, req, res, next);
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+      return res.status(400).json({ message: 'No file uploaded. Use field name "logo".' });
     }
 
     const vendor = await Vendor.findById(req.vendorId);
@@ -81,7 +114,8 @@ router.post('/vendor/logo', upload.single('logo'), async (req, res) => {
       if (oldKey) await deleteFromR2(oldKey);
     }
 
-    const filename = `vendor-${req.vendorId}-${Date.now()}${path.extname(req.file.originalname)}`;
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.png';
+    const filename = `vendor-${req.vendorId}-${Date.now()}${ext}`;
     const r2Key = `uploads/logos/${filename}`;
     console.log(`📤 Uploading vendor logo to R2: ${r2Key}`);
     const publicUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
@@ -90,9 +124,40 @@ router.post('/vendor/logo', upload.single('logo'), async (req, res) => {
     vendor.logo = publicUrl;
     await vendor.save();
 
-    res.json({ logo: vendor.logo });
+    res.json({
+      logo: vendor.logo,
+      companyName: vendor.companyName,
+      settings: vendor.settings,
+    });
   } catch (error) {
     console.error('❌ Logo upload error:', error.message);
+    const isR2Config = /R2 environment variables/i.test(error.message);
+    res.status(isR2Config ? 503 : 500).json({
+      message: isR2Config
+        ? 'Logo storage is not configured. Set Cloudflare R2 environment variables on the server.'
+        : 'Failed to upload logo',
+      error: error.message,
+    });
+  }
+});
+
+// Remove logo
+router.delete('/vendor/logo', async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.vendorId);
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    if (vendor.logo) {
+      const oldKey = getKeyFromUrl(vendor.logo);
+      if (oldKey) await deleteFromR2(oldKey);
+      vendor.logo = null;
+      await vendor.save();
+    }
+
+    res.json({ logo: null, message: 'Logo removed' });
+  } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -193,19 +258,41 @@ router.post('/students/enroll', async (req, res) => {
       
       console.log(`🔍 Checking student: ${normalizedEmail}`);
       
-      // Check if user already exists (case-insensitive)
-      const existingUser = await User.findOne({ 
-        email: normalizedEmail,
-        vendorId: req.vendorId
-      });
-      
+      // Match by email first — assign vendorId if student exists without one
+      let existingUser = await User.findOne({ email: normalizedEmail });
+
       if (existingUser) {
-        console.log(`⚠️  Student already exists: ${normalizedEmail}`);
-        skippedStudents.push({
-          email: normalizedEmail,
-          reason: 'Already exists'
+        if (existingUser.role !== 'student') {
+          skippedStudents.push({
+            email: normalizedEmail,
+            reason: 'Email already used by a non-student account',
+          });
+          continue;
+        }
+
+        const existingVendor = existingUser.vendorId?.toString();
+        const targetVendor = req.vendorId.toString();
+
+        if (existingVendor && existingVendor !== targetVendor) {
+          skippedStudents.push({
+            email: normalizedEmail,
+            reason: 'Student belongs to another organization',
+          });
+          continue;
+        }
+
+        if (!existingUser.vendorId) {
+          existingUser.vendorId = req.vendorId;
+          await existingUser.save();
+          console.log(`✅ Assigned vendorId to existing student: ${normalizedEmail}`);
+        }
+
+        enrolledStudents.push({
+          id: existingUser._id,
+          name: existingUser.name,
+          email: existingUser.email,
         });
-        continue; // Skip if already exists
+        continue;
       }
 
       const student = new User({
@@ -527,6 +614,172 @@ router.get('/tests/:testId/speaking-analytics', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// —— Excel report export ——
+const assertVendorResource = (doc, vendorId, label) => {
+  if (!doc) return { error: { status: 404, message: `${label} not found` } };
+  if (doc.vendorId.toString() !== vendorId.toString()) {
+    return { error: { status: 403, message: 'Access denied' } };
+  }
+  return { doc };
+};
+
+router.get('/tests/:testId/report-options', async (req, res) => {
+  try {
+    const test = await Test.findById(req.params.testId);
+    const check = assertVendorResource(test, req.vendorId, 'Test');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+    res.json(getColumnDefs('test', test));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/tests/:testId/export', async (req, res) => {
+  try {
+    const test = await Test.findById(req.params.testId);
+    const check = assertVendorResource(test, req.vendorId, 'Test');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+
+    const selectedKeys = Array.isArray(req.body?.columns) ? req.body.columns : [];
+    if (!selectedKeys.length) {
+      return res.status(400).json({ message: 'Select at least one column to export.' });
+    }
+
+    const reportData = await buildReportData('test', test, req.vendorId);
+    const buffer = await generateExcelBuffer({
+      category: 'test',
+      test,
+      selectedKeys,
+      reportData,
+    });
+
+    const filename = `${sanitizeFilename(test.title)}_report.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Test export error:', error);
+    res.status(500).json({ message: 'Export failed', error: error.message });
+  }
+});
+
+router.get('/interviews/:interviewId/report-options', async (req, res) => {
+  try {
+    const interview = await Interview.findById(req.params.interviewId);
+    const check = assertVendorResource(interview, req.vendorId, 'Interview');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+    res.json(getColumnDefs('interview'));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/interviews/:interviewId/export', async (req, res) => {
+  try {
+    const interview = await Interview.findById(req.params.interviewId);
+    const check = assertVendorResource(interview, req.vendorId, 'Interview');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+
+    const selectedKeys = Array.isArray(req.body?.columns) ? req.body.columns : [];
+    if (!selectedKeys.length) {
+      return res.status(400).json({ message: 'Select at least one column to export.' });
+    }
+
+    const reportData = await buildReportData('interview', interview, req.vendorId);
+    const buffer = await generateExcelBuffer({
+      category: 'interview',
+      selectedKeys,
+      reportData,
+    });
+
+    const filename = `${sanitizeFilename(interview.title)}_interview_report.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Interview export error:', error);
+    res.status(500).json({ message: 'Export failed', error: error.message });
+  }
+});
+
+router.get('/assignments/:assignmentId/report-options', async (req, res) => {
+  try {
+    const assignment = await Assignment.findById(req.params.assignmentId);
+    const check = assertVendorResource(assignment, req.vendorId, 'Assignment');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+    res.json(getColumnDefs('assignment'));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/assignments/:assignmentId/export', async (req, res) => {
+  try {
+    const assignment = await Assignment.findById(req.params.assignmentId);
+    const check = assertVendorResource(assignment, req.vendorId, 'Assignment');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+
+    const selectedKeys = Array.isArray(req.body?.columns) ? req.body.columns : [];
+    if (!selectedKeys.length) {
+      return res.status(400).json({ message: 'Select at least one column to export.' });
+    }
+
+    const reportData = await buildReportData('assignment', assignment, req.vendorId);
+    const buffer = await generateExcelBuffer({
+      category: 'assignment',
+      selectedKeys,
+      reportData,
+    });
+
+    const filename = `${sanitizeFilename(assignment.title)}_assignment_report.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Assignment export error:', error);
+    res.status(500).json({ message: 'Export failed', error: error.message });
+  }
+});
+
+router.get('/system-design/:problemId/report-options', async (req, res) => {
+  try {
+    const problem = await SystemDesignProblem.findById(req.params.problemId);
+    const check = assertVendorResource(problem, req.vendorId, 'System design problem');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+    res.json(getColumnDefs('system_design'));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/system-design/:problemId/export', async (req, res) => {
+  try {
+    const problem = await SystemDesignProblem.findById(req.params.problemId);
+    const check = assertVendorResource(problem, req.vendorId, 'System design problem');
+    if (check.error) return res.status(check.error.status).json({ message: check.error.message });
+
+    const selectedKeys = Array.isArray(req.body?.columns) ? req.body.columns : [];
+    if (!selectedKeys.length) {
+      return res.status(400).json({ message: 'Select at least one column to export.' });
+    }
+
+    const reportData = await buildReportData('system_design', problem, req.vendorId);
+    const buffer = await generateExcelBuffer({
+      category: 'system_design',
+      selectedKeys,
+      reportData,
+    });
+
+    const filename = `${sanitizeFilename(problem.title)}_system_design_report.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('System design export error:', error);
+    res.status(500).json({ message: 'Export failed', error: error.message });
   }
 });
 

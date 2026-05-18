@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
-import { getPublicApiOrigin } from '../../config/apiBase';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
 import './EnglishTestResult.css';
 
@@ -12,14 +12,6 @@ const SECTION_META = {
   writing: { icon: 'Es', label: 'Writing', color: '#10b981' },
   speaking: { icon: 'Sp', label: 'Speaking', color: '#f59e0b' },
   listening: { icon: 'Li', label: 'Listening', color: '#ef4444' }
-};
-
-const API_BASE = getPublicApiOrigin();
-
-const resolveMediaUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
-  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 const EnglishTestResult = () => {

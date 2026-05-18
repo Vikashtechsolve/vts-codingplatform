@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import ExportReportModal from '../../components/ExportReportModal';
 import './SystemDesignList.css';
 
 const SystemDesignSubmissions = () => {
@@ -9,6 +10,7 @@ const SystemDesignSubmissions = () => {
   const [problem, setProblem] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -60,8 +62,21 @@ const SystemDesignSubmissions = () => {
           <h1>Submissions</h1>
           {problem && <p style={{ color: 'var(--text-secondary, #666)', margin: '4px 0 0' }}>{problem.title} - {problem.difficulty}</p>}
         </div>
-        <button className="sd-action-btn edit" onClick={() => navigate('/vendor-admin/system-designs')}>Back to List</button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-primary" onClick={() => setExportOpen(true)}>
+            Download Excel report
+          </button>
+          <button className="sd-action-btn edit" onClick={() => navigate('/vendor-admin/system-designs')}>Back to List</button>
+        </div>
       </div>
+
+      <ExportReportModal
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        optionsUrl={`/vendor-admin/system-design/${problemId}/report-options`}
+        exportUrl={`/vendor-admin/system-design/${problemId}/export`}
+        title={problem?.title || 'System design report'}
+      />
 
       {submissions.length > 0 && (
         <div className="sd-card-stats" style={{ maxWidth: 500, margin: '0 0 24px', padding: '16px 24px', background: 'var(--bg-primary, #fff)', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>

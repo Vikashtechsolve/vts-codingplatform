@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import axiosInstance from '../utils/axios';
+import { isDocumentFullscreen, requestDocumentFullscreen } from '../utils/fullscreen';
 
 const MAX_VIOLATIONS = parseInt(process.env.REACT_APP_MAX_VIOLATIONS || '3', 10);
 
 export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWarning, options = {}) => {
-  const { violationEndpoint } = options;
+  const { violationEndpoint, autoRequestFullscreen = true } = options;
   const [violations, setViolations] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const warningShownFor = useRef(new Set()); // Track which violation counts we've warned about
@@ -83,51 +84,16 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
 
   // Request fullscreen
   const requestFullscreen = useCallback(async () => {
-    try {
-      const element = document.documentElement;
-      
-      // Try different fullscreen APIs for cross-platform compatibility
-      if (element.requestFullscreen) {
-        await element.requestFullscreen().catch(() => {
-          // User might have denied, don't track as violation
-        });
-      } else if (element.webkitRequestFullscreen) {
-        // Safari
-        await element.webkitRequestFullscreen().catch(() => {});
-      } else if (element.mozRequestFullScreen) {
-        // Firefox
-        await element.mozRequestFullScreen().catch(() => {});
-      } else if (element.msRequestFullscreen) {
-        // IE/Edge
-        await element.msRequestFullscreen().catch(() => {});
-      }
-      
-      // Check if we actually entered fullscreen
-      const isCurrentlyFullscreen = !!(
-        document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        document.mozFullScreenElement ||
-        document.msFullscreenElement
-      );
-      
-      if (isCurrentlyFullscreen) {
-        fullscreenRequested.current = true;
-        setIsFullscreen(true);
-      }
-    } catch (error) {
-      // Don't track as violation if user denies fullscreen permission
-      console.log('Fullscreen request failed (user may have denied):', error.message);
+    const ok = await requestDocumentFullscreen();
+    if (ok || isDocumentFullscreen()) {
+      fullscreenRequested.current = true;
+      setIsFullscreen(true);
     }
   }, []);
 
     // Check fullscreen status
   const checkFullscreen = useCallback(() => {
-    const isCurrentlyFullscreen = !!(
-      document.fullscreenElement ||
-      document.webkitFullscreenElement ||
-      document.mozFullScreenElement ||
-      document.msFullscreenElement
-    );
+    const isCurrentlyFullscreen = isDocumentFullscreen();
     
     // Only track fullscreen exit if we're past initialization and it was actually requested
     if (!isCurrentlyFullscreen && fullscreenRequested.current && !isInitializing.current) {
@@ -310,10 +276,11 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
     checkFullscreen();
     checkMultipleScreens();
 
-    // Request fullscreen on mount
-    setTimeout(() => {
-      requestFullscreen();
-    }, 500);
+    if (autoRequestFullscreen) {
+      setTimeout(() => {
+        requestFullscreen();
+      }, 500);
+    }
 
     return () => {
       document.removeEventListener('copy', handleCopy);
@@ -341,7 +308,7 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
       
       isActive.current = false;
     };
-  }, [resultId, trackViolation, checkFullscreen, checkMultipleScreens, requestFullscreen]);
+  }, [resultId, trackViolation, checkFullscreen, checkMultipleScreens, requestFullscreen, autoRequestFullscreen]);
 
   // Show warning when violations approach limit
   useEffect(() => {

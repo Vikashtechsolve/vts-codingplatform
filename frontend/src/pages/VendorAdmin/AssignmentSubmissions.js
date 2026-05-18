@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import ExportReportModal from '../../components/ExportReportModal';
 import './VendorAdminCommon.css';
 import './TestResults.css';
 
@@ -9,6 +10,7 @@ const AssignmentSubmissions = () => {
   const [submissions, setSubmissions] = useState([]);
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -58,14 +60,25 @@ const AssignmentSubmissions = () => {
 
   return (
     <div className="container test-results-page">
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <Link to="/vendor-admin/tests?type=project" className="btn btn-secondary" style={{ marginBottom: '20px' }}>
             ← Back to Tests
           </Link>
           <h1 className="page-title">Submissions: {assignment?.title || 'Assignment'}</h1>
         </div>
+        <button type="button" className="btn btn-primary" onClick={() => setExportOpen(true)}>
+          Download Excel report
+        </button>
       </div>
+
+      <ExportReportModal
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        optionsUrl={`/vendor-admin/assignments/${assignmentId}/report-options`}
+        exportUrl={`/vendor-admin/assignments/${assignmentId}/export`}
+        title={assignment?.title || 'Assignment report'}
+      />
 
       <div className="results-table-card">
         <h2>Project Submissions ({submissions.length})</h2>

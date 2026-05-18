@@ -1,25 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
-import { getPublicApiOrigin } from '../../config/apiBase';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
+import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
+import { isDocumentFullscreen } from '../../utils/fullscreen';
+import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import Modal from '../../components/Modal';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './EnglishTestTaking.css';
 
-const API_BASE = getPublicApiOrigin();
-
-const resolveMediaUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
-  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
-};
-
 const EnglishTestTaking = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromShareLink = isFromShareLink(location);
+  const [fullscreenReady, setFullscreenReady] = useState(false);
   useAuth();
 
   const [test, setTest] = useState(null);
@@ -61,7 +59,46 @@ const EnglishTestTaking = () => {
   const speakTimerRef = useRef(null);
   const resultRef = useRef(null);
 
-  const { violations } = useExamSecurity(result?._id, true);
+  const handleMaxViolations = useCallback(() => {
+    setModal({
+      isOpen: true,
+      title: 'Auto-Submission',
+      message: 'Maximum violations reached. Your test will be submitted.',
+      type: 'error',
+    });
+  }, []);
+
+  const handleViolationWarning = useCallback((current, max) => {
+    setModal({
+      isOpen: true,
+      title: 'Violation Warning',
+      message: `You have ${current} of ${max} violations. Please follow exam rules.`,
+      type: 'warning',
+    });
+  }, []);
+
+  const { violations, isFullscreen, requestFullscreen } = useExamSecurity(
+    result?._id || null,
+    handleMaxViolations,
+    handleViolationWarning,
+    { autoRequestFullscreen: !fromShareLink }
+  );
+
+  useEffect(() => {
+    if (isFullscreen || isDocumentFullscreen()) {
+      setFullscreenReady(true);
+      clearShareLinkAttempt();
+    }
+  }, [isFullscreen, result]);
+
+  useEffect(() => {
+    if (!result || fullscreenReady) return;
+    if (fromShareLink) return;
+    const t = setTimeout(() => {
+      if (isDocumentFullscreen()) setFullscreenReady(true);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [result, fullscreenReady, fromShareLink]);
 
   useEffect(() => { resultRef.current = result; }, [result]);
 
@@ -959,6 +996,8 @@ const EnglishTestTaking = () => {
   if (loading) return <div className="english-test-loading">Loading test...</div>;
   if (!test) return <div className="english-test-loading">Test not found.</div>;
 
+  const showFullscreenGate = result && !fullscreenReady && !isFullscreen;
+
   if (showSectionTransition && sections[currentSectionIdx + 1]) {
     const next = sections[currentSectionIdx + 1];
     return (
@@ -980,6 +1019,19 @@ const EnglishTestTaking = () => {
 
   return (
     <div className="english-test-taking">
+      {showFullscreenGate && (
+        <ExamFullscreenPrompt
+          title="Enter fullscreen to start the test"
+          subtitle="Click below to maximize your screen. This is required when starting from a shared link."
+          onEntered={async () => {
+            await requestFullscreen();
+            if (isDocumentFullscreen()) {
+              setFullscreenReady(true);
+              clearShareLinkAttempt();
+            }
+          }}
+        />
+      )}
       <Modal isOpen={modal.isOpen} onClose={() => setModal({ ...modal, isOpen: false })} title={modal.title} type={modal.type}>
         <p>{modal.message}</p>
       </Modal>

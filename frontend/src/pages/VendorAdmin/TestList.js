@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import CopyShareLinkButton from '../../components/CopyShareLinkButton';
 import './VendorAdminCommon.css';
 import './TestList.css';
 
@@ -211,9 +212,12 @@ const TestList = () => {
                     {item.type.toUpperCase()}
                   </span>
                 </div>
-                <span className={`status-badge-modern ${item.isActive ? 'active' : 'inactive'}`}>
-                  {item.isActive ? 'Active' : 'Inactive'}
-                </span>
+                <div className="test-card-header-actions">
+                  <CopyShareLinkButton item={item} />
+                  <span className={`status-badge-modern ${item.isActive ? 'active' : 'inactive'}`}>
+                    {item.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
               </div>
 
               <div className="test-meta-list">

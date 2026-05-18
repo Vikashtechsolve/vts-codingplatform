@@ -209,12 +209,24 @@ router.post('/:id/students/bulk', [
     for (const studentData of students) {
       const normalizedEmail = studentData.email.toLowerCase().trim();
       
-      // Check if student exists
+      // Check if student exists (by email — ensure vendorId is set)
       let student = await User.findOne({
         email: normalizedEmail,
-        vendorId: req.vendorId,
-        role: 'student'
+        role: 'student',
       });
+
+      if (student && student.vendorId && student.vendorId.toString() !== req.vendorId.toString()) {
+        skippedStudents.push({
+          email: normalizedEmail,
+          reason: 'Student belongs to another organization',
+        });
+        continue;
+      }
+
+      if (student && !student.vendorId) {
+        student.vendorId = req.vendorId;
+        await student.save();
+      }
 
       // Create student if doesn't exist
       if (!student) {

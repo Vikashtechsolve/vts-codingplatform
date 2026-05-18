@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import ExportReportModal from '../../components/ExportReportModal';
 import './VendorAdminCommon.css';
 import './TestResults.css';
 
@@ -19,6 +20,7 @@ const TestResults = () => {
   const [test, setTest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [speakingAnalytics, setSpeakingAnalytics] = useState(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     fetchResults();
@@ -95,14 +97,30 @@ const TestResults = () => {
 
   return (
     <div className="container test-results-page">
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <Link to="/vendor-admin/tests" className="btn btn-secondary" style={{ marginBottom: '20px' }}>
             ← Back to Tests
           </Link>
           <h1 className="page-title">Test Results: {test?.title}</h1>
+          {test?.type && (
+            <p style={{ marginTop: '4px', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+              {test.type} test
+            </p>
+          )}
         </div>
+        <button type="button" className="btn btn-primary" onClick={() => setExportOpen(true)}>
+          Download Excel report
+        </button>
       </div>
+
+      <ExportReportModal
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        optionsUrl={`/vendor-admin/tests/${testId}/report-options`}
+        exportUrl={`/vendor-admin/tests/${testId}/export`}
+        title={test?.title || 'Test report'}
+      />
 
       <div className="results-table-card">
         <h2>Submissions ({results.length})</h2>

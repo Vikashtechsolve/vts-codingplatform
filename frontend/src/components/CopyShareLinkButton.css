@@ -1,0 +1,67 @@
+.copy-share-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 10px;
+  background: var(--card-bg, #fff);
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+  position: relative;
+}
+
+.copy-share-link-btn:hover {
+  color: var(--primary-color, #ed0331);
+  border-color: var(--primary-color, #ed0331);
+  background: rgba(237, 3, 49, 0.06);
+  transform: translateY(-1px);
+}
+
+.copy-share-link-btn.copied {
+  color: #16a34a;
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.copy-share-link-btn svg {
+  font-size: 17px;
+}
+
+.copy-share-link-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+}
+
+.copy-share-link-btn:hover .copy-share-link-tooltip,
+.copy-share-link-btn.copied .copy-share-link-tooltip {
+  opacity: 1;
+}
+
+.copy-share-link-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1e293b;
+}

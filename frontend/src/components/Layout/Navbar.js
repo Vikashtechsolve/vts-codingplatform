@@ -1,16 +1,29 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useVendorBranding } from '../../context/VendorBrandingContext';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { getBrandingFromUser, getUserVendorId } from '../../utils/user';
+import { getCachedBranding } from '../../utils/brandingCache';
 import { FiSun, FiMoon, FiLogOut, FiUser } from 'react-icons/fi';
 import './Navbar.css';
 
+const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
+
+const isJoinPath = (pathname) => pathname.startsWith('/join/');
+
 const Navbar = () => {
+  const location = useLocation();
   const { user, logout, isAuthenticated } = useAuth();
+  const { branding } = useVendorBranding();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [showStudentTestsMenu, setShowStudentTestsMenu] = useState(false);
   const dropdownRef = React.useRef(null);
+
+  const hideNavbar =
+    AUTH_PATHS.includes(location.pathname) || isJoinPath(location.pathname);
 
   React.useEffect(() => {
     if (!showStudentTestsMenu) return;
@@ -22,6 +35,10 @@ const Navbar = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showStudentTestsMenu]);
+
+  if (hideNavbar) {
+    return null;
+  }
 
   const handleLogout = () => {
     logout();
@@ -42,11 +59,44 @@ const Navbar = () => {
     }
   };
 
+  const vendorId = getUserVendorId(user);
+  const cached = vendorId ? getCachedBranding(vendorId) : null;
+  const userBranding = getBrandingFromUser(user);
+  const logoUrl =
+    branding?.logo ||
+    userBranding?.logo ||
+    cached?.logo;
+  const companyLabel =
+    branding?.companyName ||
+    userBranding?.companyName ||
+    cached?.companyName;
+
+  const renderBrand = () => {
+    if (user?.role === 'super_admin') {
+      return <span className="gradient-text">Coding Platform</span>;
+    }
+    if (logoUrl) {
+      return (
+        <span className="navbar-brand-logo" title={companyLabel || 'Home'}>
+          <img
+            src={resolveMediaUrl(logoUrl)}
+            alt={companyLabel || 'Brand logo'}
+            className="navbar-brand-logo-img"
+          />
+        </span>
+      );
+    }
+    if (companyLabel) {
+      return <span className="gradient-text navbar-brand-text">{companyLabel}</span>;
+    }
+    return <span className="gradient-text">Coding Platform</span>;
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-container">
         <Link to={getDashboardLink()} className="navbar-brand">
-          <span className="gradient-text">Coding Platform</span>
+          {renderBrand()}
         </Link>
 
         <div className="navbar-menu">
@@ -113,10 +163,10 @@ const Navbar = () => {
                 <span className="user-name">
                   <FiUser /> {user.name}
                 </span>
-                <button onClick={toggleTheme} className="theme-toggle">
+                <button onClick={toggleTheme} className="theme-toggle" type="button">
                   {theme === 'dark' ? <FiSun /> : <FiMoon />}
                 </button>
-                <button onClick={handleLogout} className="logout-btn">
+                <button onClick={handleLogout} className="logout-btn" type="button">
                   <FiLogOut /> Logout
                 </button>
               </div>
@@ -129,4 +179,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-

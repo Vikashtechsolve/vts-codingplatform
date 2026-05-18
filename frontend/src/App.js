@@ -2,11 +2,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { VendorBrandingProvider } from './context/VendorBrandingContext';
 import PrivateRoute from './components/PrivateRoute';
 import Navbar from './components/Layout/Navbar';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
-import Diagnostics from './pages/Diagnostics';
+import ForgotPassword from './pages/Auth/ForgotPassword';
+import ResetPassword from './pages/Auth/ResetPassword';
+import JoinAttempt from './pages/JoinAttempt';
 
 // Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
@@ -119,13 +122,20 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <VendorBrandingProvider>
         <Router>
           <div className="App">
             <Navbar />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/diagnostics" element={<Diagnostics />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Student share links — open assessment after login */}
+              <Route path="/join/test/:testId" element={<JoinAttempt kind="test" />} />
+              <Route path="/join/interview/:interviewId" element={<JoinAttempt kind="interview" />} />
+              <Route path="/join/assignment/:assignmentId" element={<JoinAttempt kind="assignment" />} />
+              <Route path="/join/system-design/:problemId" element={<JoinAttempt kind="system-design" />} />
               
               {/* Super Admin Routes */}
               <Route
@@ -790,6 +800,7 @@ function App() {
             </Routes>
           </div>
         </Router>
+        </VendorBrandingProvider>
       </AuthProvider>
     </ThemeProvider>
   );

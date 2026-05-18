@@ -5,6 +5,30 @@ const tenantMiddleware = require('../middleware/tenant');
 const User = require('../models/User');
 const Test = require('../models/Test');
 const Result = require('../models/Result');
+const {
+  loadBrandingForUser,
+  resolveVendorIdForUser,
+} = require('../utils/vendorBranding');
+
+// Organization branding (logo + colors) for the logged-in student
+router.get('/branding', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const vendorId = await resolveVendorIdForUser(req.user);
+    const branding = await loadBrandingForUser(req.user);
+
+    res.json({
+      vendorId: vendorId || null,
+      ...(branding || { logo: null, companyName: null, settings: null }),
+    });
+  } catch (error) {
+    console.error('GET /students/branding error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 // Get student profile
 router.get('/profile', auth, async (req, res) => {

@@ -2,26 +2,29 @@
   background-color: var(--bg-secondary);
   border-bottom: 2px solid;
   border-image: var(--primary-gradient) 1;
-  padding: 12px 0;
+  padding: 16px 0;
   position: sticky;
   top: 0;
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
   animation: fadeInDown 0.5s ease;
+  min-height: 72px;
+  box-sizing: border-box;
 }
 
 .navbar-container {
   max-width: 100%;
   width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 24px 0 40px;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   flex-wrap: nowrap;
   min-width: 0;
+  min-height: 44px;
   box-sizing: border-box;
 }
 
@@ -33,10 +36,64 @@
   transition: all 0.3s ease;
   flex-shrink: 0;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  margin-right: 8px;
 }
 
-.navbar-brand:hover {
-  transform: scale(1.05);
+.navbar-brand:has(.navbar-brand-logo):hover {
+  transform: none;
+}
+
+/* Logo frame — natural aspect ratio, not a cramped square */
+.navbar-brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  max-width: 200px;
+  padding: 6px 16px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
+  line-height: 0;
+}
+
+[data-theme="dark"] .navbar-brand-logo {
+  background: rgba(255, 255, 255, 0.97);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.navbar-brand-logo-img {
+  display: block;
+  max-height: 36px;
+  max-width: 180px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center center;
+}
+
+/* Legacy class if used elsewhere */
+.navbar-logo {
+  max-height: 36px;
+  max-width: 180px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.navbar-brand-text {
+  font-size: 1.35rem;
+  font-weight: bold;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .navbar-menu {
@@ -191,7 +248,7 @@
 
   .navbar-container {
     gap: 14px;
-    padding: 0 16px;
+    padding: 0 20px 0 28px;
   }
 
   .navbar-user .user-name {
@@ -201,14 +258,37 @@
 }
 
 @media (max-width: 768px) {
+  .navbar {
+    padding: 12px 0;
+    min-height: 64px;
+  }
+
   .navbar-container {
     flex-wrap: wrap;
     gap: 10px;
-    padding: 10px 14px;
+    padding: 8px 16px 8px 24px;
+    min-height: 40px;
   }
 
   .navbar-brand {
     font-size: 18px;
+    min-height: 40px;
+  }
+
+  .navbar-brand-logo {
+    height: 40px;
+    max-width: 160px;
+    padding: 5px 12px;
+  }
+
+  .navbar-brand-logo-img {
+    max-height: 30px;
+    max-width: 140px;
+  }
+
+  .navbar-brand-text {
+    font-size: 1.1rem;
+    max-width: 140px;
   }
 
   .navbar-menu {

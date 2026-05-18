@@ -1,0 +1,77 @@
+.join-attempt-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-primary);
+}
+
+.join-attempt-card {
+  text-align: center;
+  padding: 48px 40px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  max-width: 360px;
+  width: 100%;
+}
+
+.join-attempt-card-wide {
+  max-width: 520px;
+  text-align: left;
+}
+
+.join-attempt-kind {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary-color, #ed0331);
+  margin-bottom: 12px;
+}
+
+.join-attempt-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.join-attempt-meta,
+.join-attempt-duration {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.join-attempt-rules {
+  margin: 20px 0 24px;
+  padding-left: 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.join-attempt-start-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.join-attempt-error {
+  color: #b91c1c;
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.join-attempt-hint {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
