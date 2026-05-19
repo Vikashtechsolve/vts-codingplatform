@@ -556,6 +556,33 @@ evaluationQueue.on('stalled', (job) => {
   console.warn(`⚠️  Job ${job.id} stalled`);
 });
 
+function freshProcessingSteps() {
+  return {
+    repoCloning: { status: 'pending' },
+    repoAnalysis: { status: 'pending' },
+    aiEvaluation: { status: 'pending' },
+    scoring: { status: 'pending' }
+  };
+}
+
+/**
+ * Bull uses a stable jobId per submission. Failed/completed jobs must be removed before re-queue
+ * or retry appears to succeed but the worker never runs again.
+ */
+async function removeEvaluationJobFromQueue(submissionId) {
+  const jobId = submissionId.toString();
+  const existing = await evaluationQueue.getJob(jobId);
+  if (!existing) return false;
+  const state = await existing.getState();
+  if (state === 'active') {
+    console.warn(`Evaluation job ${jobId} is active; not removing`);
+    return false;
+  }
+  await existing.remove();
+  console.log(`🗑️ Removed evaluation job ${jobId} (was ${state})`);
+  return true;
+}
+
 /**
  * Add evaluation job to queue
  * @param {string} submissionId - Submission ID
@@ -563,7 +590,21 @@ evaluationQueue.on('stalled', (job) => {
  * @param {number} delayMs - Delay in milliseconds before job runs (for delayed evaluation)
  */
 async function addEvaluationJob(submissionId, priority = 5, delayMs = 0) {
-  const opts = { priority, jobId: submissionId.toString() };
+  const jobId = submissionId.toString();
+  const existing = await evaluationQueue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === 'active') {
+      console.log(`📋 Evaluation job ${jobId} already active, skipping duplicate add`);
+      return existing;
+    }
+    if (['failed', 'completed', 'delayed', 'waiting', 'paused'].includes(state)) {
+      await existing.remove();
+      console.log(`🗑️ Removed evaluation job ${jobId} (was ${state}) before re-queue`);
+    }
+  }
+
+  const opts = { priority, jobId };
   if (delayMs > 0) {
     opts.delay = delayMs;
   }
@@ -577,20 +618,42 @@ async function addEvaluationJob(submissionId, priority = 5, delayMs = 0) {
  * Get queue statistics
  */
 async function getQueueStats() {
-  const [waiting, active, completed, failed] = await Promise.all([
+  const [waiting, active, completed, failed, delayed] = await Promise.all([
     evaluationQueue.getWaitingCount(),
     evaluationQueue.getActiveCount(),
     evaluationQueue.getCompletedCount(),
-    evaluationQueue.getFailedCount()
+    evaluationQueue.getFailedCount(),
+    evaluationQueue.getDelayedCount()
   ]);
 
   return {
     waiting,
     active,
+    delayed,
     completed,
     failed,
-    total: waiting + active + completed + failed
+    total: waiting + active + delayed + completed + failed
   };
+}
+
+/** Last few failed Bull jobs (submissionId + reason) for /api/health/evaluation */
+async function getRecentFailedQueueJobs(limit = 5) {
+  const failed = await evaluationQueue.getFailed(0, limit - 1);
+  const out = [];
+  for (const job of failed) {
+    let reason = '';
+    try {
+      reason = job.failedReason || '';
+    } catch {
+      reason = '';
+    }
+    out.push({
+      jobId: job.id,
+      submissionId: job.data && job.data.submissionId,
+      failedReason: reason
+    });
+  }
+  return out;
 }
 
 // When loaded by server.js (or routes), signals are handled there so HTTP + Mongo drain together.
@@ -655,6 +718,9 @@ if (mongoose.connection.readyState === 0) {
 module.exports = {
   evaluationQueue,
   addEvaluationJob,
+  removeEvaluationJobFromQueue,
+  freshProcessingSteps,
   getQueueStats,
+  getRecentFailedQueueJobs,
   closeEvaluationQueue
 };

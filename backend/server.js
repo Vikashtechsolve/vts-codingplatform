@@ -206,16 +206,19 @@ app.all('/api/_diag', (req, res) => {
 // Evaluation queue health (for debugging AI project evaluation)
 app.get('/api/health/evaluation', async (req, res) => {
   try {
-    const { getQueueStats } = require('./workers/evaluationWorker');
+    const { getQueueStats, getRecentFailedQueueJobs } = require('./workers/evaluationWorker');
     const stats = await getQueueStats();
+    const recentFailed = await getRecentFailedQueueJobs(5);
     res.json({
       status: 'OK',
       evaluation: {
         queueConnected: true,
         waiting: stats.waiting,
+        delayed: stats.delayed,
         active: stats.active,
         completed: stats.completed,
-        failed: stats.failed
+        failed: stats.failed,
+        recentFailedJobs: recentFailed
       }
     });
   } catch (err) {

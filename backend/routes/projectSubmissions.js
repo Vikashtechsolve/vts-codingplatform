@@ -6,7 +6,11 @@ const EvaluationJob = require('../models/EvaluationJob');
 const EvaluationResult = require('../models/EvaluationResult');
 const User = require('../models/User');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
-const { addEvaluationJob, getQueueStats } = require('../workers/evaluationWorker');
+const {
+  addEvaluationJob,
+  getQueueStats,
+  freshProcessingSteps
+} = require('../workers/evaluationWorker');
 
 // ==========================================
 // STUDENT ROUTES - Submit Projects
@@ -647,6 +651,9 @@ router.post('/:id/retry-evaluation', authenticateToken, authorizeRoles('vendor_a
       evaluationJob.status = 'queued';
       evaluationJob.error = null;
       evaluationJob.errorDetails = null;
+      evaluationJob.processingSteps = freshProcessingSteps();
+      evaluationJob.startedAt = undefined;
+      evaluationJob.completedAt = undefined;
       evaluationJob.retryCount += 1;
       evaluationJob.queuedAt = new Date();
       await evaluationJob.save();
