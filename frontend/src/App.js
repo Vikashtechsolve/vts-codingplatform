@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import StudentShell from './components/Layout/StudentShell';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { VendorBrandingProvider } from './context/VendorBrandingContext';
@@ -672,23 +673,11 @@ function App() {
               <Route path="/vendor-admin/english-tests/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishTest /></PrivateRoute>} />
               <Route path="/vendor-admin/english-tests/edit/:id" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishTest /></PrivateRoute>} />
 
-              {/* Student Routes */}
-              <Route
-                path="/student/dashboard"
-                element={
-                  <PrivateRoute allowedRoles={['student']}>
-                    <StudentDashboard />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/student/tests/:type"
-                element={
-                  <PrivateRoute allowedRoles={['student']}>
-                    <TestsByType />
-                  </PrivateRoute>
-                }
-              />
+              {/* Student panel — sidebar layout for dashboard & test sections */}
+              <Route path="/student" element={<StudentShell />}>
+                <Route path="dashboard" element={<StudentDashboard />} />
+                <Route path="tests/:type" element={<TestsByType />} />
+              </Route>
               <Route
                 path="/student/interviews"
                 element={<Navigate to="/student/tests/interview" replace />}

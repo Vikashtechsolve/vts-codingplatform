@@ -70,16 +70,20 @@ router.get('/tests', auth, async (req, res) => {
         et => et.testId.toString() === test._id.toString()
       );
       
-      // Find result ID if test is completed
+      // Find result summary if test is completed
       let resultId = null;
+      let percentage = null;
+      let submittedAt = null;
       if (enrollment && enrollment.status === 'completed') {
         const result = await Result.findOne({
           testId: test._id,
           studentId: student._id,
           status: 'completed'
-        }).select('_id');
+        }).select('_id percentage submittedAt');
         if (result) {
           resultId = result._id;
+          percentage = result.percentage ?? null;
+          submittedAt = result.submittedAt ?? null;
         }
       }
 
@@ -95,7 +99,9 @@ router.get('/tests', auth, async (req, res) => {
         ...testObj,
         enrollmentStatus: enrollment ? enrollment.status : 'assigned',
         assignedAt: enrollment ? enrollment.assignedAt : null,
-        resultId: resultId
+        resultId,
+        percentage,
+        submittedAt
       };
     }));
 

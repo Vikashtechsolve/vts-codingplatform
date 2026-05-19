@@ -6,6 +6,11 @@
   overflow-x: hidden;
 }
 
+/* Offset page content when fixed navbar is present */
+.App:has(> .navbar) {
+  padding-top: var(--navbar-height, 72px);
+}
+
 .App::before {
   content: '';
   position: fixed;

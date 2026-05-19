@@ -19,6 +19,7 @@ code {
 }
 
 :root {
+  --navbar-height: 72px;
   --primary-gradient: linear-gradient(to right, #ED0331, #87021C);
   --primary-color: #ED0331;
   --secondary-color: #87021C;

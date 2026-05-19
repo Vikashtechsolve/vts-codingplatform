@@ -1,0 +1,66 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { FiArrowRight, FiPlay, FiAward } from 'react-icons/fi';
+import { STATUS_GROUPS } from '../../../utils/studentSectionItems';
+
+const HIDDEN_META_LABELS = new Set(['Starts', 'Ends']);
+
+const SectionAssessmentCard = ({ item, sectionIcon: SectionIcon, sectionAccent }) => {
+  const displayMeta = (item.meta || []).filter((m) => !HIDDEN_META_LABELS.has(m.label));
+
+  return (
+    <article
+      className={`assessment-card assessment-card--${item.statusGroup}`}
+      style={{ '--card-accent': sectionAccent }}
+    >
+      <div className="assessment-card-head">
+        <span className="assessment-icon">
+          <SectionIcon />
+        </span>
+        <div className="assessment-head-text">
+          <h3 className="assessment-title">{item.title}</h3>
+          <span className={`assessment-badge assessment-badge--${item.statusGroup}`}>
+            {item.statusLabel}
+          </span>
+        </div>
+        {item.score != null && (
+          <span className="assessment-score">{item.score}%</span>
+        )}
+      </div>
+
+      {displayMeta.length > 0 && (
+        <ul className="assessment-details">
+          {displayMeta.map((m) => (
+            <li key={`${m.label}-${m.value}`} className="assessment-detail-item">
+              <span className="assessment-detail-label">{m.label}</span>
+              <span className="assessment-detail-value">{m.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="assessment-card-foot">
+        {item.primary && (
+          <Link
+            to={item.primary.link}
+            className={`assessment-btn assessment-btn--${item.primary.variant || 'primary'}`}
+          >
+            {item.primary.variant === 'secondary' ? <FiAward /> : <FiPlay />}
+            {item.primary.label}
+            <FiArrowRight />
+          </Link>
+        )}
+        {item.secondary && (
+          <Link to={item.secondary.link} className="assessment-btn assessment-btn--ghost">
+            {item.secondary.label}
+          </Link>
+        )}
+        {!item.primary && item.statusGroup === STATUS_GROUPS.PENDING && (
+          <span className="assessment-muted">Awaiting review</span>
+        )}
+      </div>
+    </article>
+  );
+};
+
+export default SectionAssessmentCard;

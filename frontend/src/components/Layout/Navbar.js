@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -19,22 +19,8 @@ const Navbar = () => {
   const { branding } = useVendorBranding();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [showStudentTestsMenu, setShowStudentTestsMenu] = useState(false);
-  const dropdownRef = React.useRef(null);
-
   const hideNavbar =
     AUTH_PATHS.includes(location.pathname) || isJoinPath(location.pathname);
-
-  React.useEffect(() => {
-    if (!showStudentTestsMenu) return;
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setShowStudentTestsMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showStudentTestsMenu]);
 
   if (hideNavbar) {
     return null;
@@ -93,7 +79,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="navbar">
+    <nav className={`navbar${user?.role === 'student' ? ' navbar-student' : ''}`}>
       <div className="navbar-container">
         <Link to={getDashboardLink()} className="navbar-brand">
           {renderBrand()}
@@ -119,43 +105,6 @@ const Navbar = () => {
                   <Link to="/vendor-admin/classrooms" className="navbar-link">Classrooms</Link>
                   <Link to="/vendor-admin/analytics" className="navbar-link">Analytics</Link>
                   <Link to="/vendor-admin/settings" className="navbar-link">Settings</Link>
-                </>
-              )}
-
-              {user.role === 'student' && (
-                <>
-                  <Link to="/student/dashboard" className="navbar-link">Dashboard</Link>
-                  <div
-                    ref={dropdownRef}
-                    className="navbar-dropdown"
-                    onMouseEnter={() => setShowStudentTestsMenu(true)}
-                    onMouseLeave={() => setShowStudentTestsMenu(false)}
-                  >
-                    <button
-                      type="button"
-                      className="navbar-link navbar-link-button"
-                      onClick={() => setShowStudentTestsMenu((prev) => !prev)}
-                      aria-expanded={showStudentTestsMenu}
-                      aria-haspopup="true"
-                    >
-                      Tests ▾
-                    </button>
-                    {showStudentTestsMenu && (
-                      <div className="navbar-dropdown-menu">
-                        <Link to="/student/tests/coding" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Coding Tests</Link>
-                        <Link to="/student/tests/aptitude" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Aptitude Tests</Link>
-                        <Link to="/student/tests/mcq" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>MCQ Tests</Link>
-                        <Link to="/student/tests/mixed" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Mixed Tests</Link>
-                        <Link to="/student/tests/english" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>English & Verbal</Link>
-                        <Link to="/student/tests/core" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Core CS</Link>
-                        <Link to="/student/tests/project" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Project Evaluation (AI)</Link>
-                        <Link to="/student/tests/interview" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Interview</Link>
-                        <Link to="/student/tests/system" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>System Design</Link>
-                        <Link to="/student/tests/tools" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Practical Tools</Link>
-                        <Link to="/student/tests/company" className="navbar-dropdown-item" onClick={() => setShowStudentTestsMenu(false)}>Company Specific</Link>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
 
