@@ -10,6 +10,7 @@ import {
   normalizeBrandSettings,
 } from '../../constants/branding';
 import { applyBrandingToDocument } from '../../utils/applyBranding';
+import { compressLogoImage } from '../../utils/compressLogoImage';
 import './VendorAdminCommon.css';
 import '../../components/Layout/Navbar.css';
 import './Settings.css';
@@ -22,6 +23,7 @@ const VendorSettings = () => {
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [removingLogo, setRemovingLogo] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -51,7 +53,7 @@ const VendorSettings = () => {
     }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -64,10 +66,29 @@ const VendorSettings = () => {
       return;
     }
 
-    if (logoPreview) URL.revokeObjectURL(logoPreview);
-    setLogoFile(file);
-    setLogoPreview(URL.createObjectURL(file));
+    setCompressing(true);
     setMessage({ type: '', text: '' });
+    try {
+      const prepared = await compressLogoImage(file);
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+      setLogoFile(prepared);
+      setLogoPreview(URL.createObjectURL(prepared));
+      if (prepared.size < file.size) {
+        const kb = Math.round(prepared.size / 1024);
+        setMessage({
+          type: 'success',
+          text: `Image optimized for upload (${kb} KB). Large files are resized automatically for the navbar.`,
+        });
+      }
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text: err.message || 'Could not process image. Try PNG or JPG.',
+      });
+      e.target.value = '';
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const handleLogoUpload = async (e) => {
@@ -98,10 +119,13 @@ const VendorSettings = () => {
       setLogoPreview(null);
       setMessage({ type: 'success', text: 'Logo uploaded successfully. It will appear in the navbar for your organization.' });
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error.response?.data?.message || error.message || 'Error uploading logo',
-      });
+      const status = error.response?.status;
+      let text = error.response?.data?.message || error.message || 'Error uploading logo';
+      if (status === 413) {
+        text =
+          'Upload rejected: file too large for the server. Choose a smaller image — we optimize on select, but your host may need a higher upload limit (nginx client_max_body_size).';
+      }
+      setMessage({ type: 'error', text });
     } finally {
       setUploading(false);
     }
@@ -247,12 +271,12 @@ const VendorSettings = () => {
               type="file"
               accept={NAVBAR_LOGO_UPLOAD.acceptMime}
               onChange={handleFileChange}
-              disabled={uploading}
+              disabled={uploading || compressing}
             />
           </div>
           <div className="logo-form-actions">
-            <button type="submit" className="btn btn-primary" disabled={uploading || !logoFile}>
-              {uploading ? 'Uploading…' : 'Upload Logo'}
+            <button type="submit" className="btn btn-primary" disabled={uploading || compressing || !logoFile}>
+              {compressing ? 'Optimizing…' : uploading ? 'Uploading…' : 'Upload Logo'}
             </button>
             {vendor?.logo && (
               <button

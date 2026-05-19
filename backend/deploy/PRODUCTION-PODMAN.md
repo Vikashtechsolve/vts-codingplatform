@@ -74,3 +74,20 @@ Do **not** run `podman rm -f` + `podman run -d` manually anymore — that bypass
 ## Redis `EAI_AGAIN`
 
 Transient DNS to ElastiCache Serverless. Put API and worker in the **same VPC** as Redis and use the in-VPC endpoint. App retries Redis; this does not cause SIGTERM.
+
+## Logo upload returns 413 (Request Entity Too Large)
+
+The Node API allows logos up to **5 MB** (`vendorAdmin.js`). A **413** from `testapi.skilltrixa.com` almost always means **nginx** (or another reverse proxy) in front of the API is blocking the body — default `client_max_body_size` is **1m**.
+
+**Fix on the API host (nginx):**
+
+```nginx
+server {
+    # ...
+    client_max_body_size 10M;
+}
+```
+
+See `deploy/nginx-upload-limits.conf`. Reload nginx after editing.
+
+The frontend also **resizes/compresses** logos on file select before upload so large PNGs stay under typical proxy limits.
