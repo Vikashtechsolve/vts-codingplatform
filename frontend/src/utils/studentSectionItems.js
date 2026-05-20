@@ -115,9 +115,7 @@ export function normalizeInterviewItem(interview) {
   const meta = [];
   if (interview.duration) meta.push({ label: 'Duration', value: `${interview.duration} min` });
   if (interview.interviewType) meta.push({ label: 'Type', value: interview.interviewType });
-  if (interview.topic) meta.push({ label: 'Topic', value: interview.topic });
   if (interview.difficulty) meta.push({ label: 'Difficulty', value: interview.difficulty });
-  if (interview.assignedAt) meta.push({ label: 'Assigned', value: formatDate(interview.assignedAt) });
 
   const actions = { primary: { label: 'Start interview', link: `/student/interviews/${interview._id}`, variant: 'primary' } };
   if (hasCompleted && interview.lastSessionId) {
@@ -133,7 +131,7 @@ export function normalizeInterviewItem(interview) {
   return {
     id: interview._id,
     title: interview.title,
-    description: interview.description,
+    description: null,
     typeLabel: 'interview',
     statusGroup: st.group,
     statusKey: st.key,

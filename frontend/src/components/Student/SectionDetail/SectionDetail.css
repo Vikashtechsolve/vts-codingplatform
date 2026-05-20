@@ -457,6 +457,40 @@
   word-break: break-word;
 }
 
+/* Interview cards — compact meta chips, no topic block */
+.assessment-card--interview .assessment-title {
+  -webkit-line-clamp: 3;
+}
+
+.assessment-interview-meta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assessment-interview-meta li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  line-height: 1.2;
+}
+
+.assessment-interview-meta li svg {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--card-accent, var(--text-secondary));
+}
+
 .assessment-card-foot {
   margin-top: auto;
   display: flex;
@@ -582,7 +616,8 @@
   border-color: #333;
 }
 
-[data-theme='dark'] .assessment-detail-item {
+[data-theme='dark'] .assessment-detail-item,
+[data-theme='dark'] .assessment-interview-meta li {
   background: #1a1a1a;
   border-color: #333;
 }

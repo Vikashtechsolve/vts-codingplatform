@@ -220,6 +220,7 @@ const SectionDetailView = ({ section }) => {
             <SectionAssessmentCard
               key={item.id}
               item={item}
+              sectionId={section.id}
               sectionIcon={SectionIcon}
               sectionAccent={section.accent}
             />

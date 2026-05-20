@@ -16,6 +16,7 @@ import {
   FiMoon,
 } from 'react-icons/fi';
 import './Auth.css';
+import { APP_NAME } from '../../constants/branding';
 import './Login.css';
 
 const FEATURES = [
@@ -107,7 +108,7 @@ const Login = () => {
             <span className="login-brand-icon" aria-hidden="true">
               <FiCode />
             </span>
-            Coding Platform
+            {APP_NAME}
           </div>
 
           <h1>

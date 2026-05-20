@@ -1,3 +1,6 @@
+/** Default product name in navbar and browser title */
+export const APP_NAME = 'Test Platform';
+
 /**
  * Navbar logo sizing — derived from Navbar.css:
  * - .navbar padding: 12px vertical

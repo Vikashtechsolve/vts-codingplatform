@@ -6,6 +6,7 @@ import { useVendorBranding } from '../../context/VendorBrandingContext';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { getBrandingFromUser, getUserVendorId } from '../../utils/user';
 import { getCachedBranding } from '../../utils/brandingCache';
+import { APP_NAME } from '../../constants/branding';
 import { FiSun, FiMoon, FiLogOut, FiUser } from 'react-icons/fi';
 import './Navbar.css';
 
@@ -59,7 +60,7 @@ const Navbar = () => {
 
   const renderBrand = () => {
     if (user?.role === 'super_admin') {
-      return <span className="gradient-text">Coding Platform</span>;
+      return <span className="gradient-text">{APP_NAME}</span>;
     }
     if (logoUrl) {
       return (
@@ -75,7 +76,7 @@ const Navbar = () => {
     if (companyLabel) {
       return <span className="gradient-text navbar-brand-text">{companyLabel}</span>;
     }
-    return <span className="gradient-text">Coding Platform</span>;
+    return <span className="gradient-text">{APP_NAME}</span>;
   };
 
   return (

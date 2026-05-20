@@ -1,16 +1,25 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FiArrowRight, FiPlay, FiAward } from 'react-icons/fi';
+import { FiArrowRight, FiPlay, FiAward, FiClock, FiLayers, FiTrendingUp } from 'react-icons/fi';
 import { STATUS_GROUPS } from '../../../utils/studentSectionItems';
 
-const HIDDEN_META_LABELS = new Set(['Starts', 'Ends']);
+const HIDDEN_META_LABELS = new Set(['Starts', 'Ends', 'Topic']);
 
-const SectionAssessmentCard = ({ item, sectionIcon: SectionIcon, sectionAccent }) => {
+const META_ICONS = {
+  Duration: FiClock,
+  Type: FiLayers,
+  Difficulty: FiTrendingUp,
+};
+
+const SectionAssessmentCard = ({ item, sectionId, sectionIcon: SectionIcon, sectionAccent }) => {
+  const isInterview = sectionId === 'interview';
   const displayMeta = (item.meta || []).filter((m) => !HIDDEN_META_LABELS.has(m.label));
 
   return (
     <article
-      className={`assessment-card assessment-card--${item.statusGroup}`}
+      className={`assessment-card assessment-card--${item.statusGroup}${
+        isInterview ? ' assessment-card--interview' : ''
+      }`}
       style={{ '--card-accent': sectionAccent }}
     >
       <div className="assessment-card-head">
@@ -28,7 +37,21 @@ const SectionAssessmentCard = ({ item, sectionIcon: SectionIcon, sectionAccent }
         )}
       </div>
 
-      {displayMeta.length > 0 && (
+      {displayMeta.length > 0 && isInterview && (
+        <ul className="assessment-interview-meta">
+          {displayMeta.map((m) => {
+            const Icon = META_ICONS[m.label];
+            return (
+              <li key={`${m.label}-${m.value}`}>
+                {Icon && <Icon aria-hidden />}
+                <span>{m.value}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {displayMeta.length > 0 && !isInterview && (
         <ul className="assessment-details">
           {displayMeta.map((m) => (
             <li key={`${m.label}-${m.value}`} className="assessment-detail-item">
