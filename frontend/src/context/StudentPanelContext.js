@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axiosInstance from '../utils/axios';
 
 const StudentPanelContext = createContext(null);
@@ -17,11 +17,15 @@ export function StudentPanelProvider({ children }) {
   const [assignments, setAssignments] = useState([]);
   const [systemDesigns, setSystemDesigns] = useState([]);
   const [englishTrends, setEnglishTrends] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
+  const hasLoadedRef = useRef(false);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async ({ silent = false } = {}) => {
+    const isBackground = silent || hasLoadedRef.current;
+    if (!isBackground) {
+      setInitialLoading(true);
+    }
     setError(null);
     try {
       const [testsRes, interviewsRes, assignmentsRes, systemRes, trendsRes] = await Promise.all([
@@ -39,11 +43,12 @@ export function StudentPanelProvider({ children }) {
       setSystemDesigns(systemRes.data?.problems ?? []);
       if (trendsRes.data?.totalTests > 0) setEnglishTrends(trendsRes.data);
       else setEnglishTrends(null);
+      hasLoadedRef.current = true;
     } catch (err) {
       console.error('Student panel data fetch failed:', err);
       setError('Unable to load your assessments. Please refresh.');
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
   }, []);
 
@@ -138,11 +143,13 @@ export function StudentPanelProvider({ children }) {
       englishTrends,
       counts,
       stats,
-      loading,
+      initialLoading,
+      /** @deprecated use initialLoading — kept so existing screens only spin on first load */
+      loading: initialLoading,
       error,
       refresh,
     }),
-    [tests, interviews, assignments, systemDesigns, englishTrends, counts, stats, loading, error, refresh]
+    [tests, interviews, assignments, systemDesigns, englishTrends, counts, stats, initialLoading, error, refresh]
   );
 
   return <StudentPanelContext.Provider value={value}>{children}</StudentPanelContext.Provider>;

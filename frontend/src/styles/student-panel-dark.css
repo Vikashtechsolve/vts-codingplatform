@@ -1,0 +1,354 @@
+/**
+ * Student panel — global dark mode (loads after page CSS).
+ * Surfaces: #121212 main, #1a1a1a cards, #222 elevated, #333 borders.
+ */
+
+[data-theme='dark'] {
+  --student-dark-surface: #1a1a1a;
+  --student-dark-surface-2: #222222;
+  --student-dark-surface-3: #27272a;
+  --student-dark-border: #3f3f46;
+  --student-dark-muted: #a1a1aa;
+}
+
+/* —— Layout —— */
+[data-theme='dark'] .student-nav-item.active .student-nav-icon {
+  background: #1f1f1f;
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .student-nav-item--announcement.active .student-nav-badge--alert {
+  background: rgba(231, 33, 11, 0.14);
+  color: #f87171;
+}
+
+/* —— Dashboard —— */
+[data-theme='dark'] .student-stat-icon {
+  background: color-mix(in srgb, var(--stat-color) 18%, #1f1f1f);
+}
+
+[data-theme='dark'] .student-continue-icon,
+[data-theme='dark'] .student-category-icon,
+[data-theme='dark'] .tests-by-type-icon-wrap {
+  background: color-mix(in srgb, var(--section-accent, var(--card-accent)) 18%, #1f1f1f);
+}
+
+[data-theme='dark'] .student-section-head,
+[data-theme='dark'] .student-recent-block {
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .student-empty-illustration {
+  background: #27272a;
+  border-color: var(--student-dark-border);
+}
+
+/* —— Section detail (tests by type) —— */
+[data-theme='dark'] .section-top-icon {
+  background: color-mix(in srgb, var(--section-accent) 18%, #1f1f1f);
+  border-color: color-mix(in srgb, var(--section-accent) 28%, var(--student-dark-border));
+}
+
+[data-theme='dark'] .section-stat-card {
+  background: var(--student-dark-surface);
+  border: 1px solid var(--student-dark-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+[data-theme='dark'] .section-pill {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .section-pill--accent {
+  background: color-mix(in srgb, var(--section-accent) 14%, #1f1f1f);
+}
+
+[data-theme='dark'] .section-tab {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+  color: #f4f4f5;
+}
+
+[data-theme='dark'] .section-tab.active {
+  background: color-mix(in srgb, var(--section-accent) 14%, #1f1f1f);
+}
+
+[data-theme='dark'] .section-tab em {
+  background: #18181b;
+  color: var(--student-dark-muted);
+}
+
+[data-theme='dark'] .section-tab.active em {
+  background: var(--section-accent);
+  color: #fff;
+}
+
+[data-theme='dark'] .section-filter-tabs {
+  border-bottom-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .assessment-card::before {
+  opacity: 0.85;
+}
+
+[data-theme='dark'] .assessment-action-btn--primary {
+  box-shadow: none;
+}
+
+/* —— Assignments —— */
+[data-theme='dark'] .filter-tabs button {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+  color: var(--student-dark-muted);
+}
+
+[data-theme='dark'] .assignment-card,
+[data-theme='dark'] .assignment-card-header,
+[data-theme='dark'] .assignment-details-card {
+  background: var(--student-dark-surface);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .assignment-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .submit-assignment-container .back-button,
+[data-theme='dark'] .update-repo-form,
+[data-theme='dark'] .submission-policy-card {
+  background: var(--student-dark-surface);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .back-button:hover {
+  background: var(--student-dark-surface-2);
+}
+
+/* —— Project evaluation result —— */
+[data-theme='dark'] .per-pill-muted,
+[data-theme='dark'] .per-filter-tab,
+[data-theme='dark'] .per-commit-ex,
+[data-theme='dark'] .per-feature-head {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .per-pill {
+  background: color-mix(in srgb, var(--per-accent) 14%, #1f1f1f);
+}
+
+[data-theme='dark'] .per-filter-tab.active {
+  background: color-mix(in srgb, var(--per-accent) 18%, #1f1f1f);
+  color: #a5b4fc;
+}
+
+/* —— System design list / result / follow-up —— */
+[data-theme='dark'] .sdr-back-btn,
+[data-theme='dark'] .sdr-score-header,
+[data-theme='dark'] .sdr-chart-card,
+[data-theme='dark'] .sdr-section-card,
+[data-theme='dark'] .sdr-followup-card {
+  background: var(--student-dark-surface);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .sdr-section-header:hover,
+[data-theme='dark'] .sdr-followup-a,
+[data-theme='dark'] .sdr-compare-col {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .sdr-section-score-bar {
+  background: #18181b;
+}
+
+[data-theme='dark'] .sdr-rich-content code,
+[data-theme='dark'] .sdr-rich-content pre {
+  background: #18181b;
+  color: #e4e4e7;
+}
+
+[data-theme='dark'] .sds-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .sd-submissions-table th {
+  background: var(--student-dark-surface-2);
+  border-bottom-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .sd-submissions-table tr:hover {
+  background: var(--student-dark-surface-2);
+}
+
+/* —— English test taking —— */
+[data-theme='dark'] .english-test-taking .test-header,
+[data-theme='dark'] .english-test-taking .question-sidebar,
+[data-theme='dark'] .english-test-taking .test-footer,
+[data-theme='dark'] .english-test-taking .english-test-footer,
+[data-theme='dark'] .english-test-taking .section-transition-overlay,
+[data-theme='dark'] .english-test-taking .review-screen,
+[data-theme='dark'] .blank-sentence,
+[data-theme='dark'] .vocab-context,
+[data-theme='dark'] .reading-sub-question,
+[data-theme='dark'] .essay-prompt-card,
+[data-theme='dark'] .format-guide pre,
+[data-theme='dark'] .audio-player-card,
+[data-theme='dark'] .listening-sub-question,
+[data-theme='dark'] .speaking-prompt-card,
+[data-theme='dark'] .waveform-canvas,
+[data-theme='dark'] .english-test-taking .notes-area {
+  background: var(--student-dark-surface);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .english-test-taking .mcq-option {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+  color: #e4e4e7;
+}
+
+[data-theme='dark'] .english-test-taking .mcq-option:hover {
+  border-color: rgba(231, 33, 11, 0.5);
+  background: #2a2a2a;
+}
+
+[data-theme='dark'] .english-test-taking .mcq-option.selected {
+  background: rgba(231, 33, 11, 0.12);
+  border-color: rgba(231, 33, 11, 0.55);
+}
+
+[data-theme='dark'] .english-test-taking .fill-blank-input,
+[data-theme='dark'] .english-test-taking .essay-editor .ql-container {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+  color: #f4f4f5;
+}
+
+[data-theme='dark'] .english-test-taking .btn-secondary {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+  color: #f4f4f5;
+}
+
+[data-theme='dark'] .english-test-taking .progress-section.upcoming {
+  background: var(--student-dark-surface-2);
+  color: var(--student-dark-muted);
+}
+
+/* —— Mock interview —— */
+[data-theme='dark'] .interview-room-header,
+[data-theme='dark'] .interviewer-section,
+[data-theme='dark'] .question-card,
+[data-theme='dark'] .answer-area {
+  background: var(--student-dark-surface);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .feedback-header,
+[data-theme='dark'] .summary-card,
+[data-theme='dark'] .feedback-panel,
+[data-theme='dark'] .feedback-answers,
+[data-theme='dark'] .feedback-skill-radar {
+  background: var(--student-dark-surface);
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .skill-radar-bar-wrap {
+  background: #18181b;
+}
+
+/* —— Architecture builder (system design) —— */
+[data-theme='dark'] .arch-palette {
+  background: #18181b;
+  border-right-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .arch-palette-item {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+  color: #e4e4e7;
+}
+
+[data-theme='dark'] .arch-custom-node {
+  background: var(--student-dark-surface);
+  color: #e4e4e7;
+}
+
+[data-theme='dark'] .arch-warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: #f59e0b;
+  color: #fcd34d;
+}
+
+[data-theme='dark'] .arch-text-section textarea {
+  background: var(--student-dark-surface-2);
+  border-color: var(--student-dark-border);
+  color: #f4f4f5;
+}
+
+/* —— Practice panel (from test results) —— */
+[data-theme='dark'] .qpp-panel {
+  background: #1a1a1a;
+  border-color: var(--student-dark-border);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='dark'] .qpp-header {
+  background: #222;
+  border-bottom-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .qpp-close:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+[data-theme='dark'] .qpp-editor-wrap {
+  border-color: var(--student-dark-border);
+}
+
+/* —— Toast —— */
+[data-theme='dark'] .toast {
+  background: #27272a;
+  border-color: var(--student-dark-border);
+  color: #f4f4f5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* —— Coding test: remaining light surfaces —— */
+[data-theme='dark'] .test-taking-container.test-taking--coding .question-sidebar,
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-panel,
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-toolbar {
+  background: #18181b;
+  border-color: var(--student-dark-border);
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-toolbar .language-select {
+  background: #27272a;
+  border-color: var(--student-dark-border);
+  color: #f4f4f5;
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--coding .question-nav-btn {
+  background: #27272a;
+  border-color: var(--student-dark-border);
+  color: #e4e4e7;
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--coding .question-nav-btn:hover {
+  background: #3f3f46;
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--coding .editor-toolbar-title {
+  color: var(--student-dark-muted);
+}
+
+/* —— Join attempt (share links) —— */
+[data-theme='dark'] .join-attempt-card {
+  background: var(--student-dark-surface);
+  border-color: var(--student-dark-border);
+}

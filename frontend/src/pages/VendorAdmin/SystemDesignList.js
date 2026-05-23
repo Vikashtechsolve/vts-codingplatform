@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { truncateForPreview } from '../../components/RichTextDisplay';
 import './SystemDesignList.css';
 
 const CATEGORY_LABELS = {
@@ -104,7 +105,7 @@ const SystemDesignList = () => {
                 </div>
               </div>
 
-              <p className="sd-card-desc">{p.problemStatement?.replace(/<[^>]*>/g, '').substring(0, 150)}...</p>
+              <p className="sd-card-desc">{truncateForPreview(p.problemStatement, 150)}</p>
 
               <div className="sd-card-meta">
                 <span>Duration: {p.duration} min</span>

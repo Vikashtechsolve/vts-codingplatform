@@ -1,18 +1,74 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import Editor from '@monaco-editor/react';
+import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import axiosInstance from '../../utils/axios';
 import {
   CODE_REQUEST_TIMEOUT_BATCH_MS,
   CODE_REQUEST_TIMEOUT_EXECUTE_MS
 } from '../../config/codeExecution';
 import Modal from '../../components/Modal';
+import { useToast } from '../../context/ToastContext';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
+import { useRegisterExamLock } from '../../hooks/useRegisterExamLock';
+import { useExamLock } from '../../context/ExamLockContext';
 import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
+import ExamSecurityOverlay from '../../components/ExamSecurityOverlay';
 import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import { parseSchemaSql } from '../../utils/schemaParser';
 import './TestTaking.css';
+
+/** Stable string key for answer maps (avoids object vs string _id mismatches). */
+const questionKey = (id) => {
+  if (id == null) return '';
+  if (typeof id === 'object' && id._id != null) return String(id._id);
+  return String(id);
+};
+
+const answerFor = (answersMap, questionId) => answersMap[questionKey(questionId)] || {};
+
+const isAnswerAttemptedLocally = (entry) => {
+  if (!entry) return false;
+  if (entry.attempted) return true;
+  if (entry.selectedOption !== undefined && entry.selectedOption !== null) return true;
+  if (Array.isArray(entry.selectedOptions) && entry.selectedOptions.length > 0) return true;
+  if (entry.numericAnswer !== undefined && entry.numericAnswer !== '' && entry.numericAnswer !== null) {
+    return true;
+  }
+  if (typeof entry.textAnswer === 'string' && entry.textAnswer.trim().length > 0) return true;
+  if (typeof entry.sql === 'string' && entry.sql.trim().length > 0) return true;
+  return false;
+};
+
+const buildCodingAnswerState = (questionDoc, existingAnswer) => {
+  const langs = questionDoc?.allowedLanguages || ['python'];
+  const defaultLang = langs[0] || 'python';
+  const savedLang =
+    existingAnswer?.language && langs.includes(existingAnswer.language)
+      ? existingAnswer.language
+      : defaultLang;
+  const starter = { ...(questionDoc?.starterCode || {}) };
+  const codeByLanguage = { ...starter };
+  if (existingAnswer?.answer != null && String(existingAnswer.answer).length > 0) {
+    codeByLanguage[savedLang] = existingAnswer.answer;
+  }
+  const code = codeByLanguage[savedLang] ?? starter[savedLang] ?? '';
+  const hasSavedCode =
+    existingAnswer?.answer != null && String(existingAnswer.answer).trim().length > 0;
+  return {
+    language: savedLang,
+    codeByLanguage,
+    code,
+    attempted: hasSavedCode,
+  };
+};
+
+const getCodingCode = (answersMap, qKey, lang, questionDoc) => {
+  const entry = answersMap[qKey];
+  const fromMap = entry?.codeByLanguage?.[lang];
+  if (fromMap !== undefined && fromMap !== null) return fromMap;
+  return questionDoc?.starterCode?.[lang] ?? '';
+};
 
 /** ER-style schema diagram: tables in a row with arrows for relationships */
 function SchemaView({ schemaSql }) {
@@ -151,10 +207,124 @@ function SchemaView({ schemaSql }) {
   );
 }
 
+/** Build section list synchronously so the UI never flashes "no questions" before useEffect runs */
+function buildSectionsFromTest(test) {
+  if (!test?.questions?.length) return [];
+
+  const codingQuestions = test.questions.filter((q) => q.type === 'coding');
+  const mcqQuestions = test.questions.filter((q) => q.type === 'mcq');
+  const aptitudeQuestions = test.questions.filter((q) => q.type === 'aptitude');
+  const theoryQuestions = test.questions.filter((q) => q.type === 'theory');
+  const sqlQuestions = test.questions.filter((q) => q.type === 'sql');
+
+  const newSections = [];
+  if (codingQuestions.length > 0) {
+    newSections.push({
+      type: 'coding',
+      title: 'Section 1: Coding Questions',
+      questions: codingQuestions,
+    });
+  }
+  if (mcqQuestions.length > 0) {
+    newSections.push({
+      type: 'mcq',
+      title: 'Section 2: MCQ Questions',
+      questions: mcqQuestions,
+    });
+  }
+  if (aptitudeQuestions.length > 0) {
+    newSections.push({
+      type: 'aptitude',
+      title: `Section ${newSections.length + 1}: Aptitude Questions`,
+      questions: aptitudeQuestions,
+    });
+  }
+  if (theoryQuestions.length > 0) {
+    newSections.push({
+      type: 'theory',
+      title: `Section ${newSections.length + 1}: Theory Questions`,
+      questions: theoryQuestions,
+    });
+  }
+  if (sqlQuestions.length > 0) {
+    newSections.push({
+      type: 'sql',
+      title: `Section ${newSections.length + 1}: SQL Questions`,
+      questions: sqlQuestions,
+    });
+  }
+  return newSections;
+}
+
+const SubmissionSummaryPanel = ({ summary, onDismiss }) => {
+  if (!summary) return null;
+  return (
+    <div className="submission-summary submission-summary-inline">
+      <div className="submission-summary-head">
+        <h3>Submission results</h3>
+        <button type="button" className="submission-summary-dismiss" onClick={onDismiss} aria-label="Dismiss results">
+          ×
+        </button>
+      </div>
+      {summary.visibleResults.length > 0 && (
+        <div className="test-case-group">
+          <h4>Sample test cases ({summary.visiblePassed}/{summary.visibleTotal} passed)</h4>
+          <div className="test-case-results-list">
+            {summary.visibleResults.map((result, idx) => (
+              <div key={idx} className={`test-case-result-item ${result.passed ? 'passed' : 'failed'}`}>
+                <div className="test-case-result-header">
+                  <span>Test case {result.testCaseIndex}</span>
+                  <span className={`test-case-status ${result.passed ? 'passed' : 'failed'}`}>
+                    {result.passed ? '✓ Passed' : '✗ Failed'}
+                  </span>
+                </div>
+                {!result.passed && (
+                  <div className="test-case-result-details">
+                    <div><strong>Expected:</strong> <pre>{result.expectedOutput}</pre></div>
+                    <div><strong>Got:</strong> <pre>{result.actualOutput || '(No output)'}</pre></div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {summary.hiddenResults.length > 0 && (
+        <div className="test-case-group">
+          <h4>Hidden test cases ({summary.hiddenPassed}/{summary.hiddenTotal} passed)</h4>
+          <div className="test-case-results-list">
+            {summary.hiddenResults.map((result, idx) => (
+              <div key={idx} className={`test-case-result-item ${result.passed ? 'passed' : 'failed'}`}>
+                <div className="test-case-result-header">
+                  <span>Hidden test case {result.testCaseIndex}</span>
+                  <span className={`test-case-status ${result.passed ? 'passed' : 'failed'}`}>
+                    {result.passed ? '✓ Passed' : '✗ Failed'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="summary-total">
+        <strong>Total: {summary.totalPassed} / {summary.totalTestCases} test cases passed</strong>
+      </div>
+    </div>
+  );
+};
+
+const TestTakingLoader = ({ message = 'Preparing your test…' }) => (
+  <div className="test-taking-loader" role="status" aria-live="polite">
+    <div className="test-taking-loader-spinner" aria-hidden />
+    <p className="test-taking-loader-text">{message}</p>
+  </div>
+);
+
 const TestTaking = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
   const fromShareLink = isFromShareLink(location);
   const [fullscreenReady, setFullscreenReady] = useState(false);
   const [test, setTest] = useState(null);
@@ -162,7 +332,10 @@ const TestTaking = () => {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [savingAnswer, setSavingAnswer] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [timeExpired, setTimeExpired] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('python');
@@ -170,28 +343,68 @@ const TestTaking = () => {
   // Modal states
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   
-  // Exam security - initialize after result is loaded
-  const handleMaxViolations = async () => {
-    showModal('Auto-Submission', `You have reached the maximum number of violations. Your test will be automatically submitted.`, 'error');
-    setTimeout(async () => {
-      await handleSubmitTest();
+  const handleSubmitTestRef = useRef(null);
+
+  // Exam security - stable handlers so the timer does not reset proctoring every second
+  const handleMaxViolations = useCallback(() => {
+    setModal({
+      isOpen: true,
+      title: 'Auto-Submission',
+      message: 'You have reached the maximum number of violations. Your test will be automatically submitted.',
+      type: 'error',
+    });
+    setTimeout(() => {
+      handleSubmitTestRef.current?.(true);
     }, 2000);
-  };
+  }, []);
+
+  const handleViolationWarning = useCallback((currentViolations, maxViolations) => {
+    setModal({
+      isOpen: true,
+      title: 'Violation Warning',
+      message: `Warning: You have ${currentViolations} violation(s). After ${maxViolations} violations, your test will be automatically submitted. Please follow the exam rules.`,
+      type: 'warning',
+    });
+  }, []);
   
-  const handleViolationWarning = (currentViolations, maxViolations) => {
-    showModal(
-      'Violation Warning', 
-      `Warning: You have ${currentViolations} violation(s). After ${maxViolations} violations, your test will be automatically submitted. Please follow the exam rules.`, 
-      'warning'
-    );
-  };
-  
-  const { violations, isFullscreen, requestFullscreen } = useExamSecurity(
+  const {
+    violations,
+    maxViolations,
+    isFullscreen,
+    requestFullscreen,
+    trackViolation,
+    securityOverlay,
+    onReenterFullscreen,
+  } = useExamSecurity(
     result?._id || null,
     handleMaxViolations,
     handleViolationWarning,
-    { autoRequestFullscreen: !fromShareLink }
+    {
+      autoRequestFullscreen: !fromShareLink,
+      initialViolationCount: result?.violationCount ?? 0,
+    }
   );
+
+  const examInProgress = Boolean(
+    result?._id && result?.status === 'in_progress' && test && !submitting
+  );
+  useRegisterExamLock(examInProgress, { trackViolation });
+  const { allowNextNavigation } = useExamLock();
+
+  const goToResult = useCallback((id) => {
+    if (!id) return;
+    allowNextNavigation();
+    try {
+      navigate(`/student/result/${id}`, { replace: true });
+    } catch (_) {
+      // navigation may fail in edge cases; fallback below
+    }
+    setTimeout(() => {
+      if (!window.location.pathname.includes('/student/result/')) {
+        window.location.href = `/student/result/${id}`;
+      }
+    }, 300);
+  }, [navigate, allowNextNavigation]);
 
   useEffect(() => {
     if (isFullscreen || isDocumentFullscreen()) {
@@ -225,8 +438,17 @@ const TestTaking = () => {
   const [leftPanelWidth, setLeftPanelWidth] = useState(50); // percentage
   const [isResizing, setIsResizing] = useState(false);
   
-  // Organize questions into sections
-  const [sections, setSections] = useState([]);
+  const sections = useMemo(() => buildSectionsFromTest(test), [test]);
+
+  const questionProgress = useMemo(() => {
+    const total = sections.reduce((sum, sec) => sum + sec.questions.length, 0);
+    let num = 0;
+    for (let i = 0; i < currentSectionIndex; i += 1) {
+      num += sections[i].questions.length;
+    }
+    num += currentQuestionIndex + 1;
+    return { totalQuestions: total, currentQuestionNumber: num };
+  }, [sections, currentSectionIndex, currentQuestionIndex]);
 
   useEffect(() => {
     fetchTest();
@@ -275,9 +497,11 @@ const TestTaking = () => {
 
   const handleSubmitTest = async (skipConfirmation = false) => {
     if (!result) {
-      showModal('Error', 'Test session not found', 'error');
+      showToast('Test session not found', 'error');
       return;
     }
+
+    if (submitting) return;
     
     // Show confirmation modal instead of browser confirm
     if (!skipConfirmation) {
@@ -289,20 +513,36 @@ const TestTaking = () => {
       return;
     }
     
-    // Actually submit the test
+  // Actually submit the test
     try {
-      setLoading(true);
+      setSubmitting(true);
+      setPageLoading(true);
       console.log('📤 Submitting test:', result._id);
-      await axiosInstance.post(`/results/${result._id}/submit`);
+      const response = await axiosInstance.post(`/results/${result._id}/submit`);
       console.log('✅ Test submitted successfully');
-      navigate(`/student/result/${result._id}`);
+      const finalId = response?.data?._id || result._id;
+      goToResult(finalId);
     } catch (error) {
-      setLoading(false);
+      setPageLoading(false);
+      setSubmitting(false);
       console.error('❌ Error submitting test:', error);
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error submitting test';
-      showModal('Error', errorMsg, 'error');
+      const status = error?.response?.status;
+      const serverMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error submitting test';
+      const alreadySubmitted =
+        status === 400 && typeof serverMsg === 'string' && serverMsg.toLowerCase().includes('already');
+
+      if (alreadySubmitted) {
+        goToResult(error.response?.data?.resultId || result._id);
+        return;
+      }
+
+      showToast(serverMsg, 'error');
     }
   };
+
+  useEffect(() => {
+    handleSubmitTestRef.current = handleSubmitTest;
+  });
 
   useEffect(() => {
     if (result && result.status === 'in_progress' && test) {
@@ -333,55 +573,6 @@ const TestTaking = () => {
     }
   }, [result, test, timeExpired]);
 
-  // Organize questions into sections
-  useEffect(() => {
-    if (test && test.questions) {
-      const codingQuestions = test.questions.filter(q => q.type === 'coding');
-      const mcqQuestions = test.questions.filter(q => q.type === 'mcq');
-      const aptitudeQuestions = test.questions.filter(q => q.type === 'aptitude');
-      const theoryQuestions = test.questions.filter(q => q.type === 'theory');
-      const sqlQuestions = test.questions.filter(q => q.type === 'sql');
-      
-      const newSections = [];
-      if (codingQuestions.length > 0) {
-        newSections.push({
-          type: 'coding',
-          title: 'Section 1: Coding Questions',
-          questions: codingQuestions
-        });
-      }
-      if (mcqQuestions.length > 0) {
-        newSections.push({
-          type: 'mcq',
-          title: 'Section 2: MCQ Questions',
-          questions: mcqQuestions
-        });
-      }
-      if (aptitudeQuestions.length > 0) {
-        newSections.push({
-          type: 'aptitude',
-          title: `Section ${newSections.length + 1}: Aptitude Questions`,
-          questions: aptitudeQuestions
-        });
-      }
-      if (theoryQuestions.length > 0) {
-        newSections.push({
-          type: 'theory',
-          title: `Section ${newSections.length + 1}: Theory Questions`,
-          questions: theoryQuestions
-        });
-      }
-      if (sqlQuestions.length > 0) {
-        newSections.push({
-          type: 'sql',
-          title: `Section ${newSections.length + 1}: SQL Questions`,
-          questions: sqlQuestions
-        });
-      }
-      setSections(newSections);
-    }
-  }, [test]);
-
   // Normalize output for comparison (handles whitespace, newlines, etc.)
   const normalizeOutput = (output) => {
     if (!output) return '';
@@ -402,30 +593,35 @@ const TestTaking = () => {
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '', type: 'info' });
     setCodeExecutionResult(null);
-    setSubmissionSummary(null);
   };
 
   const fetchTest = async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
+      setLoadError(null);
+      setTest(null);
+      setResult(null);
       console.log('📥 Fetching test:', testId);
-      
+
       const testRes = await axiosInstance.get(`/tests/${testId}`);
       console.log('✅ Test fetched:', testRes.data);
-      
-      if (!testRes.data || !testRes.data.questions || testRes.data.questions.length === 0) {
-        showModal('Error', 'Test has no questions. Please contact your instructor.', 'error');
-        setTimeout(() => navigate('/student/dashboard'), 2000);
+
+      if (!testRes.data?.questions?.length) {
+        setLoadError('This test has no questions. Please contact your instructor.');
         return;
       }
 
-      setTest(testRes.data);
+      const builtSections = buildSectionsFromTest(testRes.data);
+      if (!builtSections.length) {
+        setLoadError('This test has no supported question types. Please contact your instructor.');
+        return;
+      }
 
-      // Start test
       console.log('🚀 Starting test...');
       const resultRes = await axiosInstance.post(`/results/start/${testId}`);
       console.log('✅ Test started:', resultRes.data);
-      
+
+      setTest(testRes.data);
       setResult(resultRes.data);
       
       // Initialize answers with starter code for coding questions and previous answers if continuing
@@ -434,65 +630,83 @@ const TestTaking = () => {
         const existingAnswer = resultRes.data.answers.find(a => a.questionId.toString() === q.questionId._id.toString());
         
         if (q.type === 'coding') {
-          const defaultLang = q.questionId.allowedLanguages?.[0] || 'python';
-          initialAnswers[q.questionId._id] = {
-            code: existingAnswer?.answer || q.questionId.starterCode?.[defaultLang] || '',
-            attempted: !!existingAnswer?.answer
-          };
+          initialAnswers[questionKey(q.questionId._id)] = buildCodingAnswerState(
+            q.questionId,
+            existingAnswer
+          );
         } else if (q.type === 'mcq') {
-          initialAnswers[q.questionId._id] = {
+          const qk = questionKey(q.questionId._id);
+          initialAnswers[qk] = {
             selectedOption: existingAnswer?.answer !== undefined ? existingAnswer.answer : null,
-            attempted: existingAnswer?.answer !== undefined
+            attempted: existingAnswer?.answer !== undefined && existingAnswer?.answer !== null
           };
         } else if (q.type === 'aptitude') {
+          const qk = questionKey(q.questionId._id);
           const questionType = q.questionId.questionType;
           if (questionType === 'numeric') {
             const numericValue = existingAnswer?.answer !== undefined ? existingAnswer.answer : '';
-            initialAnswers[q.questionId._id] = {
+            initialAnswers[qk] = {
               numericAnswer: numericValue,
               attempted: numericValue !== '' && numericValue !== null && numericValue !== undefined
             };
           } else if (questionType === 'multi') {
             const selectedOptions = Array.isArray(existingAnswer?.answer) ? existingAnswer.answer : [];
-            initialAnswers[q.questionId._id] = {
+            initialAnswers[qk] = {
               selectedOptions,
               attempted: selectedOptions.length > 0
             };
           } else {
-            initialAnswers[q.questionId._id] = {
+            initialAnswers[qk] = {
               selectedOption: existingAnswer?.answer !== undefined ? existingAnswer.answer : null,
-              attempted: existingAnswer?.answer !== undefined
+              attempted: existingAnswer?.answer !== undefined && existingAnswer?.answer !== null
             };
           }
         } else if (q.type === 'theory') {
+          const qk = questionKey(q.questionId._id);
           const theoryAnswer = existingAnswer?.answer || '';
-          initialAnswers[q.questionId._id] = {
+          initialAnswers[qk] = {
             textAnswer: theoryAnswer,
             attempted: theoryAnswer.trim().length > 0
           };
         } else if (q.type === 'sql') {
+          const qk = questionKey(q.questionId._id);
           const sqlAnswer = existingAnswer?.answer || '';
-          initialAnswers[q.questionId._id] = {
+          initialAnswers[qk] = {
             sql: sqlAnswer,
             attempted: sqlAnswer.trim().length > 0
           };
         }
       });
       setAnswers(initialAnswers);
-      
-      // Set default language for first coding question
-      const firstQuestion = testRes.data.questions.find(q => q.type === 'coding');
-      if (firstQuestion && firstQuestion.questionId?.allowedLanguages) {
-        setSelectedLanguage(firstQuestion.questionId.allowedLanguages[0] || 'python');
+
+      const firstCoding = testRes.data.questions.find((q) => q.type === 'coding');
+      if (firstCoding?.questionId) {
+        const fk = questionKey(firstCoding.questionId._id);
+        setSelectedLanguage(initialAnswers[fk]?.language || firstCoding.questionId.allowedLanguages?.[0] || 'python');
       }
-      
-      setLoading(false);
     } catch (error) {
       console.error('❌ Error fetching/starting test:', error);
-      const errorMsg = error.response?.data?.message || 'Error loading test. Please try again.';
-      showModal('Error', errorMsg, 'error');
-      setTimeout(() => navigate('/student/dashboard'), 2000);
-      setLoading(false);
+      const serverMsg = error.response?.data?.message || '';
+      const existingResultId = error.response?.data?.resultId;
+      const alreadyCompleted =
+        error.response?.status === 400 &&
+        typeof serverMsg === 'string' &&
+        serverMsg.toLowerCase().includes('already completed');
+
+      if (alreadyCompleted && existingResultId) {
+        goToResult(existingResultId);
+        return;
+      }
+
+      const errorMsg =
+        serverMsg ||
+        error.response?.data?.error ||
+        'Unable to start the test. Please try again.';
+      setTest(null);
+      setResult(null);
+      setLoadError(errorMsg);
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -503,9 +717,15 @@ const TestTaking = () => {
     return section.questions[currentQuestionIndex];
   };
 
-  const getQuestionStatus = (questionId) => {
+  const getQuestionStatus = (questionId, questionType) => {
+    const qk = questionKey(questionId);
+
+    if (questionType !== 'coding' && isAnswerAttemptedLocally(answers[qk])) {
+      return 'attempted';
+    }
+
     if (!result || !result.answers) return 'not-attempted';
-    const answer = result.answers.find(a => a.questionId.toString() === questionId.toString());
+    const answer = result.answers.find((a) => a.questionId.toString() === qk);
     if (!answer || answer.answer === undefined || answer.answer === null) return 'not-attempted';
     if (Array.isArray(answer.answer)) {
       return answer.answer.length > 0 ? 'attempted' : 'not-attempted';
@@ -513,27 +733,74 @@ const TestTaking = () => {
     if (typeof answer.answer === 'string' && answer.answer.trim() === '') {
       return 'not-attempted';
     }
+    if (questionType === 'coding') {
+      return 'attempted';
+    }
     return 'attempted';
   };
+
+  const persistQuestionAnswer = useCallback(
+    async (questionId, answer, extra = {}) => {
+      if (!result?._id) return false;
+      const qIdApi = questionKey(questionId);
+      try {
+        await axiosInstance.post(`/results/${result._id}/answer`, {
+          questionId: qIdApi,
+          answer,
+          ...extra,
+        });
+        const updatedResult = await axiosInstance.get(`/results/${result._id}`);
+        setResult(updatedResult.data);
+        return true;
+      } catch (error) {
+        console.error('Error saving answer:', error);
+        return false;
+      }
+    },
+    [result?._id]
+  );
+
+  // Restore per-question language when navigating the question list
+  useEffect(() => {
+    const question = getCurrentQuestion();
+    if (!question?.questionId || question.type !== 'coding') return;
+    const qKey = questionKey(question.questionId._id);
+    const langs = question.questionId.allowedLanguages || ['python'];
+    const stored = answers[qKey]?.language;
+    const nextLang = stored && langs.includes(stored) ? stored : langs[0];
+    setSelectedLanguage(nextLang);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync language on navigation only
+  }, [currentSectionIndex, currentQuestionIndex, sections]);
 
   const handleLanguageChange = (newLanguage) => {
     const question = getCurrentQuestion();
     if (!question || !question.questionId || question.type !== 'coding') return;
-    
-    const questionId = question.questionId._id;
-    const starterCode = question.questionId.starterCode?.[newLanguage] || '';
-    
-    // Always update to new starter code when language changes
-    // This ensures boilerplate code changes properly
+
+    const qKey = questionKey(question.questionId._id);
+    const starter = question.questionId.starterCode || {};
+
     setSelectedLanguage(newLanguage);
-    setAnswers({
-      ...answers,
-      [questionId]: {
-        ...answers[questionId],
-        code: starterCode || ''
-      }
+    setAnswers((prev) => {
+      const entry = prev[qKey] || {};
+      const codeByLanguage = { ...(entry.codeByLanguage || {}) };
+      const currentCode = getCodingCode(prev, qKey, selectedLanguage, question.questionId);
+      codeByLanguage[selectedLanguage] = currentCode;
+      const nextCode =
+        codeByLanguage[newLanguage] !== undefined
+          ? codeByLanguage[newLanguage]
+          : starter[newLanguage] ?? '';
+      codeByLanguage[newLanguage] = nextCode;
+      return {
+        ...prev,
+        [qKey]: {
+          ...entry,
+          language: newLanguage,
+          codeByLanguage,
+          code: nextCode,
+          attempted: entry.attempted ?? false,
+        },
+      };
     });
-    // Clear test case results when language changes
     setTestCaseResults([]);
     setCustomTestResult(null);
   };
@@ -541,110 +808,141 @@ const TestTaking = () => {
   const handleCodeChange = (value) => {
     const question = getCurrentQuestion();
     if (!question || !question.questionId) return;
-    
-    setAnswers({
-      ...answers,
-      [question.questionId._id]: {
-        ...answers[question.questionId._id],
-        code: value || '',
-        attempted: (value || '').trim().length > 0
-      }
+
+    const qKey = questionKey(question.questionId._id);
+    const code = value ?? '';
+
+    setAnswers((prev) => {
+      const entry = prev[qKey] || {};
+      const codeByLanguage = { ...(entry.codeByLanguage || {}), [selectedLanguage]: code };
+      return {
+        ...prev,
+        [qKey]: {
+          ...entry,
+          language: selectedLanguage,
+          codeByLanguage,
+          code,
+          attempted: entry.attempted ?? false,
+        },
+      };
     });
-    // Clear test case results when code changes
     setTestCaseResults([]);
     setCustomTestResult(null);
   };
 
-  const handleMCQAnswer = (optionIndex) => {
+  const handleMCQAnswer = async (optionIndex) => {
     const question = getCurrentQuestion();
-    if (!question || !question.questionId) return;
-    
-    setAnswers({
-      ...answers,
-      [question.questionId._id]: {
-        ...answers[question.questionId._id],
+    if (!question?.questionId) return;
+
+    const qKey = questionKey(question.questionId._id);
+    setAnswers((prev) => ({
+      ...prev,
+      [qKey]: {
+        ...prev[qKey],
         selectedOption: optionIndex,
-        attempted: true
-      }
-    });
+        attempted: true,
+      },
+    }));
+
+    const saved = await persistQuestionAnswer(question.questionId._id, optionIndex);
+    if (!saved) {
+      showToast('Could not save your answer. Please try again.', 'error');
+    }
   };
 
-  const handleAptitudeSingle = (optionIndex) => {
+  const handleAptitudeSingle = async (optionIndex) => {
     const question = getCurrentQuestion();
-    if (!question || !question.questionId) return;
-    setAnswers({
-      ...answers,
-      [question.questionId._id]: {
-        ...answers[question.questionId._id],
+    if (!question?.questionId) return;
+
+    const qKey = questionKey(question.questionId._id);
+    setAnswers((prev) => ({
+      ...prev,
+      [qKey]: {
+        ...prev[qKey],
         selectedOption: optionIndex,
-        attempted: true
-      }
-    });
+        attempted: true,
+      },
+    }));
+
+    const saved = await persistQuestionAnswer(question.questionId._id, optionIndex);
+    if (!saved) {
+      showToast('Could not save your answer. Please try again.', 'error');
+    }
   };
 
   const handleAptitudeMulti = (optionIndex) => {
     const question = getCurrentQuestion();
-    if (!question || !question.questionId) return;
-    const current = answers[question.questionId._id]?.selectedOptions || [];
-    const exists = current.includes(optionIndex);
-    const updated = exists
-      ? current.filter(idx => idx !== optionIndex)
-      : [...current, optionIndex];
-    setAnswers({
-      ...answers,
-      [question.questionId._id]: {
-        ...answers[question.questionId._id],
-        selectedOptions: updated,
-        attempted: updated.length > 0
-      }
+    if (!question?.questionId) return;
+
+    const qKey = questionKey(question.questionId._id);
+    setAnswers((prev) => {
+      const current = prev[qKey]?.selectedOptions || [];
+      const exists = current.includes(optionIndex);
+      const updated = exists
+        ? current.filter((idx) => idx !== optionIndex)
+        : [...current, optionIndex];
+      return {
+        ...prev,
+        [qKey]: {
+          ...prev[qKey],
+          selectedOptions: updated,
+          attempted: updated.length > 0,
+        },
+      };
     });
   };
 
   const handleAptitudeNumeric = (value) => {
     const question = getCurrentQuestion();
-    if (!question || !question.questionId) return;
-    setAnswers({
-      ...answers,
-      [question.questionId._id]: {
-        ...answers[question.questionId._id],
+    if (!question?.questionId) return;
+
+    const qKey = questionKey(question.questionId._id);
+    setAnswers((prev) => ({
+      ...prev,
+      [qKey]: {
+        ...prev[qKey],
         numericAnswer: value,
-        attempted: value !== '' && value !== null && value !== undefined
-      }
-    });
+        attempted: value !== '' && value !== null && value !== undefined,
+      },
+    }));
   };
 
   const handleTheoryAnswerChange = (value) => {
     const question = getCurrentQuestion();
-    if (!question || !question.questionId) return;
-    setAnswers({
-      ...answers,
-      [question.questionId._id]: {
-        ...answers[question.questionId._id],
+    if (!question?.questionId) return;
+
+    const qKey = questionKey(question.questionId._id);
+    setAnswers((prev) => ({
+      ...prev,
+      [qKey]: {
+        ...prev[qKey],
         textAnswer: value,
-        attempted: value.trim().length > 0
-      }
-    });
+        attempted: value.trim().length > 0,
+      },
+    }));
   };
 
   const handleSqlChange = (value) => {
     const question = getCurrentQuestion();
-    if (!question || !question.questionId) return;
-    setAnswers({
-      ...answers,
-      [question.questionId._id]: {
-        ...answers[question.questionId._id],
+    if (!question?.questionId) return;
+
+    const qKey = questionKey(question.questionId._id);
+    setAnswers((prev) => ({
+      ...prev,
+      [qKey]: {
+        ...prev[qKey],
         sql: value || '',
-        attempted: (value || '').trim().length > 0
-      }
-    });
+        attempted: (value || '').trim().length > 0,
+      },
+    }));
   };
 
   const handleRunSql = async () => {
     const question = getCurrentQuestion();
     if (!question || !question.questionId || !result) return;
-    const query = answers[question.questionId._id]?.sql || '';
+    const query = answerFor(answers, question.questionId._id).sql || '';
     if (!query.trim()) {
-      showModal('Warning', 'Please enter a SQL query first', 'warning');
+      showToast('Please enter a SQL query first', 'warning');
       return;
     }
     setIsRunningSql(true);
@@ -678,10 +976,10 @@ const TestTaking = () => {
           });
           const updatedResult = await axiosInstance.get(`/results/${resultIdForApi}`);
           setResult(updatedResult.data);
-          showModal('Answer saved', 'Correct! Your answer was saved automatically.', 'success');
+          showToast('Correct! Your answer was saved automatically.', 'success');
         } catch (saveErr) {
           console.error('Auto-save SQL answer failed:', saveErr);
-          showModal('Save failed', 'Your answer was correct but could not be saved automatically. Please click Save Answer.', 'warning');
+          showToast('Your answer was correct but could not be saved automatically. Please click Save Answer.', 'warning');
         }
       }
     } catch (err) {
@@ -699,19 +997,20 @@ const TestTaking = () => {
   const handleRunCustomTestCase = async () => {
     const question = getCurrentQuestion();
     if (!question || !question.questionId) {
-      showModal('Error', 'Question not loaded', 'error');
+      showToast('Question not loaded', 'error');
       return;
     }
     
-    const code = answers[question.questionId._id]?.code || question.questionId.starterCode?.[selectedLanguage] || '';
+    const qKey = questionKey(question.questionId._id);
+    const code = getCodingCode(answers, qKey, selectedLanguage, question.questionId);
 
     if (!code.trim()) {
-      showModal('Warning', 'Please write some code first', 'warning');
+      showToast('Please write some code first', 'warning');
       return;
     }
 
     if (!customTestCase.input.trim()) {
-      showModal('Warning', 'Please provide input for the test case', 'warning');
+      showToast('Please provide input for the test case', 'warning');
       return;
     }
 
@@ -757,14 +1056,15 @@ const TestTaking = () => {
   const handleRunCode = async () => {
     const question = getCurrentQuestion();
     if (!question || !question.questionId) {
-      showModal('Error', 'Question not loaded', 'error');
+      showToast('Question not loaded', 'error');
       return;
     }
     
-    const code = answers[question.questionId._id]?.code || question.questionId.starterCode?.[selectedLanguage] || '';
+    const qKey = questionKey(question.questionId._id);
+    const code = getCodingCode(answers, qKey, selectedLanguage, question.questionId);
 
     if (!code.trim()) {
-      showModal('Warning', 'Please write some code first', 'warning');
+      showToast('Please write some code first', 'warning');
       return;
     }
 
@@ -776,7 +1076,7 @@ const TestTaking = () => {
       const visibleTestCases = questionData.testCases?.filter(tc => !tc.isHidden) || [];
       
       if (visibleTestCases.length === 0) {
-        showModal('Info', 'No sample test cases available for this question.', 'info');
+        showToast('No sample test cases available for this question.', 'info');
         setIsRunningTests(false);
         return;
       }
@@ -805,9 +1105,9 @@ const TestTaking = () => {
       const totalCount = results.length;
       
       if (passedCount === totalCount) {
-        showModal('All Test Cases Passed!', `All ${totalCount} sample test case(s) passed!`, 'success');
+        showToast(`All ${totalCount} sample test case(s) passed!`, 'success', { title: 'All test cases passed' });
       } else {
-        showModal('Some Test Cases Failed', `${passedCount} out of ${totalCount} sample test case(s) passed.`, 'warning');
+        showToast(`${passedCount} out of ${totalCount} sample test case(s) passed.`, 'warning', { title: 'Some test cases failed' });
       }
     } catch (error) {
       setIsRunningTests(false);
@@ -819,27 +1119,29 @@ const TestTaking = () => {
       if (error.code === 'ECONNABORTED') {
         errorMsg = 'Request timed out. Is the code-worker running with the same Redis URL and app version as the API?';
       }
-      showModal('Code Execution Error', errorMsg, 'error');
+      showToast(errorMsg, 'error', { title: 'Code execution error' });
     }
   };
 
   const handleSubmitAnswer = async () => {
     const question = getCurrentQuestion();
     if (!question || !question.questionId || !result) {
-      showModal('Error', 'Test data not loaded', 'error');
+      showToast('Test data not loaded', 'error');
       return;
     }
     
     const questionId = question.questionId._id;
+    const qKey = questionKey(questionId);
+    const localAnswer = answerFor(answers, questionId);
 
     try {
-      setLoading(true);
+      setSavingAnswer(true);
       if (question.type === 'coding') {
-        const code = answers[questionId]?.code || '';
+        const code = getCodingCode(answers, qKey, selectedLanguage, question.questionId);
         
         if (!code.trim()) {
-          showModal('Warning', 'Please write some code before saving', 'warning');
-          setLoading(false);
+          showToast('Please write some code before saving', 'warning');
+          setSavingAnswer(false);
           return;
         }
         
@@ -908,101 +1210,92 @@ const TestTaking = () => {
         });
         setHiddenTestCaseResults(hiddenResults);
         
-        showModal('Answer Saved', '', 'success');
+        showToast('Answer saved successfully', 'success');
         
         // Refresh result to get updated answers
         const updatedResult = await axiosInstance.get(`/results/${result._id}`);
         setResult(updatedResult.data);
+        setAnswers((prev) => ({
+          ...prev,
+          [qKey]: { ...prev[qKey], attempted: true },
+        }));
       } else if (question.type === 'mcq') {
-        if (answers[questionId]?.selectedOption === undefined || answers[questionId]?.selectedOption === null) {
-          showModal('Warning', 'Please select an answer', 'warning');
-          setLoading(false);
+        if (localAnswer.selectedOption === undefined || localAnswer.selectedOption === null) {
+          showToast('Please select an answer', 'warning');
+          setSavingAnswer(false);
           return;
         }
 
-        await axiosInstance.post(`/results/${result._id}/answer`, {
-          questionId,
-          answer: answers[questionId]?.selectedOption
-        });
-
-        showModal('Success', 'Answer saved successfully!', 'success');
-        const updatedResult = await axiosInstance.get(`/results/${result._id}`);
-        setResult(updatedResult.data);
+        const saved = await persistQuestionAnswer(questionId, localAnswer.selectedOption);
+        if (saved) {
+          showToast('Answer saved successfully', 'success');
+        } else {
+          showToast('Could not save answer', 'error');
+        }
       } else if (question.type === 'aptitude') {
         const questionType = question.questionId.questionType;
         if (questionType === 'numeric') {
-          const numericValue = answers[questionId]?.numericAnswer;
+          const numericValue = localAnswer.numericAnswer;
           if (numericValue === '' || numericValue === null || numericValue === undefined) {
-            showModal('Warning', 'Please enter a numeric answer', 'warning');
-            setLoading(false);
+            showToast('Please enter a numeric answer', 'warning');
+            setSavingAnswer(false);
             return;
           }
-          await axiosInstance.post(`/results/${result._id}/answer`, {
-            questionId,
-            answer: numericValue
-          });
+          const saved = await persistQuestionAnswer(questionId, numericValue);
+          if (saved) showToast('Answer saved successfully', 'success');
+          else showToast('Could not save answer', 'error');
         } else if (questionType === 'multi') {
-          const selectedOptions = answers[questionId]?.selectedOptions || [];
+          const selectedOptions = localAnswer.selectedOptions || [];
           if (!selectedOptions.length) {
-            showModal('Warning', 'Please select at least one option', 'warning');
-            setLoading(false);
+            showToast('Please select at least one option', 'warning');
+            setSavingAnswer(false);
             return;
           }
-          await axiosInstance.post(`/results/${result._id}/answer`, {
-            questionId,
-            answer: selectedOptions
-          });
+          const saved = await persistQuestionAnswer(questionId, selectedOptions);
+          if (saved) showToast('Answer saved successfully', 'success');
+          else showToast('Could not save answer', 'error');
         } else {
-          const selectedOption = answers[questionId]?.selectedOption;
+          const selectedOption = localAnswer.selectedOption;
           if (selectedOption === undefined || selectedOption === null) {
-            showModal('Warning', 'Please select an answer', 'warning');
-            setLoading(false);
+            showToast('Please select an answer', 'warning');
+            setSavingAnswer(false);
             return;
           }
-          await axiosInstance.post(`/results/${result._id}/answer`, {
-            questionId,
-            answer: selectedOption
-          });
+          const saved = await persistQuestionAnswer(questionId, selectedOption);
+          if (saved) showToast('Answer saved successfully', 'success');
+          else showToast('Could not save answer', 'error');
         }
-
-        showModal('Success', 'Answer saved successfully!', 'success');
-        const updatedResult = await axiosInstance.get(`/results/${result._id}`);
-        setResult(updatedResult.data);
       } else if (question.type === 'theory') {
-        const textAnswer = answers[questionId]?.textAnswer || '';
+        const textAnswer = localAnswer.textAnswer || '';
         if (!textAnswer.trim()) {
-          showModal('Warning', 'Please enter your answer', 'warning');
-          setLoading(false);
+          showToast('Please enter your answer', 'warning');
+          setSavingAnswer(false);
           return;
         }
-        await axiosInstance.post(`/results/${result._id}/answer`, {
-          questionId,
-          answer: textAnswer
-        });
-        showModal('Success', 'Answer saved successfully!', 'success');
-        const updatedResult = await axiosInstance.get(`/results/${result._id}`);
-        setResult(updatedResult.data);
+        const saved = await persistQuestionAnswer(questionId, textAnswer);
+        if (saved) showToast('Answer saved successfully', 'success');
+        else showToast('Could not save answer', 'error');
       } else if (question.type === 'sql') {
-        const sqlAnswer = answers[questionId]?.sql || '';
+        const sqlAnswer = localAnswer.sql || '';
         const resultIdForApi = typeof result._id === 'object' && result._id?.toString ? result._id.toString() : String(result._id);
         const questionIdForApi = typeof questionId === 'object' && questionId?.toString ? questionId.toString() : String(questionId);
         await axiosInstance.post(`/results/${resultIdForApi}/answer`, {
           questionId: questionIdForApi,
           answer: sqlAnswer
         });
-        showModal('Success', 'Answer saved successfully!', 'success');
+        showToast('Answer saved successfully', 'success');
         const updatedResult = await axiosInstance.get(`/results/${resultIdForApi}`);
         setResult(updatedResult.data);
       }
-      setLoading(false);
+      setSavingAnswer(false);
     } catch (error) {
-      setLoading(false);
+      setSavingAnswer(false);
       console.error('❌ Error submitting answer:', error);
       let errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error saving answer';
       if (error.code === 'ECONNABORTED') {
         errorMsg = 'Request timed out while running tests. Check that the code-worker is running and matches the API.';
       }
-      showModal('Error', errorMsg, 'error');
+      showToast(errorMsg, 'error');
     }
   };
 
@@ -1060,31 +1353,27 @@ const TestTaking = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (loading && !test) {
-    return <div className="loading">Loading test...</div>;
+  const isPreparing =
+    pageLoading || (!loadError && (!test || !result || (test && result && sections.length === 0)));
+
+  if (isPreparing) {
+    return <TestTakingLoader message="Loading test…" />;
   }
 
-  if (!test || !result) {
+  if (loadError) {
     return (
-      <div className="container">
-        <div className="error" style={{ padding: '20px', textAlign: 'center' }}>
-          <h3>Error Loading Test</h3>
-          <p>Unable to load the test. Please try again.</p>
-          <button onClick={() => navigate('/student/dashboard')} className="btn btn-primary">
-            Back to Dashboard
+      <div className="test-taking-loader test-taking-loader--error">
+        <h3>Could not start test</h3>
+        <p>{loadError}</p>
+        <div className="test-taking-loader-actions">
+          <button type="button" className="btn btn-primary" onClick={() => fetchTest()}>
+            Try again
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!sections.length) {
-    return (
-      <div className="container">
-        <div className="error" style={{ padding: '20px', textAlign: 'center' }}>
-          <h3>No Questions Available</h3>
-          <p>This test has no questions assigned.</p>
-          <button onClick={() => navigate('/student/dashboard')} className="btn btn-primary">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate('/student/dashboard')}
+          >
             Back to Dashboard
           </button>
         </div>
@@ -1093,31 +1382,29 @@ const TestTaking = () => {
   }
 
   const currentQuestion = getCurrentQuestion();
-  if (!currentQuestion || !currentQuestion.questionId) {
-    return (
-      <div className="container">
-        <div className="error" style={{ padding: '20px', textAlign: 'center' }}>
-          <h3>Error Loading Question</h3>
-          <p>Unable to load question data.</p>
-          <button onClick={() => navigate('/student/dashboard')} className="btn btn-primary">
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
-    );
+  if (!currentQuestion?.questionId) {
+    return <TestTakingLoader message="Loading question…" />;
   }
 
   const questionData = currentQuestion.questionId;
   const currentSection = sections[currentSectionIndex];
-  
+
+  const { totalQuestions, currentQuestionNumber } = questionProgress;
+
   // Get visible (sample) test cases
   const visibleTestCases = questionData.testCases?.filter(tc => !tc.isHidden) || [];
   const hiddenTestCasesCount = questionData.testCases?.filter(tc => tc.isHidden).length || 0;
 
   const showFullscreenGate = result && !fullscreenReady && !isFullscreen;
+  const isCodingLayout = currentQuestion.type === 'coding';
+  const showFooterSaveAnswer =
+    !isCodingLayout &&
+    ['mcq', 'aptitude', 'theory', 'sql'].includes(currentQuestion.type);
 
   return (
-    <div className="test-taking-container">
+    <div
+      className={`test-taking-container${isCodingLayout ? ' test-taking--coding' : ' test-taking--standard'}`}
+    >
       {showFullscreenGate && (
         <ExamFullscreenPrompt
           title="Enter fullscreen to start the test"
@@ -1131,6 +1418,7 @@ const TestTaking = () => {
           }}
         />
       )}
+      <ExamSecurityOverlay mode={securityOverlay} onReenterFullscreen={onReenterFullscreen} />
       <Modal 
         isOpen={modal.isOpen} 
         onClose={modal.title === 'Confirm Submission' ? () => {} : closeModal}
@@ -1142,139 +1430,64 @@ const TestTaking = () => {
             <p>{modal.message}</p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => {
+              <button className="btn btn-primary" disabled={submitting} onClick={() => {
                 closeModal();
                 handleSubmitTest(true);
-              }}>Submit</button>
+              }}>{submitting ? 'Submitting…' : 'Submit'}</button>
             </div>
-          </div>
-        ) : submissionSummary ? (
-          <div className="submission-summary">
-            <h3>Test Case Results</h3>
-            
-            {/* Visible Test Cases */}
-            {submissionSummary.visibleResults.length > 0 && (
-              <div className="test-case-group">
-                <h4>Sample Test Cases ({submissionSummary.visiblePassed}/{submissionSummary.visibleTotal} passed)</h4>
-                <div className="test-case-results-list">
-                  {submissionSummary.visibleResults.map((result, idx) => (
-                    <div key={idx} className={`test-case-result-item ${result.passed ? 'passed' : 'failed'}`}>
-                      <div className="test-case-result-header">
-                        <span>Test Case {result.testCaseIndex}</span>
-                        <span className={`test-case-status ${result.passed ? 'passed' : 'failed'}`}>
-                          {result.passed ? '✓ Passed' : '✗ Failed'}
-                        </span>
-                      </div>
-                      {!result.passed && (
-                        <div className="test-case-result-details">
-                          <div><strong>Expected:</strong> <pre>{result.expectedOutput}</pre></div>
-                          <div><strong>Got:</strong> <pre>{result.actualOutput || '(No output)'}</pre></div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Hidden Test Cases */}
-            {submissionSummary.hiddenResults.length > 0 && (
-              <div className="test-case-group">
-                <h4>Hidden Test Cases ({submissionSummary.hiddenPassed}/{submissionSummary.hiddenTotal} passed)</h4>
-                <div className="test-case-results-list">
-                  {submissionSummary.hiddenResults.map((result, idx) => (
-                    <div key={idx} className={`test-case-result-item ${result.passed ? 'passed' : 'failed'}`}>
-                      <div className="test-case-result-header">
-                        <span>Hidden Test Case {result.testCaseIndex}</span>
-                        <span className={`test-case-status ${result.passed ? 'passed' : 'failed'}`}>
-                          {result.passed ? '✓ Passed' : '✗ Failed'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="summary-total">
-              <strong>Total: {submissionSummary.totalPassed} / {submissionSummary.totalTestCases} test cases passed</strong>
-            </div>
-            <p style={{ marginTop: '15px', fontSize: '0.9em', color: '#666' }}>
-              Answer saved successfully!
-            </p>
-          </div>
-        ) : codeExecutionResult ? (
-          <div>
-            {codeExecutionResult.success ? (
-              <div className="success-output">
-                <strong>Output:</strong>
-                <pre>{codeExecutionResult.output || '(No output)'}</pre>
-                {codeExecutionResult.executionTime > 0 && (
-                  <p>Execution time: {codeExecutionResult.executionTime}ms</p>
-                )}
-              </div>
-            ) : (
-              <div className="error-output">
-                <strong>Error:</strong>
-                <pre>{codeExecutionResult.error || 'Unknown error'}</pre>
-              </div>
-            )}
           </div>
         ) : (
           <p>{modal.message}</p>
         )}
       </Modal>
 
-      <div className="test-header">
+      <header className="test-header">
         <div className="test-header-left">
-          <h2>{test.title}</h2>
-          <span className="test-type-badge">{test.type}</span>
+          <div className="test-header-brand">
+            <h2>{test.title}</h2>
+            <span className="test-type-badge">{test.type}</span>
+          </div>
+          <span className="test-progress-pill">
+            Question {currentQuestionNumber} of {totalQuestions}
+          </span>
         </div>
         <div className="test-header-right">
-          <div className="violations-indicator" style={{ 
-            marginRight: '15px', 
-            padding: '8px 15px', 
-            background: violations >= 2 ? '#ff4444' : violations >= 1 ? '#ffaa00' : '#4CAF50',
-            color: 'white',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 'bold'
-          }}>
-            Violations: {violations}/3
-          </div>
-          <div className={`timer ${timeExpired ? 'timer-expired' : ''}`}>
-            <span className="timer-icon">⏱️</span>
-            <span>{timeExpired ? 'Time Expired' : formatTime(timeRemaining)}</span>
+          <span
+            className={`test-violations-pill ${
+              violations >= maxViolations - 1 ? 'is-danger' : violations >= 1 ? 'is-warn' : 'is-ok'
+            }`}
+          >
+            Violations {violations}/{maxViolations}
+          </span>
+          <div className={`test-timer ${timeExpired ? 'is-expired' : ''}`}>
+            <span className="test-timer-icon" aria-hidden>⏱</span>
+            <span>{timeExpired ? 'Time up' : formatTime(timeRemaining)}</span>
           </div>
           {timeExpired && (
-            <div style={{ 
-              padding: '8px 15px', 
-              background: '#ff9800', 
-              color: 'white', 
-              borderRadius: '8px',
-              fontSize: '12px',
-              marginRight: '10px'
-            }}>
-              You can still attempt, but time is up
-            </div>
+            <span className="test-time-hint">You can still save answers</span>
           )}
-          <button 
-            onClick={() => handleSubmitTest(false)} 
-            className="btn btn-danger btn-sm"
+          <button
+            type="button"
+            onClick={() => handleSubmitTest(false)}
+            className="exam-btn exam-btn-outline-danger"
+            disabled={submitting}
           >
-            Submit Test
+            {submitting ? 'Submitting…' : 'Submit test'}
           </button>
         </div>
-      </div>
+      </header>
 
       <div className="test-content">
-        <div className="question-sidebar">
-          <h3>Questions</h3>
+        <aside className="question-sidebar">
+          <div className="question-sidebar-head">
+            <h3>Questions</h3>
+            <span className="question-sidebar-count">{totalQuestions} total</span>
+          </div>
           {sections.map((section, sectionIdx) => (
             <div key={sectionIdx} className="section-group">
               <div className="section-title">{section.title}</div>
               {section.questions.map((q, questionIdx) => {
-                const status = getQuestionStatus(q.questionId._id);
+                const status = getQuestionStatus(q.questionId._id, q.type);
                 const isActive = currentSectionIndex === sectionIdx && currentQuestionIndex === questionIdx;
                 return (
                   <button
@@ -1290,20 +1503,23 @@ const TestTaking = () => {
               })}
             </div>
           ))}
-        </div>
+        </aside>
 
         <div className="main-content-wrapper">
           {currentQuestion.type === 'coding' ? (
             <>
               {/* Left Panel - Question Content */}
-              <div className="question-panel" style={{ width: `${leftPanelWidth}%` }}>
-                <div className="question-header">
-                  <h3>{currentSection.title} - Question {currentQuestionIndex + 1}</h3>
-                  <span className={`difficulty-badge ${questionData.difficulty || 'medium'}`}>
-                    {questionData.difficulty || 'Medium'}
-                  </span>
+              <div className="question-panel coding-question-panel" style={{ width: `${leftPanelWidth}%` }}>
+                <div className="question-panel-top">
+                  <div className="question-header">
+                    <h3>{currentSection.title} · Q{currentQuestionIndex + 1}</h3>
+                    <span className={`difficulty-badge ${questionData.difficulty || 'medium'}`}>
+                      {questionData.difficulty || 'Medium'}
+                    </span>
+                  </div>
                 </div>
 
+                <div className="question-panel-scroll">
                 <div className="question-description">
                   <h4>{questionData.title}</h4>
                   <div className="description-content" dangerouslySetInnerHTML={{ __html: questionData.description.replace(/\n/g, '<br />') }} />
@@ -1374,6 +1590,11 @@ const TestTaking = () => {
                     </div>
                   )}
 
+                  <SubmissionSummaryPanel
+                    summary={submissionSummary}
+                    onDismiss={() => setSubmissionSummary(null)}
+                  />
+
                   {/* Custom Test Case Section */}
                   <div className="custom-test-case-section">
                     <strong>Test Your Code:</strong>
@@ -1384,7 +1605,7 @@ const TestTaking = () => {
                           value={customTestCase.input}
                           onChange={(e) => setCustomTestCase({ ...customTestCase, input: e.target.value })}
                           placeholder="Enter test input..."
-                          rows="3"
+                          rows="2"
                           className="custom-test-input"
                         />
                       </div>
@@ -1394,13 +1615,13 @@ const TestTaking = () => {
                           value={customTestCase.expectedOutput}
                           onChange={(e) => setCustomTestCase({ ...customTestCase, expectedOutput: e.target.value })}
                           placeholder="Enter expected output (optional)..."
-                          rows="3"
+                          rows="2"
                           className="custom-test-input"
                         />
                       </div>
                       <button 
                         onClick={handleRunCustomTestCase} 
-                        className="btn btn-secondary btn-sm"
+                        className="exam-btn exam-btn-secondary"
                         disabled={isRunningTests || !customTestCase.input.trim()}
                       >
                         {isRunningTests ? 'Running...' : '▶ Run Custom Test'}
@@ -1435,14 +1656,16 @@ const TestTaking = () => {
                     )}
                   </div>
                 </div>
+                </div>
               </div>
 
               {/* Resizable Divider */}
               <div className="resizer" onMouseDown={handleResizeStart}></div>
               
               {/* Right Panel - Code Editor */}
-              <div className="editor-panel" style={{ width: `${100 - leftPanelWidth}%` }}>
-                <div className="editor-header">
+              <div className="editor-panel coding-editor-panel" style={{ width: `${100 - leftPanelWidth}%` }}>
+                <div className="editor-header coding-editor-toolbar">
+                  <span className="editor-toolbar-title">Code editor</span>
                   <select 
                     value={selectedLanguage} 
                     onChange={(e) => handleLanguageChange(e.target.value)}
@@ -1460,36 +1683,26 @@ const TestTaking = () => {
                   <div className="editor-actions">
                     <button 
                       onClick={handleRunCode} 
-                      className="btn btn-secondary btn-run" 
-                      disabled={isRunningTests || loading}
+                      className="exam-btn exam-btn-run" 
+                      disabled={isRunningTests || savingAnswer}
                     >
                       {isRunningTests ? 'Running...' : '▶ Run'}
                     </button>
                     <button 
                       onClick={handleSubmitAnswer} 
-                      className="btn btn-primary btn-submit" 
-                      disabled={loading}
+                      className="exam-btn exam-btn-primary" 
+                      disabled={savingAnswer}
                     >
-                      {loading ? 'Saving...' : '✓ Submit'}
+                      {savingAnswer ? 'Saving...' : '✓ Submit'}
                     </button>
                   </div>
                 </div>
-                <div className="editor-wrapper">
-                  <Editor
-                    height="calc(100vh - 200px)"
+                <div className="editor-wrapper coding-editor-body">
+                  <MonacoCodeEditor
+                    editorKey={`${questionKey(questionData._id)}-${selectedLanguage}`}
                     language={selectedLanguage}
-                    value={answers[questionData._id]?.code || questionData.starterCode?.[selectedLanguage] || ''}
+                    value={getCodingCode(answers, questionKey(questionData._id), selectedLanguage, questionData)}
                     onChange={handleCodeChange}
-                    theme={localStorage.getItem('theme') === 'dark' ? 'vs-dark' : 'light'}
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 14,
-                      wordWrap: 'on',
-                      lineNumbers: 'on',
-                      scrollBeyondLastLine: false,
-                      automaticLayout: true,
-                      tabSize: 2
-                    }}
                   />
                 </div>
               </div>
@@ -1519,19 +1732,19 @@ const TestTaking = () => {
                 <label>Your Answer</label>
                 <textarea
                   rows="8"
-                  value={answers[questionData._id]?.textAnswer || ''}
+                  value={answerFor(answers, questionData._id).textAnswer || ''}
                   onChange={(e) => handleTheoryAnswerChange(e.target.value)}
                   placeholder="Type your detailed answer here..."
                 />
                 <div style={{ marginTop: '8px', fontSize: '0.85em', color: 'var(--text-secondary)' }}>
-                  Word count: {(answers[questionData._id]?.textAnswer || '').trim().split(/\s+/).filter(Boolean).length}
+                  Word count: {(answerFor(answers, questionData._id).textAnswer || '').trim().split(/\s+/).filter(Boolean).length}
                   {questionData.expectedAnswerLength ? ` · Expected: ~${questionData.expectedAnswerLength} words` : ''}
                 </div>
               </div>
 
               <div className="question-actions">
-                <button onClick={handleSubmitAnswer} className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Answer'}
+                <button type="button" onClick={handleSubmitAnswer} className="exam-btn exam-btn-primary" disabled={savingAnswer}>
+                  {savingAnswer ? 'Saving...' : 'Save answer'}
                 </button>
               </div>
             </div>
@@ -1566,7 +1779,7 @@ const TestTaking = () => {
                   <label>Enter your answer:</label>
                   <input
                     type="number"
-                    value={answers[questionData._id]?.numericAnswer ?? ''}
+                    value={answerFor(answers, questionData._id).numericAnswer ?? ''}
                     onChange={(e) => handleAptitudeNumeric(e.target.value)}
                     className="numeric-input"
                   />
@@ -1579,10 +1792,11 @@ const TestTaking = () => {
                   {questionData.options && questionData.options.length > 0 ? (
                     questionData.options.map((option, index) => {
                       const isMulti = questionData.questionType === 'multi';
-                      const selectedMulti = answers[questionData._id]?.selectedOptions || [];
+                      const aptAnswer = answerFor(answers, questionData._id);
+                      const selectedMulti = aptAnswer.selectedOptions || [];
                       const isSelected = isMulti
                         ? selectedMulti.includes(index)
-                        : answers[questionData._id]?.selectedOption === index;
+                        : aptAnswer.selectedOption === index;
 
                       return (
                         <label key={index} className={`mcq-option ${isSelected ? 'selected' : ''}`}>
@@ -1609,8 +1823,8 @@ const TestTaking = () => {
               )}
 
               <div className="question-actions">
-                <button onClick={handleSubmitAnswer} className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Answer'}
+                <button type="button" onClick={handleSubmitAnswer} className="exam-btn exam-btn-primary" disabled={savingAnswer}>
+                  {savingAnswer ? 'Saving...' : 'Save answer'}
                 </button>
               </div>
             </div>
@@ -1642,36 +1856,28 @@ const TestTaking = () => {
                     <div className="editor-actions">
                       <button
                         onClick={handleRunSql}
-                        className="btn btn-secondary btn-run"
-                        disabled={isRunningSql || loading}
+                        className="exam-btn exam-btn-run"
+                        disabled={isRunningSql || savingAnswer}
                       >
                         {isRunningSql ? 'Running...' : '▶ Run'}
                       </button>
                       <button
+                        type="button"
                         onClick={handleSubmitAnswer}
-                        className="btn btn-primary btn-submit"
-                        disabled={loading}
+                        className="exam-btn exam-btn-primary"
+                        disabled={savingAnswer}
                       >
-                        {loading ? 'Saving...' : 'Save Answer'}
+                        {savingAnswer ? 'Saving...' : 'Save answer'}
                       </button>
                     </div>
                   </div>
                   <div className="sql-editor-wrapper">
-                    <Editor
-                      height="100%"
+                    <MonacoCodeEditor
+                      editorKey={`sql-${questionKey(questionData._id)}`}
                       language="sql"
-                      value={answers[questionData._id]?.sql || ''}
+                      value={answerFor(answers, questionData._id).sql ?? ''}
                       onChange={handleSqlChange}
-                      theme={localStorage.getItem('theme') === 'dark' ? 'vs-dark' : 'light'}
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 13,
-                        wordWrap: 'on',
-                        lineNumbers: 'on',
-                        scrollBeyondLastLine: false,
-                        automaticLayout: true,
-                        tabSize: 2
-                      }}
+                      options={{ fontSize: 13 }}
                     />
                   </div>
                 </div>
@@ -1755,11 +1961,11 @@ const TestTaking = () => {
               <div className="mcq-options">
                 {questionData.options && questionData.options.length > 0 ? (
                   questionData.options.map((option, index) => (
-                    <label key={index} className={`mcq-option ${answers[questionData._id]?.selectedOption === index ? 'selected' : ''}`}>
+                    <label key={index} className={`mcq-option ${answerFor(answers, questionData._id).selectedOption === index ? 'selected' : ''}`}>
                       <input
                         type="radio"
-                        name={`question-${questionData._id}`}
-                        checked={answers[questionData._id]?.selectedOption === index}
+                        name={`question-${questionKey(questionData._id)}`}
+                        checked={answerFor(answers, questionData._id).selectedOption === index}
                         onChange={() => handleMCQAnswer(index)}
                       />
                       <span className="option-text">{option.text}</span>
@@ -1770,8 +1976,8 @@ const TestTaking = () => {
                 )}
               </div>
               <div className="question-actions">
-                <button onClick={handleSubmitAnswer} className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Answer'}
+                <button type="button" onClick={handleSubmitAnswer} className="exam-btn exam-btn-primary" disabled={savingAnswer}>
+                  {savingAnswer ? 'Saving...' : 'Save answer'}
                 </button>
               </div>
             </div>
@@ -1779,27 +1985,51 @@ const TestTaking = () => {
         </div>
       </div>
 
-      <div className="test-footer">
+      <footer className="test-footer">
+        <div className="footer-progress">
+          <span>
+            {currentSection.title} · Q{currentQuestionIndex + 1}/
+            {currentSection.questions.length}
+          </span>
+          <div className="footer-progress-bar">
+            <div
+              className="footer-progress-fill"
+              style={{ width: `${(currentQuestionNumber / totalQuestions) * 100}%` }}
+            />
+          </div>
+        </div>
         <div className="footer-actions">
           {(currentQuestionIndex > 0 || currentSectionIndex > 0) && (
-            <button onClick={navigatePrevious} className="btn btn-secondary">
+            <button type="button" onClick={navigatePrevious} className="exam-btn exam-btn-secondary">
               ← Previous
             </button>
           )}
+          {showFooterSaveAnswer && (
+            <button
+              type="button"
+              onClick={handleSubmitAnswer}
+              className="exam-btn exam-btn-primary"
+              disabled={savingAnswer}
+            >
+              {savingAnswer ? 'Saving…' : 'Save answer'}
+            </button>
+          )}
           {!isLastQuestion() ? (
-            <button onClick={navigateNext} className="btn btn-primary">
+            <button type="button" onClick={navigateNext} className="exam-btn exam-btn-primary">
               Next →
             </button>
           ) : (
-            <button 
-              onClick={() => handleSubmitTest(false)} 
-              className="btn btn-danger"
+            <button
+              type="button"
+              onClick={() => handleSubmitTest(false)}
+              className="exam-btn exam-btn-submit-final"
+              disabled={submitting}
             >
-              Submit Test
+              {submitting ? 'Submitting…' : 'Submit test'}
             </button>
           )}
         </div>
-      </div>
+      </footer>
     </div>
   );
 };

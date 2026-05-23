@@ -8,6 +8,8 @@ import { getBrandingFromUser, getUserVendorId } from '../../utils/user';
 import { getCachedBranding } from '../../utils/brandingCache';
 import { APP_NAME } from '../../constants/branding';
 import { FiSun, FiMoon, FiLogOut, FiUser } from 'react-icons/fi';
+import AnnouncementBell from '../Announcements/AnnouncementBell';
+import { useExamLock } from '../../context/ExamLockContext';
 import './Navbar.css';
 
 const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
@@ -20,6 +22,7 @@ const Navbar = () => {
   const { branding } = useVendorBranding();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const { isExamLocked, reportNavigationAttempt } = useExamLock();
   const hideNavbar =
     AUTH_PATHS.includes(location.pathname) || isJoinPath(location.pathname);
 
@@ -28,6 +31,10 @@ const Navbar = () => {
   }
 
   const handleLogout = () => {
+    if (isExamLocked) {
+      reportNavigationAttempt();
+      return;
+    }
     logout();
     navigate('/login');
   };
@@ -79,12 +86,32 @@ const Navbar = () => {
     return <span className="gradient-text">{APP_NAME}</span>;
   };
 
+  const handleBrandClick = (e) => {
+    if (!isExamLocked) return;
+    e.preventDefault();
+    // Block leaving the exam via logo — not counted as a proctoring violation
+  };
+
+  const brandContent = renderBrand();
+  const brandClassName = `navbar-brand${isExamLocked ? ' navbar-brand--exam-locked' : ''}`;
+
   return (
     <nav className={`navbar${user?.role === 'student' ? ' navbar-student' : ''}`}>
       <div className="navbar-container">
-        <Link to={getDashboardLink()} className="navbar-brand">
-          {renderBrand()}
-        </Link>
+        {isExamLocked ? (
+          <button
+            type="button"
+            className={brandClassName}
+            onClick={handleBrandClick}
+            title="You cannot leave the exam until you submit"
+          >
+            {brandContent}
+          </button>
+        ) : (
+          <Link to={getDashboardLink()} className={brandClassName}>
+            {brandContent}
+          </Link>
+        )}
 
         <div className="navbar-menu">
           {isAuthenticated && user && (
@@ -104,9 +131,16 @@ const Navbar = () => {
                   <Link to="/vendor-admin/questions" className="navbar-link">Questions</Link>
                   <Link to="/vendor-admin/students" className="navbar-link">Students</Link>
                   <Link to="/vendor-admin/classrooms" className="navbar-link">Classrooms</Link>
+                  <Link to="/vendor-admin/announcements" className="navbar-link">Announcements</Link>
                   <Link to="/vendor-admin/analytics" className="navbar-link">Analytics</Link>
                   <Link to="/vendor-admin/settings" className="navbar-link">Settings</Link>
                 </>
+              )}
+
+              {user.role === 'student' && (
+                <div className="navbar-student-actions">
+                  <AnnouncementBell />
+                </div>
               )}
 
               <div className="navbar-user">

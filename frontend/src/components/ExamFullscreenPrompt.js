@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { isDocumentFullscreen, requestDocumentFullscreen } from '../utils/fullscreen';
+import { MAX_EXAM_VIOLATIONS } from '../constants/examSecurity';
 import './ExamFullscreenPrompt.css';
 
 /**
@@ -36,9 +37,10 @@ const ExamFullscreenPrompt = ({ title, subtitle, onEntered }) => {
         <h2 id="exam-fs-title">{title || 'Enter fullscreen to continue'}</h2>
         <p>{subtitle || 'For a secure exam experience, your screen must be maximized. Click the button below — this is the same step as starting from the portal.'}</p>
         <ul className="exam-fullscreen-rules">
-          <li>Do not switch tabs or minimize the window during the test</li>
-          <li>Copy/paste and right-click are restricted</li>
-          <li>Excessive violations may auto-submit your test</li>
+          <li>Stay in fullscreen — do not switch tabs, apps, or desktops (macOS three-finger swipe counts)</li>
+          <li>Do not use Cmd/Ctrl+Tab, Mission Control, or a second monitor for help</li>
+          <li>Copy, cut, and paste work inside the code editor only — external paste is blocked</li>
+          <li>Maximum {MAX_EXAM_VIOLATIONS} violations — your test auto-submits after that</li>
         </ul>
         <button
           type="button"

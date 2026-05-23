@@ -1,16 +1,16 @@
-/* Student panel — primary accent used sparingly */
+/* Student panel — plain white canvas in light mode */
 .student-panel {
   --student-accent: #e7210b;
-  --student-accent-soft: rgba(231, 33, 11, 0.1);
+  --student-accent-soft: rgba(231, 33, 11, 0.08);
   --student-accent-ring: rgba(231, 33, 11, 0.2);
   --student-sidebar-width: 272px;
   --student-radius: 14px;
   --student-radius-lg: 20px;
-  --student-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
-  --student-shadow-hover: 0 12px 32px rgba(15, 23, 42, 0.1);
+  --student-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --student-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.06);
   display: flex;
   min-height: calc(100vh - var(--navbar-height, 72px));
-  background: var(--bg-primary);
+  background: var(--card-bg, #ffffff);
   position: relative;
 }
 
@@ -51,7 +51,7 @@
   width: var(--student-sidebar-width);
   flex-shrink: 0;
   border-right: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--card-bg, #ffffff);
   position: fixed;
   top: var(--navbar-height, 72px);
   left: 0;
@@ -75,7 +75,7 @@
   padding: 12px;
   margin: 0 12px 6px 0;
   border-radius: var(--student-radius);
-  background: var(--bg-primary);
+  background: var(--card-bg, #ffffff);
   border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -162,7 +162,8 @@
 }
 
 .student-nav-item:hover {
-  background: var(--bg-primary);
+  background: var(--bg-secondary, #ffffff);
+  box-shadow: inset 0 0 0 1px var(--border-color);
 }
 
 .student-nav-item.active {
@@ -172,7 +173,7 @@
 
 .student-nav-item.active .student-nav-icon {
   color: var(--section-accent, var(--text-primary));
-  background: var(--bg-primary);
+  background: var(--card-bg, #ffffff);
   border-color: var(--border-color);
 }
 
@@ -185,7 +186,7 @@
   justify-content: center;
   font-size: 1.05rem;
   color: var(--section-accent, var(--text-secondary));
-  background: var(--bg-primary);
+  background: var(--card-bg, #ffffff);
   border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -208,13 +209,30 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-primary);
+  background: var(--bg-secondary, #ffffff);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
 }
 
 .student-nav-badge.empty {
   opacity: 0.5;
+}
+
+.student-nav-badge--loading {
+  opacity: 0.45;
+  min-width: 22px;
+}
+
+.student-nav-badge--alert {
+  background: var(--text-primary);
+  color: var(--bg-primary, #fff);
+  border: none;
+}
+
+.student-nav-item--announcement.active .student-nav-badge--alert {
+  background: var(--student-accent-soft);
+  color: var(--student-accent);
+  border: 1px solid var(--student-accent-ring);
 }
 
 .student-nav-item.active .student-nav-badge:not(.empty) {
@@ -229,12 +247,25 @@
   margin-left: var(--student-sidebar-width);
   padding: 28px 32px 48px;
   max-width: 100%;
+  background: var(--card-bg, #ffffff);
+}
+
+/* Light mode — force crisp white surfaces inside student panel */
+[data-theme='light'] .student-panel {
+  --bg-primary: #ffffff;
+  --bg-secondary: #ffffff;
+  --card-bg: #ffffff;
+  --border-color: #e5e7eb;
 }
 
 /* ——— Dark mode ——— */
 [data-theme='dark'] .student-panel {
   --student-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   --student-accent-soft: rgba(231, 33, 11, 0.14);
+  background: #121212;
+}
+
+[data-theme='dark'] .student-main {
   background: #121212;
 }
 

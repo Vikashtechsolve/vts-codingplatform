@@ -4,7 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
+import { useRegisterExamLock } from '../../hooks/useRegisterExamLock';
+import { useExamLock } from '../../context/ExamLockContext';
 import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
+import ExamSecurityOverlay from '../../components/ExamSecurityOverlay';
 import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import Modal from '../../components/Modal';
@@ -77,12 +80,41 @@ const EnglishTestTaking = () => {
     });
   }, []);
 
-  const { violations, isFullscreen, requestFullscreen } = useExamSecurity(
+  const {
+    violations,
+    maxViolations,
+    isFullscreen,
+    requestFullscreen,
+    trackViolation,
+    securityOverlay,
+    onReenterFullscreen,
+  } = useExamSecurity(
     result?._id || null,
     handleMaxViolations,
     handleViolationWarning,
-    { autoRequestFullscreen: !fromShareLink }
+    {
+      autoRequestFullscreen: !fromShareLink,
+      initialViolationCount: result?.violationCount ?? 0,
+    }
   );
+
+  const examInProgress = Boolean(result?._id && !loading && !submitting);
+  useRegisterExamLock(examInProgress, { trackViolation });
+  const { allowNextNavigation } = useExamLock();
+
+  const goToResult = useCallback((resultId) => {
+    allowNextNavigation();
+    try {
+      navigate(`/student/english-result/${resultId}`, { replace: true });
+    } catch (_) {
+      // fallback
+    }
+    setTimeout(() => {
+      if (window.location.pathname.indexOf('english-result') === -1) {
+        window.location.href = `/student/english-result/${resultId}`;
+      }
+    }, 300);
+  }, [navigate, allowNextNavigation]);
 
   useEffect(() => {
     if (isFullscreen || isDocumentFullscreen()) {
@@ -161,11 +193,23 @@ const EnglishTestTaking = () => {
 
       setSectionStarted({ 0: true });
     } catch (error) {
-      setModal({ isOpen: true, title: 'Error', message: error.response?.data?.message || 'Failed to start test', type: 'error' });
+      const serverMsg = error.response?.data?.message || '';
+      const existingResultId = error.response?.data?.resultId;
+      const alreadyCompleted =
+        error.response?.status === 400 &&
+        typeof serverMsg === 'string' &&
+        serverMsg.toLowerCase().includes('already completed');
+
+      if (alreadyCompleted && existingResultId) {
+        goToResult(existingResultId);
+        return;
+      }
+
+      setModal({ isOpen: true, title: 'Error', message: serverMsg || 'Failed to start test', type: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [testId, buildSections, testMicrophone]);
+  }, [testId, buildSections, testMicrophone, goToResult]);
 
   useEffect(() => {
     fetchTestAndStart();
@@ -338,19 +382,6 @@ const EnglishTestTaking = () => {
   const handlePrev = () => {
     if (currentQuestionIdx > 0) setCurrentQuestionIdx(currentQuestionIdx - 1);
   };
-
-  const goToResult = useCallback((resultId) => {
-    try {
-      navigate(`/student/english-result/${resultId}`, { replace: true });
-    } catch (_) {
-      // fallback
-    }
-    setTimeout(() => {
-      if (window.location.pathname.indexOf('english-result') === -1) {
-        window.location.href = `/student/english-result/${resultId}`;
-      }
-    }, 300);
-  }, [navigate]);
 
   const handleSubmitTest = async () => {
     if (submitting) return;
@@ -1032,6 +1063,7 @@ const EnglishTestTaking = () => {
           }}
         />
       )}
+      <ExamSecurityOverlay mode={securityOverlay} onReenterFullscreen={onReenterFullscreen} />
       <Modal isOpen={modal.isOpen} onClose={() => setModal({ ...modal, isOpen: false })} title={modal.title} type={modal.type}>
         <p>{modal.message}</p>
       </Modal>
@@ -1049,7 +1081,7 @@ const EnglishTestTaking = () => {
               {formatTime(timeRemaining)}
             </div>
           )}
-          <div className="violations-indicator">Violations: {violations}</div>
+          <div className="violations-indicator">Violations: {violations}/{maxViolations}</div>
         </div>
       </div>
 
@@ -1084,32 +1116,34 @@ const EnglishTestTaking = () => {
         </div>
 
         <div className="question-main">
-          <div className="question-number-bar">
-            <span>Question {currentQuestionIdx + 1} of {totalQuestionsInSection}</span>
-            <span className="question-points">{currentQuestion?.points || 0} points</span>
-            <button className={`flag-btn ${flagged[questionData?._id] ? 'active' : ''}`} onClick={() => toggleFlag(questionData?._id)}>
-              {flagged[questionData?._id] ? 'Unflag' : 'Flag for Review'}
-            </button>
+          <div className="question-main-scroll">
+            <div className="question-number-bar">
+              <span>Question {currentQuestionIdx + 1} of {totalQuestionsInSection}</span>
+              <span className="question-points">{currentQuestion?.points || 0} points</span>
+              <button className={`flag-btn ${flagged[questionData?._id] ? 'active' : ''}`} onClick={() => toggleFlag(questionData?._id)}>
+                {flagged[questionData?._id] ? 'Unflag' : 'Flag for Review'}
+              </button>
+            </div>
+
+            {renderQuestion()}
+
+            {questionData?._id && (
+              <div className="question-note-area">
+                <label>Note for this question (optional)</label>
+                <textarea
+                  value={notes[questionData._id] || ''}
+                  onChange={(e) => setNotes(prev => ({ ...prev, [questionData._id]: e.target.value }))}
+                  onBlur={(e) => { const val = e.target.value; setNotes(prev => ({ ...prev, [questionData._id]: val })); saveAnswer(questionData._id, answers[questionData._id], { note: val, flagged: flagged[questionData._id] }); }}
+                  placeholder="Add a private note to review later..."
+                  rows={2}
+                />
+              </div>
+            )}
           </div>
 
-          {renderQuestion()}
-
-          {questionData?._id && (
-            <div className="question-note-area">
-              <label>Note for this question (optional)</label>
-              <textarea
-                value={notes[questionData._id] || ''}
-                onChange={(e) => setNotes(prev => ({ ...prev, [questionData._id]: e.target.value }))}
-                onBlur={(e) => { const val = e.target.value; setNotes(prev => ({ ...prev, [questionData._id]: val })); saveAnswer(questionData._id, answers[questionData._id], { note: val, flagged: flagged[questionData._id] }); }}
-                placeholder="Add a private note to review later..."
-                rows={2}
-              />
-            </div>
-          )}
-
-          <div className="question-actions">
+          <footer className="english-test-footer">
             <button className="btn btn-secondary" onClick={handlePrev} disabled={currentQuestionIdx === 0}>Previous</button>
-            <div className="action-right">
+            <div className="english-test-footer-actions">
               {currentQuestionIdx < totalQuestionsInSection - 1 ? (
                 <button className="btn btn-primary" onClick={handleNext}>Save & Next</button>
               ) : currentSectionIdx < sections.length - 1 ? (
@@ -1120,7 +1154,7 @@ const EnglishTestTaking = () => {
                 </button>
               )}
             </div>
-          </div>
+          </footer>
         </div>
       </div>
     </div>

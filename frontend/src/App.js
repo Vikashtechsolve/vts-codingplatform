@@ -3,7 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import StudentShell from './components/Layout/StudentShell';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
+import { AnnouncementProvider } from './context/AnnouncementContext';
+import { ExamLockProvider } from './context/ExamLockContext';
 import { VendorBrandingProvider } from './context/VendorBrandingContext';
+import ExamNavigationGuard from './components/ExamNavigationGuard';
 import PrivateRoute from './components/PrivateRoute';
 import Navbar from './components/Layout/Navbar';
 import Login from './pages/Auth/Login';
@@ -60,6 +64,8 @@ import SystemDesignListAdmin from './pages/VendorAdmin/SystemDesignList';
 import CreateSystemDesign from './pages/VendorAdmin/CreateSystemDesign';
 import AssignSystemDesign from './pages/VendorAdmin/AssignSystemDesign';
 import SystemDesignSubmissions from './pages/VendorAdmin/SystemDesignSubmissions';
+import AnnouncementList from './pages/VendorAdmin/AnnouncementList';
+import CreateAnnouncement from './pages/VendorAdmin/CreateAnnouncement';
 
 // Vendor Admin - English
 import EnglishQuestionList from './pages/VendorAdmin/EnglishQuestionList';
@@ -87,8 +93,10 @@ import SystemDesignFollowUp from './pages/Student/SystemDesignFollowUp';
 import SystemDesignResult from './pages/Student/SystemDesignResult';
 import EnglishTestTaking from './pages/Student/EnglishTestTaking';
 import EnglishTestResult from './pages/Student/EnglishTestResult';
+import StudentAnnouncements from './pages/Student/StudentAnnouncements';
 
 import './App.css';
+import './styles/student-panel-dark.css';
 
 // Reuse same components for global questions (they detect route automatically)
 const CreateGlobalCodingQuestion = CreateCodingQuestion;
@@ -122,10 +130,14 @@ const RootRedirect = () => {
 function App() {
   return (
     <ThemeProvider>
+      <ToastProvider>
       <AuthProvider>
+        <AnnouncementProvider>
         <VendorBrandingProvider>
         <Router>
+          <ExamLockProvider>
           <div className="App">
+            <ExamNavigationGuard />
             <Navbar />
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -656,6 +668,32 @@ function App() {
                 }
               />
 
+              {/* Announcements - Vendor Admin */}
+              <Route
+                path="/vendor-admin/announcements"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <AnnouncementList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/announcements/create"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateAnnouncement />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/vendor-admin/announcements/:id/edit"
+                element={
+                  <PrivateRoute allowedRoles={['vendor_admin']}>
+                    <CreateAnnouncement />
+                  </PrivateRoute>
+                }
+              />
+
               {/* English / Verbal - Vendor Admin */}
               <Route path="/vendor-admin/english-questions" element={<PrivateRoute allowedRoles={['vendor_admin']}><EnglishQuestionList /></PrivateRoute>} />
               <Route path="/vendor-admin/english-questions/grammar/create" element={<PrivateRoute allowedRoles={['vendor_admin']}><CreateEnglishGrammarQuestion /></PrivateRoute>} />
@@ -676,6 +714,8 @@ function App() {
               {/* Student panel — sidebar layout for dashboard & test sections */}
               <Route path="/student" element={<StudentShell />}>
                 <Route path="dashboard" element={<StudentDashboard />} />
+                <Route path="announcements" element={<StudentAnnouncements />} />
+                <Route path="announcements/:id" element={<StudentAnnouncements />} />
                 <Route path="tests/:type" element={<TestsByType />} />
               </Route>
               <Route
@@ -707,7 +747,7 @@ function App() {
                 }
               />
               <Route
-                path="/student/result/:resultId"
+                path="/student/result/test/:testId"
                 element={
                   <PrivateRoute allowedRoles={['student']}>
                     <TestResult />
@@ -715,7 +755,7 @@ function App() {
                 }
               />
               <Route
-                path="/student/result/test/:testId"
+                path="/student/result/:resultId"
                 element={
                   <PrivateRoute allowedRoles={['student']}>
                     <TestResult />
@@ -746,7 +786,6 @@ function App() {
                   </PrivateRoute>
                 }
               />
-
               {/* English / Verbal - Student */}
               <Route path="/student/english-test/:testId" element={<PrivateRoute allowedRoles={['student']}><EnglishTestTaking /></PrivateRoute>} />
               <Route path="/student/english-result/:resultId" element={<PrivateRoute allowedRoles={['student']}><EnglishTestResult /></PrivateRoute>} />
@@ -788,9 +827,12 @@ function App() {
               <Route path="/" element={<RootRedirect />} />
             </Routes>
           </div>
+          </ExamLockProvider>
         </Router>
         </VendorBrandingProvider>
+        </AnnouncementProvider>
       </AuthProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

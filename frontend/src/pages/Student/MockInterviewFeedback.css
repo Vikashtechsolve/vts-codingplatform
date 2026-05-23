@@ -21,7 +21,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--bg-secondary);
+  background: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 18px;
   padding: 20px 24px;
@@ -52,7 +52,7 @@
 }
 
 .summary-card {
-  background: var(--bg-secondary);
+  background: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 16px;
   padding: 18px;
@@ -77,7 +77,7 @@
 }
 
 .feedback-panel {
-  background: var(--bg-secondary);
+  background: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 16px;
   padding: 18px;
@@ -90,7 +90,7 @@
 }
 
 .feedback-answers {
-  background: var(--bg-secondary);
+  background: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 18px;
   padding: 20px;
@@ -128,7 +128,7 @@
 }
 
 .feedback-skill-radar {
-  background: var(--bg-secondary);
+  background: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 18px;
   padding: 20px;
@@ -136,6 +136,20 @@
 
 .feedback-skill-radar h2 {
   margin: 0 0 16px;
+}
+
+/* Dark mode */
+[data-theme='dark'] .feedback-header,
+[data-theme='dark'] .summary-card,
+[data-theme='dark'] .feedback-panel,
+[data-theme='dark'] .feedback-answers,
+[data-theme='dark'] .feedback-skill-radar {
+  background: #1a1a1a;
+  border-color: #3f3f46;
+}
+
+[data-theme='dark'] .skill-radar-bar-wrap {
+  background: #18181b;
 }
 
 .skill-radar-grid {

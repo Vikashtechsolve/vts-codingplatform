@@ -57,8 +57,12 @@ function getTestAction(test) {
   const isEnglish = test.type === 'english' || test.type === 'verbal';
   const base = isEnglish ? `/student/english-test/${test._id}` : `/student/test/${test._id}`;
   const resultBase = isEnglish
-    ? (test.resultId ? `/student/english-result/${test.resultId}` : `/student/english-result/test/${test._id}`)
-    : (test.resultId ? `/student/result/${test.resultId}` : `/student/result/test/${test._id}`);
+    ? (test.resultId
+        ? `/student/english-result/${test.resultId}`
+        : `/student/english-result/test/${test._id}`)
+    : test.resultId
+      ? `/student/result/${test.resultId}`
+      : `/student/result/test/${test._id}`;
 
   if (test.enrollmentStatus === 'completed') {
     return { primary: { label: 'View result', link: resultBase, variant: 'secondary' } };

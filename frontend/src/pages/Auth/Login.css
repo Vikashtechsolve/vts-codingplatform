@@ -227,7 +227,7 @@
 }
 
 [data-theme='light'] .login-panel {
-  background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
+  background: #ffffff;
 }
 
 [data-theme='dark'] .login-panel {

@@ -11,6 +11,7 @@ import {
   FiBox,
   FiTool,
   FiBriefcase,
+  FiBell,
 } from 'react-icons/fi';
 
 /** Primary brand accent — use sparingly for highlights and CTAs */
@@ -26,6 +27,15 @@ export const STUDENT_SECTIONS = [
     description: 'Your progress and quick actions',
     isOverview: true,
     accent: '#0f172a',
+  },
+  {
+    id: 'announcements',
+    label: 'Announcements',
+    path: '/student/announcements',
+    icon: FiBell,
+    description: 'Updates from your instructors',
+    isAnnouncement: true,
+    accent: '#e7210b',
   },
   {
     id: 'coding',
@@ -74,11 +84,11 @@ export const STUDENT_SECTIONS = [
   },
   {
     id: 'core',
-    label: 'Core CS',
-    shortLabel: 'Core CS',
+    label: 'Theory',
+    shortLabel: 'Theory',
     path: '/student/tests/core',
     icon: FiBookOpen,
-    description: 'OS, DBMS, Networks, OOP fundamentals',
+    description: 'Theory and conceptual questions',
     accent: '#475569',
   },
   {
@@ -128,7 +138,9 @@ export const STUDENT_SECTIONS = [
   },
 ];
 
-export const TEST_SECTIONS = STUDENT_SECTIONS.filter((s) => !s.isOverview);
+export const TEST_SECTIONS = STUDENT_SECTIONS.filter(
+  (s) => !s.isOverview && !s.isAnnouncement
+);
 
 export function getSectionById(id) {
   return STUDENT_SECTIONS.find((s) => s.id === id) || null;

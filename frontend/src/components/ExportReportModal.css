@@ -47,7 +47,7 @@
   width: 36px;
   height: 36px;
   border: none;
-  background: var(--bg-secondary, #f5f5f5);
+  background: var(--bg-secondary, #ffffff);
   border-radius: 8px;
   font-size: 22px;
   line-height: 1;
@@ -136,7 +136,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--border-color, #e8e8e8);
-  background: var(--bg-secondary, #fafafa);
+  background: var(--bg-secondary, #ffffff);
   transition: border-color 0.15s ease;
 }
 

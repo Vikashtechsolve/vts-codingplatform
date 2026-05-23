@@ -612,10 +612,14 @@ router.post('/:submissionId/violation', authenticateToken, authorizeRoles('stude
       return res.status(404).json({ success: false, message: 'Submission not found' });
     }
 
-    submission.violations.push({ type, details, timestamp: new Date() });
-    submission.violationCount = submission.violations.length;
+    const { MAX_VIOLATIONS, normalizeViolationType } = require('../utils/examViolations');
 
-    const MAX_VIOLATIONS = parseInt(process.env.MAX_VIOLATIONS || '3', 10);
+    submission.violations.push({
+      type: normalizeViolationType(type),
+      details: details || '',
+      timestamp: new Date()
+    });
+    submission.violationCount = submission.violations.length;
 
     // Auto-submit if too many violations
     if (submission.violationCount >= MAX_VIOLATIONS) {
@@ -644,6 +648,7 @@ router.post('/:submissionId/violation', authenticateToken, authorizeRoles('stude
     res.json({
       success: true,
       violationCount: submission.violationCount,
+      maxViolations: MAX_VIOLATIONS,
       autoSubmitted: false
     });
   } catch (error) {

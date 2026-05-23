@@ -145,7 +145,8 @@ const JoinAttempt = ({ kind }) => {
 
             <ul className="join-attempt-rules">
               <li>On the next screen you will enter fullscreen (required for exam security)</li>
-              <li>Stay on this tab — tab switches may count as violations</li>
+              <li>Stay on this tab — switching apps, desktops (macOS swipe), or tabs counts as a violation</li>
+              <li>Maximum 3 violations allowed; the test auto-submits if you exceed that</li>
               <li>Ensure a stable connection before you begin</li>
             </ul>
 

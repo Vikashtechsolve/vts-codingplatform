@@ -131,7 +131,6 @@ const resultSchema = new mongoose.Schema({
   violations: [{
     type: {
       type: String,
-      enum: ['tab_switch', 'window_blur', 'copy_paste', 'shortcut_key', 'fullscreen_exit', 'multiple_screens', 'screen_share', 'remote_access'],
       required: true
     },
     timestamp: {

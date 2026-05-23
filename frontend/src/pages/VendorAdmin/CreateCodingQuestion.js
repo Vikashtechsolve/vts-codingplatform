@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import { CODE_REQUEST_TIMEOUT_EXECUTE_MS } from '../../config/codeExecution';
 import Modal from '../../components/Modal';
-import Editor from '@monaco-editor/react';
+import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import './CreateCodingQuestion.css';
 
 const CreateCodingQuestion = () => {
@@ -609,18 +609,12 @@ const CreateCodingQuestion = () => {
             <div className="form-group">
               <label>Test Code</label>
               <div className="code-editor-wrapper">
-                <Editor
+                <MonacoCodeEditor
                   height="300px"
+                  editorKey={`test-${selectedLanguage}`}
                   language={selectedLanguage}
                   value={testCode[selectedLanguage] || formData.starterCode[selectedLanguage] || ''}
                   onChange={(value) => handleTestCodeChange(selectedLanguage, value || '')}
-                  theme={localStorage.getItem('theme') === 'dark' ? 'vs-dark' : 'light'}
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    wordWrap: 'on',
-                    lineNumbers: 'on'
-                  }}
                 />
               </div>
             </div>
@@ -655,18 +649,12 @@ const CreateCodingQuestion = () => {
                 <div key={lang} className="starter-code-item">
                   <label className="starter-code-label">{lang.toUpperCase()}</label>
                   <div className="code-editor-wrapper">
-                    <Editor
+                    <MonacoCodeEditor
                       height="200px"
+                      editorKey={`starter-${lang}`}
                       language={lang}
                       value={formData.starterCode[lang]}
                       onChange={(value) => handleStarterCodeChange(lang, value || '')}
-                      theme={localStorage.getItem('theme') === 'dark' ? 'vs-dark' : 'light'}
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 14,
-                        wordWrap: 'on',
-                        lineNumbers: 'on'
-                      }}
                     />
                   </div>
                 </div>

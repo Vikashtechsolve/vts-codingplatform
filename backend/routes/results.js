@@ -18,6 +18,120 @@ const EnglishReadingQuestion = require('../models/EnglishReadingQuestion');
 const EnglishEssayQuestion = require('../models/EnglishEssayQuestion');
 const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
 const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
+const CodingQuestion = require('../models/CodingQuestion');
+const { MAX_VIOLATIONS, normalizeViolationType } = require('../utils/examViolations');
+
+const sanitizeCodingQuestionForStudent = (q) => {
+  if (!q) return null;
+  const obj = typeof q.toObject === 'function' ? q.toObject() : { ...q };
+  delete obj.solution;
+  if (Array.isArray(obj.testCases)) {
+    obj.testCases = obj.testCases.map((tc) => ({
+      input: tc.input,
+      expectedOutput: tc.isHidden ? undefined : tc.expectedOutput,
+      isHidden: !!tc.isHidden,
+      points: tc.points,
+    }));
+  }
+  return obj;
+};
+
+const STANDARD_SECTION_LABELS = {
+  coding: 'Coding',
+  mcq: 'MCQ',
+  aptitude: 'Aptitude',
+  theory: 'Theory',
+  sql: 'SQL',
+};
+
+const STANDARD_SECTION_ORDER = ['coding', 'mcq', 'aptitude', 'theory', 'sql'];
+
+function buildSectionScoresForStandardTest(test, result) {
+  const typesPresent = [...new Set((result.answers || []).map((a) => a.questionType))];
+  const orderedTypes = STANDARD_SECTION_ORDER.filter((t) => typesPresent.includes(t));
+  const extra = typesPresent.filter((t) => !STANDARD_SECTION_ORDER.includes(t));
+
+  return [...orderedTypes, ...extra].map((sectionType) => {
+    const sectionAnswers = result.answers.filter((a) => a.questionType === sectionType);
+    const score = sectionAnswers.reduce((sum, a) => sum + (a.points || 0), 0);
+    const maxScore = sectionAnswers.reduce((sum, a) => sum + (a.maxPoints || 0), 0);
+    return {
+      sectionType,
+      sectionTitle: STANDARD_SECTION_LABELS[sectionType] || sectionType,
+      score,
+      maxScore,
+      percentage: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0,
+    };
+  });
+}
+
+async function ensureSectionScores(out) {
+  if (out.status !== 'completed') return out;
+  const testType = out.testId?.type;
+  if (testType === 'english') return out;
+  if (out.sectionScores?.length > 0) return out;
+
+  const testId = out.testId?._id || out.testId;
+  if (!testId) return out;
+
+  const test = await Test.findById(testId).select('type questions');
+  if (!test) return out;
+
+  out.sectionScores = buildSectionScoresForStandardTest(test, out);
+  return out;
+}
+
+async function attachStandardQuestionDetails(out) {
+  if (!out?.answers?.length) return out;
+
+  const idsByType = {
+    coding: [],
+    mcq: [],
+    aptitude: [],
+    theory: [],
+    sql: [],
+  };
+
+  out.answers.forEach((a) => {
+    if (a.questionId && idsByType[a.questionType]) {
+      idsByType[a.questionType].push(a.questionId);
+    }
+  });
+
+  const maps = {};
+
+  if (idsByType.coding.length) {
+    const rows = await CodingQuestion.find({ _id: { $in: idsByType.coding } });
+    maps.coding = Object.fromEntries(rows.map((q) => [q._id.toString(), sanitizeCodingQuestionForStudent(q)]));
+  }
+  if (idsByType.mcq.length) {
+    const rows = await MCQQuestion.find({ _id: { $in: idsByType.mcq } });
+    maps.mcq = Object.fromEntries(rows.map((q) => [q._id.toString(), q.toObject()]));
+  }
+  if (idsByType.aptitude.length) {
+    const rows = await AptitudeQuestion.find({ _id: { $in: idsByType.aptitude } });
+    maps.aptitude = Object.fromEntries(rows.map((q) => [q._id.toString(), q.toObject()]));
+  }
+  if (idsByType.theory.length) {
+    const rows = await TheoryQuestion.find({ _id: { $in: idsByType.theory } })
+      .populate('subjectId', 'name')
+      .populate('topicId', 'name');
+    maps.theory = Object.fromEntries(rows.map((q) => [q._id.toString(), q.toObject()]));
+  }
+  if (idsByType.sql.length) {
+    const rows = await SQLQuestion.find({ _id: { $in: idsByType.sql } });
+    maps.sql = Object.fromEntries(rows.map((q) => [q._id.toString(), q.toObject()]));
+  }
+
+  out.answers = out.answers.map((a) => {
+    const key = a.questionId?.toString?.() || String(a.questionId);
+    const details = maps[a.questionType]?.[key];
+    if (!details) return a;
+    return { ...a, questionDetails: details };
+  });
+
+  return out;
+}
 const {
   evaluateGrammarSubjective,
   evaluateReadingShortAnswer,
@@ -99,22 +213,30 @@ router.post('/start/:testId', auth, async (req, res) => {
       return res.status(403).json({ message: 'Test not assigned to you' });
     }
 
-    // Check if result already exists (in_progress or completed)
+    // Prefer an in-progress attempt; only block when no active attempt exists
     let result = await Result.findOne({
       testId: test._id,
-      studentId: req.user._id
+      studentId: req.user._id,
+      status: 'in_progress'
     });
 
     if (result) {
-      if (result.status === 'completed') {
-        console.log('⚠️  Test already completed');
-        return res.status(400).json({ 
-          message: 'Test already completed',
-          resultId: result._id 
-        });
-      }
       console.log('✅ Returning existing in-progress result');
       return res.json(result);
+    }
+
+    const completedResult = await Result.findOne({
+      testId: test._id,
+      studentId: req.user._id,
+      status: "completed"
+    }).sort({ submittedAt: -1, createdAt: -1 });
+
+    if (completedResult) {
+      console.log('⚠️  Test already completed');
+      return res.status(400).json({
+        message: 'Test already completed',
+        resultId: completedResult._id
+      });
     }
 
     // Validate test has questions
@@ -665,6 +787,8 @@ router.post('/:resultId/submit', auth, async (req, res) => {
         });
       }
       result.sectionScores = sectionScores;
+    } else if (test && test.type !== 'english') {
+      result.sectionScores = buildSectionScoresForStandardTest(test, result);
     }
 
     // Calculate total score
@@ -717,7 +841,10 @@ router.get('/test/:testId', auth, async (req, res) => {
       return res.status(404).json({ message: 'Result not found for this test' });
     }
 
-    res.json(result);
+    const out = result.toObject();
+    await attachStandardQuestionDetails(out);
+    await ensureSectionScores(out);
+    res.json(out);
   } catch (error) {
     console.error('❌ Error fetching result by test ID:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -775,9 +902,17 @@ router.get('/:resultId/questions', auth, async (req, res) => {
       questionMap[q._id.toString()] = q.toObject();
     });
 
-    const sqlQuestions = await SQLQuestion.find({ _id: { $in: sqlIds } }).select('text marks');
+    const sqlQuestions = await SQLQuestion.find({ _id: { $in: sqlIds } }).select('text marks schemaSql expectedOutput');
     sqlQuestions.forEach(q => {
       questionMap[q._id.toString()] = q.toObject();
+    });
+
+    const codingIds = result.answers
+      .filter(a => a.questionType === 'coding' && a.questionId)
+      .map(a => a.questionId);
+    const codingQuestions = await CodingQuestion.find({ _id: { $in: codingIds } });
+    codingQuestions.forEach(q => {
+      questionMap[q._id.toString()] = sanitizeCodingQuestionForStudent(q);
     });
 
     res.json(questionMap);
@@ -861,9 +996,75 @@ router.get('/:resultId', auth, async (req, res) => {
       out.percentile = totalCompleted > 0 ? Math.round((scoredLower / totalCompleted) * 100) : null;
     }
 
+    if (out.status === 'completed' && out.testId?.type !== 'english') {
+      await attachStandardQuestionDetails(out);
+      await ensureSectionScores(out);
+    }
+
     res.json(out);
   } catch (error) {
     console.error('❌ Error fetching result:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Practice a question from a completed result (visible test cases only, no solutions)
+router.get('/:resultId/practice/:questionId', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const result = await Result.findOne({
+      _id: req.params.resultId,
+      studentId: req.user._id,
+      status: 'completed',
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: 'Result not found' });
+    }
+
+    const qid = req.params.questionId;
+    const answer = result.answers.find(
+      (a) => a.questionId && a.questionId.toString() === qid
+    );
+
+    if (!answer) {
+      return res.status(404).json({ message: 'Question not part of this result' });
+    }
+
+    let question = null;
+    if (answer.questionType === 'coding') {
+      const row = await CodingQuestion.findById(qid);
+      question = sanitizeCodingQuestionForStudent(row);
+    } else if (answer.questionType === 'mcq') {
+      question = await MCQQuestion.findById(qid).lean();
+    } else if (answer.questionType === 'aptitude') {
+      question = await AptitudeQuestion.findById(qid).lean();
+    } else if (answer.questionType === 'theory') {
+      question = await TheoryQuestion.findById(qid).lean();
+    } else if (answer.questionType === 'sql') {
+      question = await SQLQuestion.findById(qid).lean();
+    }
+
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    res.json({
+      questionType: answer.questionType,
+      question,
+      submittedAnswer: answer.answer,
+      language: answer.language,
+      points: answer.points,
+      maxPoints: answer.maxPoints,
+      testCasesPassed: answer.testCasesPassed,
+      totalTestCases: answer.totalTestCases,
+      isCorrect: answer.isCorrect,
+    });
+  } catch (error) {
+    console.error('❌ Error fetching practice question:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -886,11 +1087,9 @@ router.post('/:resultId/violation', auth, async (req, res) => {
     }
 
     const { type, details } = req.body;
-    const MAX_VIOLATIONS = parseInt(process.env.MAX_VIOLATIONS || '3', 10);
 
-    // Add violation
     result.violations.push({
-      type,
+      type: normalizeViolationType(type),
       details: details || '',
       timestamp: new Date()
     });

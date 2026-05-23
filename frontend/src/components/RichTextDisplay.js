@@ -10,7 +10,7 @@ const ALLOWED_TAGS = [
   'a', 'blockquote', 'pre', 'code'
 ];
 
-const ALLOWED_ATTR = ['href', 'target', 'rel'];
+const ALLOWED_ATTR = ['href', 'target', 'rel', 'class'];
 
 /**
  * Strip HTML tags and return plain text.
@@ -35,25 +35,51 @@ export const truncateForPreview = (content, maxLength = 150) => {
   return text.substring(0, maxLength).trim() + '...';
 };
 
+/** Decode entity-encoded HTML (e.g. &lt;p&gt;) saved or transported as plain text. */
+const normalizeHtmlContent = (html) => {
+  if (!html || typeof html !== 'string') return '';
+  const trimmed = html.trim();
+  if (
+    trimmed.includes('&lt;') &&
+    trimmed.includes('&gt;') &&
+    !/<[a-z][\s\S]*>/i.test(trimmed)
+  ) {
+    if (typeof document === 'undefined') {
+      return trimmed
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+    }
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = trimmed;
+    return textarea.value;
+  }
+  return html;
+};
+
 const RichTextDisplay = ({
   content = '',
   className = '',
   asPlainText = false,
   truncate = 0
 }) => {
-  if (!content || typeof content !== 'string') {
+  const normalized = normalizeHtmlContent(content);
+  if (!normalized || typeof normalized !== 'string') {
     return null;
   }
 
   if (asPlainText || truncate > 0) {
-    const text = truncate > 0 ? truncateForPreview(content, truncate) : stripHtml(content);
+    const text = truncate > 0 ? truncateForPreview(normalized, truncate) : stripHtml(normalized);
     return <span className={`rich-text-display plain ${className}`}>{text}</span>;
   }
 
-  const sanitized = DOMPurify.sanitize(content, {
+  const sanitized = DOMPurify.sanitize(normalized, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
-    ADD_ATTR: ['target']
+    ADD_ATTR: ['target'],
+    FORBID_ATTR: ['style']
   });
 
   return (

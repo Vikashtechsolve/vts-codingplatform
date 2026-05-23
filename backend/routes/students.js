@@ -79,7 +79,9 @@ router.get('/tests', auth, async (req, res) => {
           testId: test._id,
           studentId: student._id,
           status: 'completed'
-        }).select('_id percentage submittedAt');
+        })
+          .sort({ submittedAt: -1 })
+          .select('_id percentage submittedAt');
         if (result) {
           resultId = result._id;
           percentage = result.percentage ?? null;

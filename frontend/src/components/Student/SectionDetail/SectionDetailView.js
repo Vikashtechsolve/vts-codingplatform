@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FiArrowLeft,
@@ -23,15 +23,11 @@ import SectionAssessmentCard from './SectionAssessmentCard';
 import './SectionDetail.css';
 
 const SectionDetailView = ({ section }) => {
-  const { tests, interviews, assignments, systemDesigns, loading, englishTrends, refresh } =
+  const { tests, interviews, assignments, systemDesigns, initialLoading, englishTrends } =
     useStudentPanel();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('recent');
-
-  useEffect(() => {
-    refresh();
-  }, [section.id, refresh]);
 
   const rawItems = useMemo(
     () =>
@@ -54,7 +50,7 @@ const SectionDetailView = ({ section }) => {
 
   const SectionIcon = section.icon;
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="section-detail-page">
         <div className="section-loading">

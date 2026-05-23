@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStudentPanel } from '../../context/StudentPanelContext';
+import { useAnnouncements } from '../../context/AnnouncementContext';
 import { STUDENT_SECTIONS, TEST_SECTIONS } from '../../constants/studentSections';
 import { FiMenu, FiX } from 'react-icons/fi';
 import './StudentLayout.css';
 
 const StudentLayout = () => {
   const { user } = useAuth();
-  const { counts, loading } = useStudentPanel();
+  const { counts, initialLoading } = useStudentPanel();
+  const { unreadCount: announcementUnread } = useAnnouncements();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -16,8 +18,13 @@ const StudentLayout = () => {
     if (path === '/student/dashboard') {
       return location.pathname === '/student/dashboard';
     }
+    if (path === '/student/announcements') {
+      return location.pathname.startsWith('/student/announcements');
+    }
     return location.pathname.startsWith(path);
   };
+
+  const menuSections = STUDENT_SECTIONS.filter((s) => s.isOverview || s.isAnnouncement);
 
   const closeSidebar = () => setSidebarOpen(false);
   const firstName = user?.name?.split(' ')[0] || 'Student';
@@ -57,20 +64,26 @@ const StudentLayout = () => {
           <div className="student-sidebar-nav-scroll">
             <nav className="student-sidebar-nav" aria-label="Assessment sections">
               <p className="student-nav-label">Menu</p>
-              {STUDENT_SECTIONS.filter((s) => s.isOverview).map((section) => {
+              {menuSections.map((section) => {
                 const Icon = section.icon;
                 const active = isActive(section.path);
+                const unread = section.isAnnouncement ? announcementUnread : 0;
                 return (
                   <Link
                     key={section.id}
                     to={section.path}
-                    className={`student-nav-item ${active ? 'active' : ''}`}
+                    className={`student-nav-item ${active ? 'active' : ''} ${section.isAnnouncement ? 'student-nav-item--announcement' : ''}`}
                     onClick={closeSidebar}
                   >
                     <span className="student-nav-icon" style={{ '--section-accent': section.accent }}>
                       <Icon />
                     </span>
                     <span className="student-nav-text">{section.label}</span>
+                    {section.isAnnouncement && unread > 0 && (
+                      <span className="student-nav-badge student-nav-badge--alert">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -91,9 +104,13 @@ const StudentLayout = () => {
                       <Icon />
                     </span>
                     <span className="student-nav-text">{section.shortLabel}</span>
-                    {!loading && (
-                      <span className={`student-nav-badge ${count === 0 ? 'empty' : ''}`}>{count}</span>
-                    )}
+                    <span
+                      className={`student-nav-badge ${count === 0 ? 'empty' : ''}${
+                        initialLoading ? ' student-nav-badge--loading' : ''
+                      }`}
+                    >
+                      {initialLoading ? '—' : count}
+                    </span>
                   </Link>
                 );
               })}

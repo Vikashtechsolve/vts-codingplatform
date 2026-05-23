@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import RichTextEditor from '../../components/RichTextEditor';
+import RichTextDisplay, { stripHtml } from '../../components/RichTextDisplay';
 import './CreateSystemDesign.css';
 
 const CATEGORIES = [
@@ -95,7 +96,7 @@ const CreateSystemDesign = () => {
 
   const handleSave = async () => {
     if (!form.title.trim()) return setError('Title is required');
-    if (!form.problemStatement.trim()) return setError('Problem statement is required');
+    if (!stripHtml(form.problemStatement).trim()) return setError('Problem statement is required');
 
     setSaving(true);
     setError('');
@@ -217,6 +218,12 @@ const CreateSystemDesign = () => {
             <div className="csd-field">
               <label>Problem Statement * (Rich Text)</label>
               <RichTextEditor value={form.problemStatement} onChange={val => setForm({ ...form, problemStatement: val })} />
+              {stripHtml(form.problemStatement).trim() && (
+                <div className="csd-rich-preview">
+                  <p className="csd-rich-preview-label">Student preview</p>
+                  <RichTextDisplay content={form.problemStatement} className="csd-rich-preview-body" />
+                </div>
+              )}
             </div>
           </div>
         )}

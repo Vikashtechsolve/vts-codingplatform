@@ -10,6 +10,15 @@
   animation: fadeIn 0.4s ease;
 }
 
+/* Dark mode */
+[data-theme='dark'] .interview-room-header,
+[data-theme='dark'] .interviewer-section,
+[data-theme='dark'] .question-card,
+[data-theme='dark'] .answer-area {
+  background-color: #1a1a1a;
+  border-color: #3f3f46;
+}
+
 .interview-room-loading,
 .interview-room-error-state {
   display: flex;
@@ -52,7 +61,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-  background-color: var(--bg-secondary);
+  background-color: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 16px;
   padding: 16px 24px;
@@ -123,7 +132,7 @@
 
 /* ---- Interviewer (avatar) section ---- */
 .interviewer-section {
-  background-color: var(--bg-secondary);
+  background-color: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 20px;
   padding: 28px 24px;
@@ -320,7 +329,7 @@
 }
 
 .question-card {
-  background-color: var(--bg-secondary);
+  background-color: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 16px;
   padding: 20px 24px;
@@ -345,7 +354,7 @@
 }
 
 .answer-area {
-  background-color: var(--bg-secondary);
+  background-color: #ffffff;
   border: 2px solid var(--border-color);
   border-radius: 14px;
   padding: 16px 20px;

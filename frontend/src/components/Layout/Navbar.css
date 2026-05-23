@@ -1,5 +1,5 @@
 .navbar {
-  background-color: var(--bg-secondary);
+  background-color: #ffffff;
   border-bottom: 1px solid var(--border-color);
   padding: 16px 0;
   position: fixed;
@@ -56,6 +56,19 @@
 
 .navbar-brand:has(.navbar-brand-logo):hover {
   transform: none;
+}
+
+button.navbar-brand {
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+}
+
+.navbar-brand--exam-locked {
+  cursor: not-allowed;
+  opacity: 0.92;
 }
 
 /* Logo frame — natural aspect ratio, not a cramped square */
@@ -172,13 +185,28 @@
   margin-left: auto;
 }
 
-/* Student: brand + account controls only; navigation lives in the sidebar */
+/* Student: brand + bell + account; main nav lives in sidebar */
 .navbar-student .navbar-menu {
   justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
 }
 
 .navbar-student .navbar-brand {
   margin-right: auto;
+}
+
+.navbar-student-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.navbar-student .navbar-user {
+  margin-left: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-color);
 }
 
 .navbar-user .user-name {

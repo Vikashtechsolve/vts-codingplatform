@@ -1,26 +1,55 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import {
+  FiAlertTriangle,
+  FiBarChart2,
+  FiBox,
+  FiCheck,
+  FiChevronRight,
+  FiClipboard,
+  FiClock,
+  FiDatabase,
+  FiGitMerge,
+  FiGlobe,
+  FiHardDrive,
+  FiLayers,
+  FiHelpCircle,
+  FiList,
+  FiLock,
+  FiMaximize2,
+  FiSave,
+  FiSearch,
+  FiSend,
+  FiShield,
+  FiShuffle,
+  FiTrendingUp,
+  FiX,
+} from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
+import { useRegisterExamLock } from '../../hooks/useRegisterExamLock';
+import { useExamLock } from '../../context/ExamLockContext';
 import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
+import ExamSecurityOverlay from '../../components/ExamSecurityOverlay';
 import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import ArchitectureBuilder from '../../components/SystemDesign/ArchitectureBuilder';
+import RichTextDisplay from '../../components/RichTextDisplay';
 import './SystemDesignTaking.css';
 
 const STEPS = [
-  { id: 'overview', label: 'Problem Overview', icon: '📋' },
-  { id: 'requirements', label: 'Requirements', icon: '📝' },
-  { id: 'capacityEstimation', label: 'Capacity Estimation', icon: '🧮' },
-  { id: 'coreEntities', label: 'Core Entities', icon: '🗂️' },
-  { id: 'apiDesign', label: 'API Design', icon: '🔌' },
-  { id: 'architecture', label: 'Architecture', icon: '🏗️' },
-  { id: 'dataFlow', label: 'Data Flow', icon: '🔄' },
-  { id: 'databaseDesign', label: 'Database Design', icon: '💾' },
-  { id: 'scalingStrategy', label: 'Scaling Strategy', icon: '📈' },
-  { id: 'deepDive', label: 'Deep Dive', icon: '🔬' },
-  { id: 'tradeoffs', label: 'Tradeoffs', icon: '⚖️' },
-  { id: 'review', label: 'Review & Submit', icon: '🚀' }
+  { id: 'overview', label: 'Problem Overview', Icon: FiClipboard },
+  { id: 'requirements', label: 'Requirements', Icon: FiList },
+  { id: 'capacityEstimation', label: 'Capacity Estimation', Icon: FiBarChart2 },
+  { id: 'coreEntities', label: 'Core Entities', Icon: FiDatabase },
+  { id: 'apiDesign', label: 'API Design', Icon: FiGlobe },
+  { id: 'architecture', label: 'Architecture', Icon: FiLayers },
+  { id: 'dataFlow', label: 'Data Flow', Icon: FiShuffle },
+  { id: 'databaseDesign', label: 'Database Design', Icon: FiHardDrive },
+  { id: 'scalingStrategy', label: 'Scaling Strategy', Icon: FiTrendingUp },
+  { id: 'deepDive', label: 'Deep Dive', Icon: FiSearch },
+  { id: 'tradeoffs', label: 'Tradeoffs', Icon: FiGitMerge },
+  { id: 'review', label: 'Review & Submit', Icon: FiSend },
 ];
 
 const DB_TYPES = ['PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Cassandra', 'DynamoDB', 'Neo4j', 'Elasticsearch'];
@@ -55,6 +84,7 @@ const SystemDesignTaking = () => {
   const autoSaveTimerRef = useRef(null);
   const submissionRef = useRef(null);
   const currentStepRef = useRef(0);
+  const allowNavigateRef = useRef(() => {});
 
   // Exam security — anti-cheating
   const handleMaxViolations = useCallback(() => {
@@ -65,7 +95,10 @@ const SystemDesignTaking = () => {
     });
     setTimeout(() => {
       const sub = submissionRef.current;
-      if (sub) navigate(`/student/system-design/${sub._id}/follow-up`);
+      if (sub) {
+        allowNavigateRef.current();
+        navigate(`/student/system-design/${sub._id}/follow-up`);
+      }
     }, 2500);
   }, [navigate]);
 
@@ -78,15 +111,34 @@ const SystemDesignTaking = () => {
     setTimeout(() => setViolationModal(null), 5000);
   }, []);
 
-  const { violations, isFullscreen, requestFullscreen } = useExamSecurity(
+  const {
+    violations,
+    maxViolations,
+    isFullscreen,
+    requestFullscreen,
+    trackViolation,
+    securityOverlay,
+    onReenterFullscreen,
+  } = useExamSecurity(
     submission?._id || null,
     handleMaxViolations,
     handleViolationWarning,
     {
       violationEndpoint: submission ? `/system-design-submissions/${submission._id}/violation` : null,
       autoRequestFullscreen: !fromShareLink,
+      initialViolationCount: submission?.violationCount ?? 0,
     }
   );
+
+  const examInProgress = Boolean(
+    submission?._id && (submission?.status === 'in_progress' || !submission?.status)
+  );
+  useRegisterExamLock(examInProgress && !submitting, { trackViolation });
+  const { allowNextNavigation } = useExamLock();
+
+  useEffect(() => {
+    allowNavigateRef.current = allowNextNavigation;
+  }, [allowNextNavigation]);
 
   useEffect(() => {
     if (isFullscreen || isDocumentFullscreen()) {
@@ -255,6 +307,7 @@ const SystemDesignTaking = () => {
     try {
       const { data } = await axiosInstance.post(`/system-design-submissions/${submission._id}/submit`);
       if (data.success) {
+        allowNextNavigation();
         navigate(`/student/system-design/${submission._id}/follow-up`);
       }
     } catch (err) {
@@ -273,12 +326,32 @@ const SystemDesignTaking = () => {
     return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  if (loading) return <div className="sdt-loading">Loading...</div>;
-  if (!problem || !submission) return <div className="sdt-loading">Problem not found</div>;
+  if (loading) {
+    return (
+      <div className="sdt-container sdt-container--loading">
+        <div className="sdt-loading">
+          <div className="sdt-loading-spinner" />
+          <p>Preparing system design assessment…</p>
+        </div>
+      </div>
+    );
+  }
+  if (!problem || !submission) {
+    return (
+      <div className="sdt-container sdt-container--loading">
+        <div className="sdt-loading">
+          <FiAlertTriangle />
+          <p>Problem not found or session expired.</p>
+        </div>
+      </div>
+    );
+  }
 
   const sections = submission.sections || {};
   const isTimeLow = timeLeft !== null && timeLeft < 600000;
   const showFullscreenGate = submission && !fullscreenReady && !isFullscreen;
+  const progressPct = Math.round(((currentStep + 1) / STEPS.length) * 100);
+  const CurrentStepIcon = STEPS[currentStep]?.Icon || FiBox;
 
   return (
     <div className="sdt-container">
@@ -295,67 +368,124 @@ const SystemDesignTaking = () => {
           }}
         />
       )}
-      {/* Top bar */}
-      <div className="sdt-topbar">
+      <ExamSecurityOverlay mode={securityOverlay} onReenterFullscreen={onReenterFullscreen} />
+      <header className="sdt-topbar">
         <div className="sdt-topbar-left">
-          <h2 className="sdt-problem-title">{problem.title}</h2>
-        </div>
-        <div className="sdt-topbar-center">
-          {saving && <span className="sdt-save-indicator saving">Saving...</span>}
-          {!saving && lastSaved && <span className="sdt-save-indicator saved">Saved {lastSaved.toLocaleTimeString()}</span>}
+          <span className="sdt-topbar-badge">
+            <FiBox /> System design
+          </span>
+          <h1 className="sdt-problem-title">{problem.title}</h1>
+          <div className="sdt-progress-wrap">
+            <div className="sdt-progress-track">
+              <div className="sdt-progress-fill" style={{ width: `${progressPct}%` }} />
+            </div>
+            <span className="sdt-progress-label">
+              Step {currentStep + 1} of {STEPS.length} · {STEPS[currentStep].label}
+            </span>
+          </div>
         </div>
         <div className="sdt-topbar-right">
-          <div className={`sdt-violation-badge ${violations >= 2 ? 'danger' : violations >= 1 ? 'warn' : 'safe'}`}>
-            Violations: {violations}/3
+          {saving && (
+            <span className="sdt-save-indicator saving">
+              <FiSave className="sdt-spin" /> Saving…
+            </span>
+          )}
+          {!saving && lastSaved && (
+            <span className="sdt-save-indicator saved">
+              <FiCheck /> Saved {lastSaved.toLocaleTimeString()}
+            </span>
+          )}
+          <div
+            className={`sdt-violation-badge ${
+              violations >= maxViolations - 1 ? 'danger' : violations >= 1 ? 'warn' : 'safe'
+            }`}
+          >
+            <FiShield /> {violations}/{maxViolations}
           </div>
           {!isFullscreen && (
-            <button className="sdt-fullscreen-btn" onClick={requestFullscreen} title="Enter fullscreen">⛶</button>
+            <button type="button" className="sdt-icon-btn" onClick={requestFullscreen} title="Enter fullscreen">
+              <FiMaximize2 />
+            </button>
           )}
-          <button className="sdt-hint-toggle" onClick={() => setShowHints(!showHints)}>💡 Hints</button>
-          <div className={`sdt-timer ${isTimeLow ? 'warning' : ''}`}>⏱️ {formatTimer(timeLeft)}</div>
+          <button
+            type="button"
+            className={`sdt-hint-toggle ${showHints ? 'active' : ''}`}
+            onClick={() => setShowHints(!showHints)}
+          >
+            <FiHelpCircle /> Hints
+          </button>
+          <div className={`sdt-timer ${isTimeLow ? 'warning' : ''}`}>
+            <FiClock /> {formatTimer(timeLeft)}
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Violation Modal Overlay */}
       {violationModal && (
         <div className="sdt-violation-overlay" onClick={() => violationModal.type !== 'error' && setViolationModal(null)}>
-          <div className={`sdt-violation-modal ${violationModal.type}`} onClick={e => e.stopPropagation()}>
-            <div className="sdt-violation-modal-icon">{violationModal.type === 'error' ? '🚫' : '⚠️'}</div>
+          <div className={`sdt-violation-modal ${violationModal.type}`} onClick={(e) => e.stopPropagation()}>
+            <div className="sdt-violation-modal-icon">
+              {violationModal.type === 'error' ? <FiX /> : <FiAlertTriangle />}
+            </div>
             <h3>{violationModal.title}</h3>
             <p>{violationModal.message}</p>
             {violationModal.type !== 'error' && (
-              <button className="sdt-violation-modal-close" onClick={() => setViolationModal(null)}>I Understand</button>
+              <button type="button" className="sdt-violation-modal-close" onClick={() => setViolationModal(null)}>
+                I understand
+              </button>
             )}
           </div>
         </div>
       )}
 
       <div className="sdt-main">
-        {/* Sidebar */}
-        <div className="sdt-sidebar">
+        <aside className="sdt-sidebar">
+          <p className="sdt-sidebar-label">Design steps</p>
           {STEPS.map((step, idx) => {
             const sKey = step.id;
-            const isComplete = sKey !== 'overview' && sKey !== 'review' && sections[sKey] &&
-              (Array.isArray(sections[sKey]) ? sections[sKey].length > 0 :
-                typeof sections[sKey] === 'object' && Object.values(sections[sKey]).some(v =>
-                  v && (typeof v === 'string' ? v.trim() : Array.isArray(v) ? v.length > 0 : true)
-                ));
+            const StepIcon = step.Icon;
+            const isComplete =
+              sKey !== 'overview' &&
+              sKey !== 'review' &&
+              sections[sKey] &&
+              (Array.isArray(sections[sKey])
+                ? sections[sKey].length > 0
+                : typeof sections[sKey] === 'object' &&
+                  Object.values(sections[sKey]).some((v) =>
+                    v && (typeof v === 'string' ? v.trim() : Array.isArray(v) ? v.length > 0 : true)
+                  ));
             return (
               <button
                 key={idx}
+                type="button"
                 className={`sdt-step-btn ${currentStep === idx ? 'active' : ''} ${isComplete ? 'complete' : ''}`}
                 onClick={() => goToStep(idx)}
               >
-                <span className="sdt-step-icon">{step.icon}</span>
+                <span className="sdt-step-num">{idx + 1}</span>
+                <span className="sdt-step-icon-wrap">
+                  <StepIcon className="sdt-step-icon" />
+                </span>
                 <span className="sdt-step-label">{step.label}</span>
-                {isComplete && <span className="sdt-step-check">✓</span>}
+                {isComplete && (
+                  <span className="sdt-step-check" aria-hidden>
+                    <FiCheck />
+                  </span>
+                )}
               </button>
             );
           })}
-        </div>
+        </aside>
 
-        {/* Content */}
         <div className="sdt-content">
+          <div className="sdt-content-head">
+            <div className="sdt-content-head-icon">
+              <CurrentStepIcon />
+            </div>
+            <div>
+              <span className="sdt-step-kicker">Step {currentStep + 1} of {STEPS.length}</span>
+              <h2 className="sdt-content-title">{STEPS[currentStep].label}</h2>
+            </div>
+          </div>
           {/* Hints drawer */}
           {showHints && currentStep > 0 && currentStep < 11 && (
             <HintDrawer
@@ -371,11 +501,11 @@ const SystemDesignTaking = () => {
           {currentStep === 0 && (
             <div className="sdt-step-content">
               <h2>Problem Overview</h2>
-              <div className="sdt-problem-statement" dangerouslySetInnerHTML={{ __html: problem.problemStatement }} />
+              <RichTextDisplay content={problem.problemStatement} className="sdt-problem-statement" />
               {problem.businessContext && (
                 <div className="sdt-context-box">
                   <h3>Business Context</h3>
-                  <div className="sdt-rich-content" dangerouslySetInnerHTML={{ __html: problem.businessContext }} />
+                  <RichTextDisplay content={problem.businessContext} className="sdt-rich-content" />
                 </div>
               )}
               <div className="sdt-constraints-grid">
@@ -385,7 +515,9 @@ const SystemDesignTaking = () => {
                 {problem.constraints?.latencyRequirement && <div className="sdt-constraint"><label>Latency</label><span>{problem.constraints.latencyRequirement}</span></div>}
                 {problem.constraints?.availabilityTarget && <div className="sdt-constraint"><label>Availability</label><span>{problem.constraints.availabilityTarget}</span></div>}
               </div>
-              <button className="sdt-next-btn" onClick={() => goToStep(1)}>Begin Design →</button>
+              <button type="button" className="sdt-next-btn" onClick={() => goToStep(1)}>
+                Begin design <FiChevronRight />
+              </button>
             </div>
           )}
 
@@ -439,9 +571,13 @@ const SystemDesignTaking = () => {
 
           {/* Step 2: Capacity Estimation */}
           {currentStep === 2 && (
-            <div className="sdt-step-content">
-              <h2>Step 2: Capacity Estimation</h2>
+            <div className="sdt-step-content sdt-step-content--capacity">
+              <p className="sdt-step-desc">
+                Estimate traffic, storage, bandwidth, and cache needs using back-of-envelope math.
+              </p>
               <div className="sdt-calc-helper">
+                <p className="sdt-calc-helper-title">Quick reference</p>
+                <div className="sdt-calc-chips">
                 <span className="sdt-calc-chip">1 day = 86,400 sec</span>
                 <span className="sdt-calc-chip">1 month ≈ 2.5M sec</span>
                 <span className="sdt-calc-chip">1 year ≈ 31.5M sec</span>
@@ -449,6 +585,7 @@ const SystemDesignTaking = () => {
                 <span className="sdt-calc-chip">1 MB = 1M bytes</span>
                 <span className="sdt-calc-chip">1 GB = 1B bytes</span>
                 <span className="sdt-calc-chip">1 TB = 1,000 GB</span>
+                </div>
               </div>
               {[
                 { key: 'estimatedQPS', label: 'Read/Write QPS', placeholder: 'e.g., Reads: 100M DAU / 86400 ≈ 1160 QPS, Writes: ~100 QPS' },
@@ -471,7 +608,7 @@ const SystemDesignTaking = () => {
                   onChange={e => updateSection('capacityEstimation', { ...sections.capacityEstimation, calculations: e.target.value })}
                   placeholder="Write out your back-of-envelope calculations step by step..."
                   rows={6}
-                  style={{ fontFamily: 'monospace' }}
+                  className="sdt-calculations-textarea"
                 />
               </div>
               <div className="sdt-step-nav">
@@ -845,8 +982,12 @@ const SystemDesignTaking = () => {
                   );
                   return (
                     <div key={sKey} className={`sdt-review-item ${hasContent ? 'complete' : 'incomplete'}`}>
-                      <span className="sdt-review-icon">{hasContent ? '✅' : '⚠️'}</span>
-                      <span className="sdt-review-label">{step.icon} {step.label}</span>
+                      <span className="sdt-review-icon">
+                        {hasContent ? <FiCheck /> : <FiAlertTriangle />}
+                      </span>
+                      <span className="sdt-review-label">
+                        <step.Icon className="sdt-review-step-icon" /> {step.label}
+                      </span>
                       <span className="sdt-review-status">{hasContent ? 'Completed' : 'Incomplete'}</span>
                       <button className="sdt-review-jump" onClick={() => goToStep(idx + 1)}>Edit</button>
                     </div>
@@ -859,11 +1000,16 @@ const SystemDesignTaking = () => {
                 </div>
               )}
               <button
+                type="button"
                 className="sdt-submit-btn"
                 onClick={() => handleSubmit(false)}
                 disabled={submitting}
               >
-                {submitting ? 'Submitting...' : 'Submit for AI Evaluation'}
+                {submitting ? 'Submitting…' : (
+                  <>
+                    <FiSend /> Submit for AI evaluation
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -875,25 +1021,37 @@ const SystemDesignTaking = () => {
 
 // Hint Drawer Component
 const HintDrawer = ({ hints, used, section, onUse, onClose }) => {
-  if (!hints || hints.length === 0) return (
-    <div className="sdt-hint-drawer">
-      <div className="sdt-hint-drawer-header"><h3>Hints</h3><button onClick={onClose}>×</button></div>
-      <p className="sdt-hint-empty">No hints available for this section.</p>
-    </div>
-  );
+  if (!hints || hints.length === 0) {
+    return (
+      <div className="sdt-hint-drawer">
+        <div className="sdt-hint-drawer-header">
+          <h3><FiHelpCircle /> Hints</h3>
+          <button type="button" onClick={onClose} aria-label="Close hints">
+            <FiX />
+          </button>
+        </div>
+        <p className="sdt-hint-empty">No hints available for this section.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="sdt-hint-drawer">
-      <div className="sdt-hint-drawer-header"><h3>Hints</h3><button onClick={onClose}>×</button></div>
+      <div className="sdt-hint-drawer-header">
+        <h3><FiHelpCircle /> Hints</h3>
+        <button type="button" onClick={onClose} aria-label="Close hints">
+          <FiX />
+        </button>
+      </div>
       {hints.map((hint, idx) => {
-        const isUsed = used.some(u => u.section === section && u.hintIndex === idx);
+        const isUsed = used.some((u) => u.section === section && u.hintIndex === idx);
         return (
           <div key={idx} className={`sdt-hint-item ${isUsed ? 'revealed' : ''}`}>
             {isUsed ? (
-              <div className="sdt-hint-text sdt-rich-content" dangerouslySetInnerHTML={{ __html: hint.text }} />
+              <RichTextDisplay content={hint.text} className="sdt-hint-text sdt-rich-content" />
             ) : (
-              <button className="sdt-hint-unlock" onClick={() => onUse(section, idx)}>
-                🔒 Unlock Hint #{idx + 1} (-{hint.penaltyPercent || 5}% penalty)
+              <button type="button" className="sdt-hint-unlock" onClick={() => onUse(section, idx)}>
+                <FiLock /> Unlock hint {idx + 1} (−{hint.penaltyPercent || 5}% score)
               </button>
             )}
           </div>

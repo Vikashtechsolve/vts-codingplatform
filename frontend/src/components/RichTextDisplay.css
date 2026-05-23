@@ -87,3 +87,60 @@
   overflow-x: auto;
   margin: 0.5em 0;
 }
+
+/* Quill / rich editor output alignment & indent */
+.rich-text-display .ql-align-center {
+  text-align: center;
+}
+
+.rich-text-display .ql-align-right {
+  text-align: right;
+}
+
+.rich-text-display .ql-align-justify {
+  text-align: justify;
+}
+
+.rich-text-display .ql-indent-1 { padding-left: 3em; }
+.rich-text-display .ql-indent-2 { padding-left: 6em; }
+.rich-text-display .ql-indent-3 { padding-left: 9em; }
+.rich-text-display .ql-indent-4 { padding-left: 12em; }
+
+.rich-text-display u {
+  text-decoration: underline;
+}
+
+.rich-text-display s,
+.rich-text-display strike {
+  text-decoration: line-through;
+}
+
+/* Prevent Quill inline colors from breaking dark mode readability */
+[data-theme='dark'] .rich-text-display,
+[data-theme='dark'] .rich-text-display p,
+[data-theme='dark'] .rich-text-display li,
+[data-theme='dark'] .rich-text-display span,
+[data-theme='dark'] .rich-text-display h1,
+[data-theme='dark'] .rich-text-display h2,
+[data-theme='dark'] .rich-text-display h3,
+[data-theme='dark'] .rich-text-display h4,
+[data-theme='dark'] .rich-text-display strong,
+[data-theme='dark'] .rich-text-display b,
+[data-theme='dark'] .rich-text-display em,
+[data-theme='dark'] .rich-text-display i {
+  color: var(--text-primary) !important;
+}
+
+[data-theme='dark'] .rich-text-display a {
+  color: var(--primary-color, #ed0331) !important;
+}
+
+[data-theme='dark'] .rich-text-display blockquote {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme='dark'] .rich-text-display pre,
+[data-theme='dark'] .rich-text-display code {
+  background: var(--bg-secondary, #2a2a2a);
+  color: var(--text-primary) !important;
+}

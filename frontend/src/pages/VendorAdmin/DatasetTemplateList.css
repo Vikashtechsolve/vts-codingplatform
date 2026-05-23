@@ -19,7 +19,7 @@
 }
 
 .dataset-template-list .template-card {
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary, #ffffff);
   border: 1px solid var(--border-color, #dee2e6);
   border-radius: 12px;
   padding: 20px;
@@ -63,7 +63,7 @@
 .dataset-template-list .empty-state {
   text-align: center;
   padding: 48px 24px;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary, #ffffff);
   border-radius: 12px;
 }
 

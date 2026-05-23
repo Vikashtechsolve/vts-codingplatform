@@ -1,88 +1,183 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import axiosInstance from '../utils/axios';
 import { isDocumentFullscreen, requestDocumentFullscreen } from '../utils/fullscreen';
+import {
+  resetExamClipboard,
+  recordInternalCopy,
+  allowsInternalPaste,
+} from '../utils/examClipboard';
+import {
+  isInternalEditableZone,
+  isActiveElementInInternalZone,
+  isExamChoiceControl,
+  getCopyTextFromEvent,
+  getPasteTextFromEvent,
+  allowsEditorMetaShortcut,
+  isBlockedBrowserShortcut,
+  allowsDragInExam,
+} from '../utils/examSecurityDom';
+import {
+  MAX_EXAM_VIOLATIONS,
+  EXAM_GRACE_PERIOD_MS,
+  VIOLATION_DEBOUNCE_MS,
+  VIOLATION_COOLDOWN_MS,
+  FOCUS_LOSS_THRESHOLD_MS,
+  FOCUS_POLL_INTERVAL_MS,
+  getViolationCooldownKey,
+} from '../constants/examSecurity';
 
-const MAX_VIOLATIONS = parseInt(process.env.REACT_APP_MAX_VIOLATIONS || '3', 10);
+export { MAX_EXAM_VIOLATIONS };
 
-export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWarning, options = {}) => {
-  const { violationEndpoint, autoRequestFullscreen = true } = options;
-  const [violations, setViolations] = useState(0);
+function isSecurityPaused() {
+  return Boolean(
+    document.querySelector('.exam-fullscreen-prompt') ||
+    document.querySelector('.modal-overlay') ||
+    document.querySelector('.sdt-violation-overlay')
+  );
+}
+
+/**
+ * Proctoring for timed in-browser exams (coding, English, system design).
+ * Detects focus loss (incl. macOS desktop swipe), tab hide, fullscreen exit,
+ * copy/paste, and blocked shortcuts. Max violations → auto-submit on backend.
+ */
+export const useExamSecurity = (
+  resultId,
+  onMaxViolationsReached,
+  onViolationWarning,
+  options = {}
+) => {
+  const {
+    violationEndpoint,
+    autoRequestFullscreen = true,
+    initialViolationCount = 0,
+  } = options;
+
+  const [violations, setViolations] = useState(initialViolationCount);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const warningShownFor = useRef(new Set()); // Track which violation counts we've warned about
+  const [securityOverlay, setSecurityOverlay] = useState(null);
+
+  const violationsRef = useRef(initialViolationCount);
+  const onMaxViolationsRef = useRef(onMaxViolationsReached);
+  const onViolationWarningRef = useRef(onViolationWarning);
+
+  useEffect(() => {
+    violationsRef.current = violations;
+  }, [violations]);
+
+  useEffect(() => {
+    onMaxViolationsRef.current = onMaxViolationsReached;
+  }, [onMaxViolationsReached]);
+
+  useEffect(() => {
+    onViolationWarningRef.current = onViolationWarning;
+  }, [onViolationWarning]);
+
+  const warningShownFor = useRef(new Set());
   const fullscreenRequested = useRef(false);
   const violationCheckInterval = useRef(null);
+  const focusPollInterval = useRef(null);
   const isActive = useRef(false);
   const initializationTime = useRef(null);
-  const gracePeriod = 3000; // 3 seconds grace period after initialization
   const isInitializing = useRef(true);
-  const lastViolationTime = useRef({}); // Track last violation time per type
-  const violationCooldown = 2000; // 2 seconds cooldown between same type violations
-  const pendingViolations = useRef(new Map()); // Debounce violations
+  const lastViolationTime = useRef({});
+  const pendingViolations = useRef(new Map());
+  const focusLostAt = useRef(null);
+  const focusLossTimer = useRef(null);
 
-  // Track violation on backend with debouncing and cooldown
-  const trackViolation = useCallback(async (type, details = '') => {
-    if (!resultId || !isActive.current) return;
-    
-    // Ignore violations during grace period (initial page load)
-    if (isInitializing.current && initializationTime.current) {
-      const timeSinceInit = Date.now() - initializationTime.current;
-      if (timeSinceInit < gracePeriod) {
-        console.log(`Ignoring violation during grace period: ${type}`);
-        return violations;
-      }
-      isInitializing.current = false;
+  useEffect(() => {
+    if (typeof initialViolationCount === 'number' && initialViolationCount >= 0) {
+      violationsRef.current = initialViolationCount;
+      setViolations(initialViolationCount);
     }
-    
-    // Ignore certain violation types during initialization
-    if (isInitializing.current && ['window_blur', 'tab_switch', 'fullscreen_exit'].includes(type)) {
-      return violations;
-    }
-    
-    // Cooldown check - prevent rapid-fire violations of the same type
-    const now = Date.now();
-    const lastTime = lastViolationTime.current[type] || 0;
-    if (now - lastTime < violationCooldown) {
-      console.log(`Ignoring duplicate violation (cooldown): ${type}`);
-      return violations;
-    }
-    
-    // Debounce - cancel any pending violation of the same type
-    if (pendingViolations.current.has(type)) {
-      clearTimeout(pendingViolations.current.get(type));
-    }
-    
-    // Set debounce timeout
-    const timeoutId = setTimeout(async () => {
-      try {
-        lastViolationTime.current[type] = Date.now();
-        pendingViolations.current.delete(type);
-        
-        const endpoint = violationEndpoint || `/results/${resultId}/violation`;
-        const response = await axiosInstance.post(endpoint, {
-          type,
-          details
-        });
-        
-        const newViolationCount = response.data.violationCount || violations + 1;
-        setViolations(newViolationCount);
-        
-        // Check if max violations reached
-        if (newViolationCount >= MAX_VIOLATIONS && response.data.autoSubmitted) {
-          if (onMaxViolationsReached) {
-            onMaxViolationsReached();
-          }
+  }, [initialViolationCount, resultId]);
+
+  const trackViolation = useCallback(
+    async (type, details = '') => {
+      if (!resultId || !isActive.current) return violationsRef.current;
+
+      if (isSecurityPaused()) return violationsRef.current;
+
+      if (isInitializing.current && initializationTime.current) {
+        const timeSinceInit = Date.now() - initializationTime.current;
+        if (timeSinceInit < EXAM_GRACE_PERIOD_MS) {
+          return violationsRef.current;
         }
-      } catch (error) {
-        console.error('Error tracking violation:', error);
-        pendingViolations.current.delete(type);
+        isInitializing.current = false;
       }
-    }, 500); // 500ms debounce
-    
-    pendingViolations.current.set(type, timeoutId);
-    return violations;
-  }, [resultId, violations, onMaxViolationsReached, violationEndpoint, gracePeriod, violationCooldown]);
 
-  // Request fullscreen
+      if (isInitializing.current && ['window_blur', 'tab_switch', 'desktop_switch', 'fullscreen_exit', 'page_hidden'].includes(type)) {
+        return violationsRef.current;
+      }
+
+      const cooldownKey = getViolationCooldownKey(type);
+      const now = Date.now();
+      const lastTime = lastViolationTime.current[cooldownKey] || 0;
+      if (now - lastTime < VIOLATION_COOLDOWN_MS) {
+        return violationsRef.current;
+      }
+
+      if (pendingViolations.current.has(cooldownKey)) {
+        clearTimeout(pendingViolations.current.get(cooldownKey));
+      }
+
+      const timeoutId = setTimeout(async () => {
+        try {
+          lastViolationTime.current[cooldownKey] = Date.now();
+          pendingViolations.current.delete(cooldownKey);
+
+          const endpoint = violationEndpoint || `/results/${resultId}/violation`;
+          const response = await axiosInstance.post(endpoint, { type, details });
+
+          const newViolationCount =
+            response.data.violationCount ?? violationsRef.current + 1;
+          violationsRef.current = newViolationCount;
+          setViolations(newViolationCount);
+
+          if (newViolationCount >= MAX_EXAM_VIOLATIONS && response.data.autoSubmitted) {
+            onMaxViolationsRef.current?.();
+          }
+        } catch (error) {
+          console.error('Error tracking violation:', error);
+          pendingViolations.current.delete(cooldownKey);
+        }
+      }, VIOLATION_DEBOUNCE_MS);
+
+      pendingViolations.current.set(cooldownKey, timeoutId);
+      return violationsRef.current;
+    },
+    [resultId, violationEndpoint]
+  );
+
+  const trackViolationRef = useRef(trackViolation);
+  useEffect(() => {
+    trackViolationRef.current = trackViolation;
+  }, [trackViolation]);
+
+  const recordFocusLoss = useCallback((type, details) => {
+    if (!isActive.current || isInitializing.current || isSecurityPaused()) return;
+    if (document.hasFocus() && !document.hidden) return;
+    trackViolationRef.current?.(type, details);
+  }, []);
+
+  const scheduleFocusLossCheck = useCallback(
+    (type) => {
+      if (focusLossTimer.current) clearTimeout(focusLossTimer.current);
+      focusLossTimer.current = setTimeout(() => {
+        focusLossTimer.current = null;
+        if (!document.hasFocus() || document.hidden) {
+          recordFocusLoss(
+            type,
+            document.hidden
+              ? 'Page hidden (tab switch or app switch)'
+              : 'Window lost focus (app switch or desktop)'
+          );
+        }
+      }, FOCUS_LOSS_THRESHOLD_MS);
+    },
+    [recordFocusLoss]
+  );
+
   const requestFullscreen = useCallback(async () => {
     const ok = await requestDocumentFullscreen();
     if (ok || isDocumentFullscreen()) {
@@ -91,241 +186,363 @@ export const useExamSecurity = (resultId, onMaxViolationsReached, onViolationWar
     }
   }, []);
 
-    // Check fullscreen status
   const checkFullscreen = useCallback(() => {
     const isCurrentlyFullscreen = isDocumentFullscreen();
-    
-    // Only track fullscreen exit if we're past initialization and it was actually requested
+
     if (!isCurrentlyFullscreen && fullscreenRequested.current && !isInitializing.current) {
       setIsFullscreen(false);
-      trackViolation('fullscreen_exit', 'User exited fullscreen mode');
+      setSecurityOverlay('fullscreen');
+      trackViolationRef.current?.('fullscreen_exit', 'Exited fullscreen mode');
     } else {
       setIsFullscreen(isCurrentlyFullscreen);
+      if (isCurrentlyFullscreen) {
+        setSecurityOverlay((prev) => (prev === 'fullscreen' ? null : prev));
+      }
     }
-  }, [trackViolation]);
+  }, []);
 
-  // Detect multiple screens
   const checkMultipleScreens = useCallback(() => {
-    if (window.screen && window.screen.width > 1920) {
-      trackViolation('multiple_screens', `Screen width: ${window.screen.width}`);
+    if (window.screen?.isExtended) {
+      trackViolationRef.current?.('multiple_screens', 'Extended or multiple displays detected');
+      return;
     }
-  }, [trackViolation]);
+    if (window.screen && window.screen.width > 2560) {
+      trackViolationRef.current?.('multiple_screens', `Unusually wide screen: ${window.screen.width}px`);
+    }
+  }, []);
 
-  // Block copy/paste
   useEffect(() => {
-    const handleCopy = (e) => {
+    const blockAndViolate = (type, details) => {
+      trackViolationRef.current?.(type, details);
+    };
+
+    const handleCopyBlock = (e) => {
+      if (isSecurityPaused()) return;
+      if (isInternalEditableZone(e.target)) return;
+
       e.preventDefault();
-      trackViolation('copy_paste', 'Copy attempt');
-      return false;
+      e.stopPropagation();
+      blockAndViolate('copy_paste', 'Copy blocked outside the code editor');
+    };
+
+    const handleCopyRecord = (e) => {
+      if (isSecurityPaused()) return;
+      if (!isInternalEditableZone(e.target)) return;
+
+      const record = () => {
+        const text = getCopyTextFromEvent(e);
+        if (text) recordInternalCopy(text);
+      };
+
+      record();
+      requestAnimationFrame(record);
+    };
+
+    const handleCutBlock = (e) => {
+      if (isSecurityPaused()) return;
+      if (isInternalEditableZone(e.target)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      blockAndViolate('copy_paste', 'Cut blocked outside the code editor');
+    };
+
+    const handleCutRecord = (e) => {
+      if (isSecurityPaused()) return;
+      if (!isInternalEditableZone(e.target)) return;
+
+      const record = () => {
+        const text = getCopyTextFromEvent(e);
+        if (text) recordInternalCopy(text);
+      };
+
+      record();
+      requestAnimationFrame(record);
     };
 
     const handlePaste = (e) => {
+      if (isSecurityPaused()) return;
+
+      if (!isInternalEditableZone(e.target)) {
+        e.preventDefault();
+        e.stopPropagation();
+        blockAndViolate('copy_paste', 'Paste blocked outside the code editor');
+        return;
+      }
+
+      const pasted = getPasteTextFromEvent(e);
+      if (allowsInternalPaste(pasted)) {
+        return;
+      }
+
       e.preventDefault();
-      trackViolation('copy_paste', 'Paste attempt');
-      return false;
+      e.stopPropagation();
+      blockAndViolate('copy_paste', 'External paste blocked — only copy/paste within the editor is allowed');
     };
 
-    const handleCut = (e) => {
-      e.preventDefault();
-      trackViolation('copy_paste', 'Cut attempt');
-      return false;
-    };
-
-    // Block context menu (right-click)
     const handleContextMenu = (e) => {
+      if (isSecurityPaused()) return;
+
+      if (isInternalEditableZone(e.target)) {
+        return;
+      }
+
       e.preventDefault();
-      trackViolation('copy_paste', 'Right-click context menu');
-      return false;
+      e.stopPropagation();
+      blockAndViolate('copy_paste', 'Right-click blocked during exam');
     };
 
-    // Block keyboard shortcuts
     const handleKeyDown = (e) => {
-      // Allow essential keys for typing
-      const allowedKeys = [
+      if (isSecurityPaused()) return;
+
+      const allowedTypingKeys = [
         'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-        'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown'
+        'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', ' ',
       ];
-      
-      // Block Ctrl/Cmd combinations
-      if ((e.ctrlKey || e.metaKey) && !allowedKeys.includes(e.key)) {
-        e.preventDefault();
-        trackViolation('shortcut_key', `Blocked shortcut: ${e.key} (Ctrl/Cmd)`);
-        return false;
+
+      if (allowedTypingKeys.includes(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        return;
       }
-      
-      // Block F5 (refresh), F11 (fullscreen toggle), F12 (dev tools)
-      if (['F5', 'F11', 'F12'].includes(e.key)) {
-        e.preventDefault();
-        trackViolation('shortcut_key', `Blocked function key: ${e.key}`);
-        return false;
+
+      if (allowsEditorMetaShortcut(e)) {
+        return;
       }
-      
-      // Block Print Screen
-      if (e.key === 'PrintScreen') {
+
+      const blocked = isBlockedBrowserShortcut(e);
+      if (blocked) {
         e.preventDefault();
-        trackViolation('shortcut_key', 'Print Screen blocked');
-        return false;
+        e.stopPropagation();
+        const lower = blocked.toLowerCase();
+        let violationType = 'shortcut_key';
+        if (lower.includes('developer')) violationType = 'devtools_attempt';
+        else if (lower.includes('browser shortcut') || lower.includes('window switch')) {
+          violationType = 'navigation_attempt';
+        }
+        blockAndViolate(violationType, `Blocked: ${blocked}`);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !allowedTypingKeys.includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        blockAndViolate('shortcut_key', `Blocked shortcut: ${e.key}`);
       }
     };
 
-    // Block tab/window switching
+    const syncTabOverlay = () => {
+      if (!isActive.current || isSecurityPaused()) return;
+      setSecurityOverlay((prev) => {
+        if (prev === 'fullscreen') return prev;
+        return document.hidden ? 'focus' : null;
+      });
+    };
+
     const handleVisibilityChange = () => {
-      // Ignore during initialization or if not active
-      if (!isActive.current || isInitializing.current) return;
-      
+      if (!isActive.current || isInitializing.current || isSecurityPaused()) return;
+
       if (document.hidden) {
-        trackViolation('tab_switch', 'Tab switched or window hidden');
+        syncTabOverlay();
+        recordFocusLoss('tab_switch', 'Tab hidden or window not visible');
+      } else {
+        syncTabOverlay();
+        focusLostAt.current = null;
+        window.focus();
       }
     };
 
-    const handleBlur = () => {
-      // Ignore during initialization or if not active
+    const handleWindowBlur = () => {
+      if (!isActive.current || isInitializing.current || isSecurityPaused()) return;
+      scheduleFocusLossCheck('window_blur');
+    };
+
+    const handleWindowFocus = () => {
+      if (focusLossTimer.current) {
+        clearTimeout(focusLossTimer.current);
+        focusLossTimer.current = null;
+      }
+      focusLostAt.current = null;
+      if (!document.hidden) {
+        syncTabOverlay();
+      }
+    };
+
+    const handlePageHide = () => {
       if (!isActive.current || isInitializing.current) return;
-      
-      // Only track blur if window actually lost focus (not just internal focus changes)
-      // Add delay to avoid false positives from fullscreen request or internal navigation
-      setTimeout(() => {
-        // Check if window actually lost focus (not just focus moved to another element in same window)
-        if (!document.hasFocus() && document.hidden) {
-          trackViolation('window_blur', 'Window lost focus');
-        }
-      }, 500); // Increased delay to avoid false positives
+      recordFocusLoss('page_hidden', 'Page hidden or navigating away');
     };
 
-    // Block drag and drop - but only track if it's actually a file/content drop
-    const handleDragStart = (e) => {
-      const target = e.target;
-      if (target && typeof target.closest === 'function') {
-        if (target.closest('.monaco-editor') || target.closest('button') || target.closest('input') || target.closest('textarea')) {
-          return true;
-        }
-        // Allow drag inside architecture builder (palette items, React Flow nodes)
-        if (target.closest('.arch-workspace') || target.closest('.arch-palette') || target.hasAttribute('draggable')) {
-          return true;
-        }
-      }
+    const handleBeforeUnload = (e) => {
+      if (!isActive.current) return;
       e.preventDefault();
-      return false;
+      e.returnValue = '';
+    };
+
+    const handleDragStart = (e) => {
+      if (allowsDragInExam(e.target)) return;
+      e.preventDefault();
+      blockAndViolate('copy_paste', 'Drag blocked during exam');
     };
 
     const handleDrop = (e) => {
-      const target = e.target;
-      if (target && typeof target.closest === 'function') {
-        if (target.closest('.monaco-editor') || target.closest('input') || target.closest('textarea')) {
-          return true;
-        }
-        // Allow drop inside architecture builder canvas
-        if (target.closest('.arch-workspace') || target.closest('.react-flow')) {
-          return true;
-        }
+      if (allowsDragInExam(e.target) && !(e.dataTransfer?.files?.length > 0)) {
+        return;
       }
-      
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (e.dataTransfer?.files?.length > 0) {
         e.preventDefault();
-        trackViolation('copy_paste', 'File drag and drop attempt');
-        return false;
+        blockAndViolate('copy_paste', 'File drag and drop blocked');
+        return;
       }
-      
-      return true;
+      if (!isInternalEditableZone(e.target)) {
+        e.preventDefault();
+        blockAndViolate('copy_paste', 'Drop blocked during exam');
+      }
     };
 
-    // Block text selection - REMOVED as it's too aggressive and causes false positives
-    // Normal clicking and UI interactions should not be violations
-    // Only actual copy/paste actions are blocked via copy/paste event handlers
+    const handleSelectStart = (e) => {
+      if (isSecurityPaused()) return;
+      if (
+        isInternalEditableZone(e.target) ||
+        isActiveElementInInternalZone() ||
+        isExamChoiceControl(e.target)
+      ) {
+        return;
+      }
+      e.preventDefault();
+    };
 
-    // Only activate if resultId is provided
-    if (!resultId) {
-      return;
-    }
+    if (!resultId) return undefined;
 
     isActive.current = true;
     initializationTime.current = Date.now();
     isInitializing.current = true;
-    const pendingViolationsSnapshot = pendingViolations.current;
+    const pendingSnapshot = pendingViolations.current;
 
-    // End grace period after delay
     setTimeout(() => {
       isInitializing.current = false;
-    }, gracePeriod);
+    }, EXAM_GRACE_PERIOD_MS);
 
-    // Add event listeners
-    document.addEventListener('copy', handleCopy);
-    document.addEventListener('paste', handlePaste);
-    document.addEventListener('cut', handleCut);
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
+    document.body.classList.add('exam-protected');
+
+    document.addEventListener('copy', handleCopyBlock, true);
+    document.addEventListener('copy', handleCopyRecord, false);
+    document.addEventListener('paste', handlePaste, true);
+    document.addEventListener('cut', handleCutBlock, true);
+    document.addEventListener('cut', handleCutRecord, false);
+    document.addEventListener('contextmenu', handleContextMenu, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('selectstart', handleSelectStart, true);
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('dragstart', handleDragStart);
     document.addEventListener('drop', handleDrop);
-    // Removed selectstart listener - too aggressive, causes false positives
 
-    // Fullscreen change listeners
     document.addEventListener('fullscreenchange', checkFullscreen);
     document.addEventListener('webkitfullscreenchange', checkFullscreen);
     document.addEventListener('mozfullscreenchange', checkFullscreen);
     document.addEventListener('MSFullscreenChange', checkFullscreen);
 
-    // Check fullscreen periodically
     violationCheckInterval.current = setInterval(() => {
       checkFullscreen();
       checkMultipleScreens();
     }, 1000);
 
-    // Initial fullscreen check
+    focusPollInterval.current = setInterval(() => {
+      if (!isActive.current || isInitializing.current || isSecurityPaused()) {
+        focusLostAt.current = null;
+        return;
+      }
+      if (document.hidden) {
+        setSecurityOverlay((prev) => (prev === 'fullscreen' ? prev : 'focus'));
+      }
+
+      if (!document.hasFocus() || document.hidden) {
+        if (!focusLostAt.current) {
+          focusLostAt.current = Date.now();
+        } else if (Date.now() - focusLostAt.current >= FOCUS_LOSS_THRESHOLD_MS) {
+          recordFocusLoss(
+            'desktop_switch',
+            'Focus lost — switched app, desktop, or Mission Control (macOS/Windows)'
+          );
+          focusLostAt.current = null;
+        }
+      } else {
+        focusLostAt.current = null;
+      }
+    }, FOCUS_POLL_INTERVAL_MS);
+
     checkFullscreen();
     checkMultipleScreens();
 
     if (autoRequestFullscreen) {
-      setTimeout(() => {
-        requestFullscreen();
-      }, 500);
+      setTimeout(() => requestFullscreen(), 500);
     }
 
     return () => {
-      document.removeEventListener('copy', handleCopy);
-      document.removeEventListener('paste', handlePaste);
-      document.removeEventListener('cut', handleCut);
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.body.classList.remove('exam-protected');
+      resetExamClipboard();
+      setSecurityOverlay(null);
+
+      document.removeEventListener('copy', handleCopyBlock, true);
+      document.removeEventListener('copy', handleCopyRecord, false);
+      document.removeEventListener('paste', handlePaste, true);
+      document.removeEventListener('cut', handleCutBlock, true);
+      document.removeEventListener('cut', handleCutRecord, false);
+      document.removeEventListener('contextmenu', handleContextMenu, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('selectstart', handleSelectStart, true);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('dragstart', handleDragStart);
       document.removeEventListener('drop', handleDrop);
-      // Clear any pending violation timeouts (use snapshot from effect start)
-      if (pendingViolationsSnapshot) {
-        pendingViolationsSnapshot.forEach(timeoutId => clearTimeout(timeoutId));
-        pendingViolationsSnapshot.clear();
-      }
       document.removeEventListener('fullscreenchange', checkFullscreen);
       document.removeEventListener('webkitfullscreenchange', checkFullscreen);
       document.removeEventListener('mozfullscreenchange', checkFullscreen);
       document.removeEventListener('MSFullscreenChange', checkFullscreen);
-      
-      if (violationCheckInterval.current) {
-        clearInterval(violationCheckInterval.current);
-      }
-      
+
+      if (focusLossTimer.current) clearTimeout(focusLossTimer.current);
+      pendingSnapshot?.forEach((id) => clearTimeout(id));
+      pendingSnapshot?.clear();
+      if (violationCheckInterval.current) clearInterval(violationCheckInterval.current);
+      if (focusPollInterval.current) clearInterval(focusPollInterval.current);
       isActive.current = false;
     };
-  }, [resultId, trackViolation, checkFullscreen, checkMultipleScreens, requestFullscreen, autoRequestFullscreen]);
+  }, [
+    resultId,
+    recordFocusLoss,
+    scheduleFocusLossCheck,
+    checkFullscreen,
+    checkMultipleScreens,
+    requestFullscreen,
+    autoRequestFullscreen,
+  ]);
 
-  // Show warning when violations approach limit
   useEffect(() => {
-    if (violations > 0 && violations < MAX_VIOLATIONS && !warningShownFor.current.has(violations)) {
-      // Show warning for violations 1 and 2 (when approaching limit)
-      if (onViolationWarning) {
-        onViolationWarning(violations, MAX_VIOLATIONS);
-        warningShownFor.current.add(violations);
-      }
+    if (violations > 0 && violations < MAX_EXAM_VIOLATIONS && !warningShownFor.current.has(violations)) {
+      onViolationWarningRef.current?.(violations, MAX_EXAM_VIOLATIONS);
+      warningShownFor.current.add(violations);
     }
-  }, [violations, onViolationWarning]);
+  }, [violations]);
+
+  const handleReenterFullscreen = useCallback(async () => {
+    await requestFullscreen();
+    if (isDocumentFullscreen()) {
+      setSecurityOverlay((prev) => (prev === 'fullscreen' ? null : prev));
+    }
+  }, [requestFullscreen]);
 
   return {
     violations,
+    maxViolations: MAX_EXAM_VIOLATIONS,
     isFullscreen,
     requestFullscreen,
-    trackViolation
+    trackViolation,
+    securityOverlay,
+    onReenterFullscreen: handleReenterFullscreen,
   };
 };
-
