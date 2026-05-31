@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
-import './CreateClassroom.css';
+import VendorHubPage from '../../components/VendorAdmin/VendorAssessPage';
 
 const CreateClassroom = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    name: '',
-    description: ''
-  });
+  const [formData, setFormData] = useState({ name: '', description: '' });
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(!!id);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const showModal = (title, message, type = 'info') => {
@@ -22,38 +20,34 @@ const CreateClassroom = () => {
     setModal({ isOpen: false, title: '', message: '', type: 'info' });
   };
 
-  React.useEffect(() => {
-    if (id) {
-      fetchClassroom();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when id changes
+  useEffect(() => {
+    if (!id) return;
+    const fetchClassroom = async () => {
+      try {
+        const response = await axiosInstance.get(`/vendor-admin/classrooms/${id}`);
+        setFormData({
+          name: response.data.name,
+          description: response.data.description || '',
+        });
+      } catch (error) {
+        console.error('Error fetching classroom:', error);
+        showModal('Error', 'Failed to load classroom.', 'error');
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchClassroom();
   }, [id]);
 
-  const fetchClassroom = async () => {
-    try {
-      const response = await axiosInstance.get(`/vendor-admin/classrooms/${id}`);
-      setFormData({
-        name: response.data.name,
-        description: response.data.description || ''
-      });
-    } catch (error) {
-      console.error('❌ Error fetching classroom:', error);
-      showModal('Error', 'Failed to load classroom data.', 'error');
-    }
-  };
-
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
-      showModal('Validation Error', 'Classroom name is required', 'error');
+      showModal('Validation', 'Classroom name is required.', 'error');
       return;
     }
 
@@ -61,91 +55,99 @@ const CreateClassroom = () => {
 
     try {
       if (id) {
-        // Update existing classroom
         await axiosInstance.put(`/vendor-admin/classrooms/${id}`, formData);
-        showModal('Success', 'Classroom updated successfully!', 'success');
+        showModal('Saved', 'Classroom updated successfully.', 'success');
       } else {
-        // Create new classroom
         await axiosInstance.post('/vendor-admin/classrooms', formData);
-        showModal('Success', 'Classroom created successfully!', 'success');
+        showModal('Created', 'Classroom created successfully.', 'success');
       }
-      
-      setTimeout(() => {
-        navigate('/vendor-admin/classrooms');
-      }, 1500);
+
+      setTimeout(() => navigate('/vendor-admin/classrooms'), 1200);
     } catch (error) {
-      console.error('❌ Error saving classroom:', error);
-      const errorMsg = error.response?.data?.message || 
-                       error.response?.data?.errors?.map(e => e.msg || e.message).join(', ') ||
-                       'Error saving classroom. Please try again.';
+      const errorMsg =
+        error.response?.data?.message ||
+        error.response?.data?.errors?.map((e) => e.msg || e.message).join(', ') ||
+        'Could not save classroom.';
       showModal('Error', errorMsg, 'error');
     } finally {
       setLoading(false);
     }
   };
 
+  if (fetching) {
+    return (
+      <VendorHubPage
+        loading
+        backTo="/vendor-admin/classrooms"
+        backLabel="Back to classrooms"
+        accent="#0891b2"
+      />
+    );
+  }
+
   return (
-    <div className="container create-classroom">
-      <Modal 
-        isOpen={modal.isOpen} 
-        onClose={closeModal}
-        title={modal.title}
-        type={modal.type}
-      >
+    <VendorHubPage
+      className="vh-create-classroom"
+      backTo="/vendor-admin/classrooms"
+      backLabel="Back to classrooms"
+      eyebrow={id ? 'Edit classroom' : 'New classroom'}
+      title={id ? 'Edit classroom' : 'Create classroom'}
+      subtitle="Name your batch or cohort and add an optional description for your team."
+      accent="#0891b2"
+    >
+      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
         <p>{modal.message}</p>
       </Modal>
 
-      <div className="page-header">
-        <h1 className="page-title">{id ? 'Edit Classroom' : 'Create Classroom'}</h1>
-        <button onClick={() => navigate('/vendor-admin/classrooms')} className="btn btn-secondary">
-          Back to Classrooms
-        </button>
+      <div className="vh-panel" style={{ maxWidth: 640 }}>
+        <div className="vh-panel-body">
+          <form className="vh-form-grid" onSubmit={handleSubmit}>
+            <div className="vh-field">
+              <label htmlFor="classroom-name">Classroom name *</label>
+              <input
+                id="classroom-name"
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                placeholder="e.g. Batch 2025, Advanced DSA"
+              />
+            </div>
+            <div className="vh-field">
+              <label htmlFor="classroom-desc">Description</label>
+              <textarea
+                id="classroom-desc"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={4}
+                placeholder="Optional notes about schedule, cohort, or goals…"
+              />
+            </div>
+            <div className="vh-form-actions">
+              <button
+                type="button"
+                className="vh-btn vh-btn--secondary"
+                onClick={() => navigate('/vendor-admin/classrooms')}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="vh-btn vh-btn--primary" disabled={loading}>
+                {loading
+                  ? id
+                    ? 'Saving…'
+                    : 'Creating…'
+                  : id
+                    ? 'Save changes'
+                    : 'Create classroom'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-
-      <div className="card">
-        <form onSubmit={handleSubmit} className="classroom-form">
-          <div className="form-group">
-            <label>Classroom Name *</label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              placeholder="e.g., Batch 2024, Advanced Programming, etc."
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Description</label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows="4"
-              placeholder="Optional description about this classroom..."
-              className="form-textarea"
-            />
-          </div>
-
-          <div className="form-actions">
-            <button 
-              type="button" 
-              onClick={() => navigate('/vendor-admin/classrooms')} 
-              className="btn btn-secondary"
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? (id ? 'Updating...' : 'Creating...') : (id ? 'Update Classroom' : 'Create Classroom')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    </VendorHubPage>
   );
 };
 
 export default CreateClassroom;
-

@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
-import Modal from '../../components/Modal';
+import RichTextEditor from '../../components/RichTextEditor';
+import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
+import TagInput from '../../components/TagInput';
 import './CreateEnglishQuestion.css';
 
 const SPEAKING_TYPES = [
@@ -28,16 +31,18 @@ const CreateEnglishSpeakingQuestion = () => {
     maxAttempts: 2,
     evaluationWeights: { pronunciation: 0.25, fluency: 0.25, coherence: 0.20, vocabulary: 0.15, grammar: 0.15 },
     difficulty: 'medium',
-    points: 20
+    points: 20,
+    tags: []
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const fetchQuestion = useCallback(async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const res = await axiosInstance.get(`/questions/english/speaking/${id}`);
       const q = res.data;
       setFormData({
@@ -49,13 +54,14 @@ const CreateEnglishSpeakingQuestion = () => {
         maxAttempts: q.maxAttempts || 2,
         evaluationWeights: q.evaluationWeights || { pronunciation: 0.25, fluency: 0.25, coherence: 0.20, vocabulary: 0.15, grammar: 0.15 },
         difficulty: q.difficulty || 'medium',
-        points: q.points || 20
+        points: q.points || 20,
+        tags: q.tags || []
       });
       if (q.imageUrl) setImagePreview(q.imageUrl);
     } catch (error) {
       showModal('Error', 'Failed to load question', 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   }, [id]);
 
@@ -81,10 +87,12 @@ const CreateEnglishSpeakingQuestion = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.prompt.trim()) return showModal('Error', 'Prompt is required', 'error');
-    if (formData.speakingType === 'read_aloud' && !formData.referenceText.trim()) return showModal('Error', 'Reference text required for Read Aloud', 'error');
+    if (isRichTextEmpty(formData.prompt)) return showModal('Error', 'Prompt is required', 'error');
+    if (formData.speakingType === 'read_aloud' && isRichTextEmpty(formData.referenceText)) {
+      return showModal('Error', 'Reference text required for Read Aloud', 'error');
+    }
 
-    setLoading(true);
+    setSaving(true);
     try {
       const fd = new FormData();
       fd.append('prompt', formData.prompt);
@@ -96,6 +104,7 @@ const CreateEnglishSpeakingQuestion = () => {
       fd.append('evaluationWeights', JSON.stringify(formData.evaluationWeights));
       fd.append('difficulty', formData.difficulty);
       fd.append('points', formData.points);
+      fd.append('tags', JSON.stringify(formData.tags || []));
       if (imageFile) fd.append('image', imageFile);
 
       const config = { headers: { 'Content-Type': 'multipart/form-data' } };
@@ -110,22 +119,23 @@ const CreateEnglishSpeakingQuestion = () => {
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="container create-english-question">
-      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit' : 'Create'} Speaking Question</h1>
-        <button onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Back</button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <EnglishQuestionFormShell
+      subtype="Speaking"
+      title={isEditMode ? 'Edit speaking question' : 'Create speaking question'}
+      subtitle="Read aloud, describe image, topic speaking, situational, and extempore prompts."
+      pageLoading={pageLoading}
+      modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
+      formId="english-speaking-form"
+      onCancel={() => navigate('/vendor-admin/english-questions')}
+      saving={saving}
+      isEditMode={isEditMode}
+    >
+      <form id="english-speaking-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
           <h2 className="section-title">Speaking Prompt</h2>
           <div className="form-row">
@@ -144,15 +154,27 @@ const CreateEnglishSpeakingQuestion = () => {
               </select>
             </div>
           </div>
-          <div className="form-group full-width">
-            <label>Prompt / Topic *</label>
-            <textarea name="prompt" value={formData.prompt} onChange={handleChange} rows="4" placeholder="e.g., Describe your favorite place to visit and why you like it." className="form-textarea" required />
+          <div className="vqf-rich-field">
+            <label>Prompt / topic *</label>
+            <RichTextEditor
+              variant="full"
+              value={formData.prompt}
+              onChange={(html) => setFormData((prev) => ({ ...prev, prompt: html }))}
+              placeholder="e.g., Describe your favorite place to visit and why you like it."
+              minHeight={140}
+            />
           </div>
 
           {formData.speakingType === 'read_aloud' && (
-            <div className="form-group full-width">
-              <label>Reference Text (text to read aloud) *</label>
-              <textarea name="referenceText" value={formData.referenceText} onChange={handleChange} rows="6" placeholder="The passage that the student will read aloud..." className="form-textarea" />
+            <div className="vqf-rich-field">
+              <label>Reference text (read aloud) *</label>
+              <RichTextEditor
+                variant="standard"
+                value={formData.referenceText}
+                onChange={(html) => setFormData((prev) => ({ ...prev, referenceText: html }))}
+                placeholder="The passage the student will read aloud…"
+                minHeight={160}
+              />
             </div>
           )}
 
@@ -188,6 +210,11 @@ const CreateEnglishSpeakingQuestion = () => {
               <label>Points</label>
               <input type="number" name="points" value={formData.points} onChange={handleChange} min="1" className="form-input" />
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
           </div>
         </div>
 
@@ -203,12 +230,8 @@ const CreateEnglishSpeakingQuestion = () => {
           </div>
         </div>
 
-        <div className="form-actions">
-          <button type="button" onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving...' : isEditMode ? 'Update' : 'Create Question'}</button>
-        </div>
       </form>
-    </div>
+    </EnglishQuestionFormShell>
   );
 };
 

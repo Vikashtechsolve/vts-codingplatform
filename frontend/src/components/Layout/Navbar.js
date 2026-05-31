@@ -96,7 +96,7 @@ const Navbar = () => {
   const brandClassName = `navbar-brand${isExamLocked ? ' navbar-brand--exam-locked' : ''}`;
 
   return (
-    <nav className={`navbar${user?.role === 'student' ? ' navbar-student' : ''}`}>
+    <nav className={`navbar${user?.role === 'student' ? ' navbar-student' : ''}${user?.role === 'vendor_admin' ? ' navbar-vendor' : ''}`}>
       <div className="navbar-container">
         {isExamLocked ? (
           <button
@@ -121,19 +121,6 @@ const Navbar = () => {
                   <Link to="/super-admin/dashboard" className="navbar-link">Dashboard</Link>
                   <Link to="/super-admin/vendors" className="navbar-link">Vendors</Link>
                   <Link to="/super-admin/interview-credits" className="navbar-link">Interview Credits</Link>
-                </>
-              )}
-
-              {user.role === 'vendor_admin' && (
-                <>
-                  <Link to="/vendor-admin/dashboard" className="navbar-link">Dashboard</Link>
-                  <Link to="/vendor-admin/tests" className="navbar-link">Tests</Link>
-                  <Link to="/vendor-admin/questions" className="navbar-link">Questions</Link>
-                  <Link to="/vendor-admin/students" className="navbar-link">Students</Link>
-                  <Link to="/vendor-admin/classrooms" className="navbar-link">Classrooms</Link>
-                  <Link to="/vendor-admin/announcements" className="navbar-link">Announcements</Link>
-                  <Link to="/vendor-admin/analytics" className="navbar-link">Analytics</Link>
-                  <Link to="/vendor-admin/settings" className="navbar-link">Settings</Link>
                 </>
               )}
 

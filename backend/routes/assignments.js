@@ -364,7 +364,7 @@ router.post('/:id/activate', authenticateToken, authorizeRoles('vendor_admin'), 
  */
 router.post('/:id/assign', authenticateToken, authorizeRoles('vendor_admin'), async (req, res) => {
   try {
-    const { studentIds, classroomId } = req.body;
+    const { studentIds, classroomId, classroomIds } = req.body;
 
     const assignment = await Assignment.findById(req.params.id);
 
@@ -393,26 +393,36 @@ router.post('/:id/assign', authenticateToken, authorizeRoles('vendor_admin'), as
       await assignment.save();
     }
 
-    let targetStudentIds = [];
+    const classroomIdList = [
+      ...(Array.isArray(classroomIds) ? classroomIds : []),
+      ...(classroomId ? [classroomId] : []),
+    ].filter(Boolean);
 
-    // Get students from classroom or direct IDs
-    if (classroomId) {
-      const classroom = await Classroom.findById(classroomId);
+    const targetStudentIdSet = new Set();
+
+    for (const cid of classroomIdList) {
+      const classroom = await Classroom.findById(cid);
       if (!classroom || classroom.vendorId.toString() !== req.user.vendorId.toString()) {
         return res.status(404).json({
           success: false,
-          message: 'Classroom not found'
+          message: 'Classroom not found',
         });
       }
-      targetStudentIds = classroom.students;
-    } else if (studentIds && studentIds.length > 0) {
-      targetStudentIds = studentIds;
-    } else {
+      (classroom.students || []).forEach((sid) => targetStudentIdSet.add(sid.toString()));
+    }
+
+    if (studentIds && studentIds.length > 0) {
+      studentIds.forEach((sid) => targetStudentIdSet.add(sid.toString()));
+    }
+
+    if (targetStudentIdSet.size === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Either studentIds or classroomId must be provided'
+        message: 'Select at least one classroom with students or individual students',
       });
     }
+
+    const targetStudentIds = [...targetStudentIdSet];
 
     // Assign to students
     let assignedCount = 0;

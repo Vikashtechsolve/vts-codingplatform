@@ -3,6 +3,11 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
+import RichTextEditor from '../../components/RichTextEditor';
+import VendorQuestionFormPage from '../../components/VendorAdmin/VendorQuestionFormPage';
+import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
+import TagInput from '../../components/TagInput';
 import './CreateMCQQuestion.css';
 
 const CreateMCQQuestion = () => {
@@ -21,9 +26,11 @@ const CreateMCQQuestion = () => {
     explanation: '',
     difficulty: 'medium',
     category: '',
-    points: 10
+    points: 10,
+    tags: []
   });
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const navigate = useNavigate();
 
@@ -36,7 +43,7 @@ const CreateMCQQuestion = () => {
 
   const fetchQuestion = async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       console.log('📥 Fetching MCQ question for edit:', id);
       const response = await axiosInstance.get(`${apiBase}/mcq/${id}`);
       const q = response.data;
@@ -48,15 +55,19 @@ const CreateMCQQuestion = () => {
         explanation: q.explanation || '',
         difficulty: q.difficulty || 'medium',
         category: q.category || '',
-        points: q.points || 10
+        points: q.points || 10,
+        tags: q.tags || []
       });
     } catch (error) {
       console.error('❌ Error fetching MCQ question:', error);
       showModal('Error', `Failed to load question data: ${error.response?.data?.message || error.message}`, 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   };
+
+  const meta = QUESTION_FORM_META.mcq;
+  const backTo = isGlobal ? '/super-admin/global-questions' : meta.back;
 
   const showModal = (title, message, type = 'info') => {
     setModal({ isOpen: true, title, message, type });
@@ -103,7 +114,7 @@ const CreateMCQQuestion = () => {
     e.preventDefault();
     
     // Client-side validation
-    if (!formData.question.trim()) {
+    if (isRichTextEmpty(formData.question)) {
       showModal('Validation Error', 'Question text is required', 'error');
       return;
     }
@@ -121,7 +132,7 @@ const CreateMCQQuestion = () => {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
 
     try {
       const questionData = {
@@ -151,49 +162,52 @@ const CreateMCQQuestion = () => {
                        `Error ${isEditMode ? 'updating' : 'creating'} question. Please try again.`;
       showModal('Error', errorMsg, 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
+  const modalEl = (
+    <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
+      <p>{modal.message}</p>
+    </Modal>
+  );
+
+  const formFooter = (
+    <div className="form-actions">
+      <button type="button" onClick={() => navigate(backTo)} className="btn btn-secondary">Cancel</button>
+      <button type="submit" form="mcq-question-form" className="btn btn-primary" disabled={saving}>
+        {saving ? 'Saving…' : isEditMode ? 'Update question' : 'Create question'}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="container create-mcq-question">
-      <Modal 
-        isOpen={modal.isOpen} 
-        onClose={closeModal}
-        title={modal.title}
-        type={modal.type}
-      >
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">Create MCQ Question</h1>
-        <button 
-          onClick={() => navigate(isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions')} 
-          className="btn btn-secondary"
-        >
-          Back to Questions
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
-        {/* Basic Information Section */}
+    <VendorQuestionFormPage
+      className="create-mcq-question"
+      loading={pageLoading}
+      backTo={backTo}
+      backLabel="Back to questions"
+      eyebrow={meta.label}
+      title={isEditMode ? meta.editTitle : meta.createTitle}
+      subtitle={meta.subtitle}
+      accent={meta.accent}
+      isGlobal={isGlobal}
+      modal={modalEl}
+      footer={formFooter}
+    >
+      <form id="mcq-question-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
-          <h2 className="section-title">Question Details</h2>
-          
-          <div className="form-row">
-            <div className="form-group full-width">
-              <label>Question Text *</label>
-              <textarea
-                name="question"
-                value={formData.question}
-                onChange={handleChange}
-                required
-                rows="6"
-                placeholder="Enter your question here..."
-                className="form-textarea"
-              />
-            </div>
+          <h2 className="section-title">Question details</h2>
+
+          <div className="vqf-rich-field">
+            <label>Question text *</label>
+            <RichTextEditor
+              variant="full"
+              value={formData.question}
+              onChange={(html) => setFormData((prev) => ({ ...prev, question: html }))}
+              placeholder="Enter the question — formatting, images, and links supported."
+              minHeight={180}
+            />
           </div>
 
           <div className="form-row">
@@ -228,6 +242,11 @@ const CreateMCQQuestion = () => {
                 className="form-input"
               />
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
           </div>
         </div>
 
@@ -282,32 +301,20 @@ const CreateMCQQuestion = () => {
           </div>
         </div>
 
-        {/* Explanation Section */}
         <div className="form-section">
-          <h2 className="section-title">Explanation (Optional)</h2>
-          <div className="form-group">
-            <textarea
-              name="explanation"
+          <h2 className="section-title">Explanation (optional)</h2>
+          <div className="vqf-rich-field">
+            <RichTextEditor
+              variant="standard"
               value={formData.explanation}
-              onChange={handleChange}
-              rows="4"
-              placeholder="Provide an explanation for the correct answer..."
-              className="form-textarea"
+              onChange={(html) => setFormData((prev) => ({ ...prev, explanation: html }))}
+              placeholder="Explain the correct answer for students after submission…"
+              minHeight={120}
             />
           </div>
         </div>
-
-        {/* Submit Button */}
-        <div className="form-actions">
-          <button type="button" onClick={() => navigate('/vendor-admin/questions')} className="btn btn-secondary">
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Creating...' : 'Create Question'}
-          </button>
-        </div>
       </form>
-    </div>
+    </VendorQuestionFormPage>
   );
 };
 

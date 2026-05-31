@@ -73,6 +73,8 @@ const validateAptitudePayload = (payload) => {
   return errors;
 };
 
+const { resolveTagsForSave } = require('../utils/questionTags');
+
 // Create global coding question
 router.post('/coding', [
   body('title').trim().notEmpty().withMessage('Title is required'),
@@ -95,7 +97,8 @@ router.post('/coding', [
       starterCode,
       solution,
       constraints,
-      examples
+      examples,
+      tags
     } = req.body;
 
     if (!allowedLanguages || allowedLanguages.length === 0) {
@@ -118,7 +121,8 @@ router.post('/coding', [
       starterCode: starterCode || {},
       solution: solution || {},
       constraints: constraints || '',
-      examples: examples || []
+      examples: examples || [],
+      tags: await resolveTagsForSave(null, tags, req.user._id)
     });
 
     await question.save();
@@ -179,6 +183,10 @@ router.put('/coding/:id', [
       return res.status(404).json({ message: 'Question not found' });
     }
 
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(null, req.body.tags, req.user._id);
+    }
+
     // Update fields
     Object.keys(req.body).forEach(key => {
       if (req.body[key] !== undefined && key !== '_id' && key !== 'isGlobal' && key !== 'vendorId') {
@@ -226,7 +234,7 @@ router.post('/mcq', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { question, options, explanation, difficulty, category, points } = req.body;
+    const { question, options, explanation, difficulty, category, points, tags } = req.body;
 
     const validOptions = (options || []).filter(opt => opt.text && opt.text.trim());
     
@@ -248,7 +256,8 @@ router.post('/mcq', [
       isGlobal: true,
       createdBy: req.user._id,
       category: category || '',
-      points: points || 10
+      points: points || 10,
+      tags: await resolveTagsForSave(null, tags, req.user._id)
     });
 
     await mcqQuestion.save();
@@ -306,6 +315,10 @@ router.put('/mcq/:id', [
 
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
+    }
+
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(null, req.body.tags, req.user._id);
     }
 
     // Update fields
@@ -367,7 +380,8 @@ router.post('/aptitude', [
       subCategory,
       explanation,
       difficulty,
-      points
+      points,
+      tags
     } = req.body;
 
     const validOptions = (options || []).filter(opt => opt && opt.text && opt.text.trim());
@@ -388,7 +402,8 @@ router.post('/aptitude', [
       vendorId: null,
       isGlobal: true,
       createdBy: req.user._id,
-      points: points || 10
+      points: points || 10,
+      tags: await resolveTagsForSave(null, tags, req.user._id)
     });
 
     await aptitudeQuestion.save();
@@ -454,6 +469,10 @@ router.put('/aptitude/:id', [
 
     const updatedOptions = (mergedPayload.options || []).filter(opt => opt && opt.text && opt.text.trim());
     const normalizedCorrect = normalizeOptionIndexes(mergedPayload.correctOptions);
+
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(null, req.body.tags, req.user._id);
+    }
 
     Object.keys(req.body).forEach(key => {
       if (req.body[key] !== undefined && key !== '_id' && key !== 'isGlobal' && key !== 'vendorId') {
@@ -545,7 +564,7 @@ router.post('/theory', [
       keywords: Array.isArray(keywords) ? keywords : [],
       evaluationRubric: evaluationRubric || '',
       evaluationConfig: evaluationConfig || {},
-      tags: Array.isArray(tags) ? tags : [],
+      tags: await resolveTagsForSave(null, tags, req.user._id),
       vendorId: null,
       isGlobal: true,
       createdBy: req.user._id
@@ -615,6 +634,10 @@ router.put('/theory/:id', async (req, res) => {
         return res.status(404).json({ message: 'Topic not found' });
       }
       question.topicId = topic._id;
+    }
+
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(null, req.body.tags, req.user._id);
     }
 
     Object.keys(req.body).forEach(key => {

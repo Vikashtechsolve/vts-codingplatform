@@ -1,16 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { FiPlus, FiUpload, FiSearch, FiMessageCircle } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
-import './VendorAdminCommon.css';
-import './EnglishQuestionList.css';
+import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
+import QuestionHubRow from '../../components/VendorAdmin/QuestionHubRow';
+import QuestionTagFilters from '../../components/VendorAdmin/QuestionTagFilters';
+import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
+import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
 
 const TABS = [
-  { key: 'grammar', label: 'Grammar', icon: 'Aa' },
-  { key: 'vocabulary', label: 'Vocabulary', icon: 'Ab' },
-  { key: 'reading', label: 'Reading', icon: 'Rc' },
-  { key: 'essay', label: 'Essay / Email', icon: 'Es' },
-  { key: 'speaking', label: 'Speaking', icon: 'Sp' },
-  { key: 'listening', label: 'Listening', icon: 'Li' }
+  { key: 'grammar', label: 'Grammar' },
+  { key: 'vocabulary', label: 'Vocabulary' },
+  { key: 'reading', label: 'Reading' },
+  { key: 'essay', label: 'Essay / Email' },
+  { key: 'speaking', label: 'Speaking' },
+  { key: 'listening', label: 'Listening' },
 ];
 
 const SUB_TYPE_LABELS = {
@@ -40,10 +45,8 @@ const SUB_TYPE_LABELS = {
   describe_image: 'Describe Image',
   topic_speaking: 'Topic Speaking',
   situational: 'Situational',
-  extempore: 'Extempore'
+  extempore: 'Extempore',
 };
-
-const DIFFICULTY_COLORS = { easy: '#28a745', medium: '#ffc107', hard: '#dc3545' };
 
 const BULK_SUPPORTED = ['grammar', 'vocabulary', 'essay'];
 
@@ -56,6 +59,11 @@ const EnglishQuestionList = () => {
   const [bulkFile, setBulkFile] = useState(null);
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkImporting, setBulkImporting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedTag, setSelectedTag] = useState('');
+  const { registryTags } = useQuestionTagRegistry();
+
+  const meta = QUESTION_FORM_META.english;
 
   useEffect(() => {
     fetchAllQuestions();
@@ -69,7 +77,7 @@ const EnglishQuestionList = () => {
         axiosInstance.get('/questions/english/reading'),
         axiosInstance.get('/questions/english/essay'),
         axiosInstance.get('/questions/english/speaking'),
-        axiosInstance.get('/questions/english/listening')
+        axiosInstance.get('/questions/english/listening'),
       ]);
       setQuestions({
         grammar: grammar.data || [],
@@ -77,7 +85,7 @@ const EnglishQuestionList = () => {
         reading: reading.data || [],
         essay: essay.data || [],
         speaking: speaking.data || [],
-        listening: listening.data || []
+        listening: listening.data || [],
       });
     } catch (error) {
       console.error('Error fetching English questions:', error);
@@ -104,7 +112,7 @@ const EnglishQuestionList = () => {
       const formData = new FormData();
       formData.append('file', bulkFile);
       const response = await axiosInstance.post(`/questions/english/bulk-import/${activeTab}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setBulkResult(response.data);
       fetchAllQuestions();
@@ -115,7 +123,43 @@ const EnglishQuestionList = () => {
     }
   };
 
-  const currentQuestions = (questions[activeTab] || []).filter(q => sourceTab === 'my' ? q.source === 'vendor' : q.source === 'global');
+  useEffect(() => {
+    setSelectedTag('');
+    setSearch('');
+  }, [activeTab, sourceTab]);
+
+  const rawQuestions = useMemo(
+    () =>
+      (questions[activeTab] || []).filter((q) =>
+        sourceTab === 'my' ? q.source === 'vendor' : q.source === 'global'
+      ),
+    [questions, activeTab, sourceTab]
+  );
+
+  const getTextFields = (q) => {
+    if (activeTab === 'grammar') return [q.questionText, q.grammarCategory, q.subType];
+    if (activeTab === 'vocabulary') return [q.word, q.subType];
+    if (activeTab === 'reading') return [q.passage?.title, q.passage?.text];
+    if (activeTab === 'essay') return [q.prompt, q.writingType];
+    if (activeTab === 'speaking') return [q.prompt, q.speakingType];
+    if (activeTab === 'listening') return [q.title, q.transcript];
+    return [];
+  };
+
+  const availableTags = useMemo(
+    () => buildTagFilterOptions(registryTags, rawQuestions.flatMap((q) => q.tags || [])),
+    [registryTags, rawQuestions]
+  );
+
+  const currentQuestions = useMemo(
+    () =>
+      filterQuestionsBySearchAndTag(rawQuestions, {
+        term: search,
+        selectedTag,
+        textFieldsFor: getTextFields,
+      }),
+    [rawQuestions, search, selectedTag, activeTab]
+  );
 
   const getQuestionTitle = (q, type) => {
     if (type === 'grammar') return q.questionText?.substring(0, 80) || 'No text';
@@ -130,10 +174,10 @@ const EnglishQuestionList = () => {
   const getQuestionMeta = (q, type) => {
     if (type === 'grammar') return SUB_TYPE_LABELS[q.subType] || q.subType;
     if (type === 'vocabulary') return SUB_TYPE_LABELS[q.subType] || q.subType;
-    if (type === 'reading') return `${q.questions?.length || 0} questions | ${q.passage?.wordCount || 0} words`;
+    if (type === 'reading') return `${q.questions?.length || 0} questions · ${q.passage?.wordCount || 0} words`;
     if (type === 'essay') return SUB_TYPE_LABELS[q.writingType] || q.writingType;
     if (type === 'speaking') return SUB_TYPE_LABELS[q.speakingType] || q.speakingType;
-    if (type === 'listening') return `${q.questions?.length || 0} questions | ${q.maxReplays || 0} replays`;
+    if (type === 'listening') return `${q.questions?.length || 0} questions · ${q.maxReplays || 0} replays`;
     return '';
   };
 
@@ -142,129 +186,191 @@ const EnglishQuestionList = () => {
     return q.points || 0;
   };
 
-  if (loading) return <div className="loading">Loading...</div>;
+  const activeLabel = TABS.find((t) => t.key === activeTab)?.label;
 
   return (
-    <div className="container english-question-list">
-      <div className="page-header">
-        <h1 className="page-title">English Questions</h1>
-        <div className="header-actions">
+    <VendorHubPage
+      className="veq-page"
+      loading={loading}
+      eyebrow="Question bank"
+      title="English & verbal questions"
+      subtitle="Create and manage grammar, vocabulary, reading, writing, speaking, and listening items."
+      accent={meta.accent}
+      actions={
+        <>
           {BULK_SUPPORTED.includes(activeTab) && (
-            <button className="btn btn-secondary" onClick={() => { setShowBulkModal(true); setBulkFile(null); setBulkResult(null); }}>
-              Import CSV/JSON
+            <button type="button" className="vh-btn vh-btn--secondary" onClick={() => { setShowBulkModal(true); setBulkFile(null); setBulkResult(null); }}>
+              <FiUpload /> Import CSV/JSON
             </button>
           )}
-          <Link to={`/vendor-admin/english-questions/${activeTab}/create`} className="btn btn-primary">
-            + Create {TABS.find(t => t.key === activeTab)?.label} Question
+          <Link to={`/vendor-admin/english-questions/${activeTab}/create`} className="vh-btn vh-btn--primary">
+            <FiPlus /> Create {activeLabel}
           </Link>
+        </>
+      }
+    >
+      <div className="veq-type-tabs">
+        {TABS.map((tab) => {
+          const count = (questions[tab.key] || []).filter((q) =>
+            sourceTab === 'my' ? q.source === 'vendor' : q.source === 'global'
+          ).length;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              className={`veq-type-tab ${activeTab === tab.key ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+              <span className="veq-count">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="veq-source-tabs">
+        <button type="button" className={`veq-source-tab ${sourceTab === 'my' ? 'active' : ''}`} onClick={() => setSourceTab('my')}>
+          My questions
+        </button>
+        <button type="button" className={`veq-source-tab ${sourceTab === 'global' ? 'active' : ''}`} onClick={() => setSourceTab('global')}>
+          Global questions
+        </button>
+      </div>
+
+      <div className="vh-toolbar">
+        <div className="vh-search">
+          <FiSearch />
+          <input
+            type="search"
+            placeholder={`Search ${activeLabel?.toLowerCase() || 'questions'} by text or tag…`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
-      <div className="question-type-tabs">
-        {TABS.map(tab => (
-          <button key={tab.key} className={`type-tab ${activeTab === tab.key ? 'active' : ''}`} onClick={() => setActiveTab(tab.key)}>
-            <span className="tab-icon">{tab.icon}</span>
-            <span className="tab-label">{tab.label}</span>
-            <span className="tab-count">{(questions[tab.key] || []).filter(q => sourceTab === 'my' ? q.source === 'vendor' : q.source === 'global').length}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="source-tabs">
-        <button className={`source-tab ${sourceTab === 'my' ? 'active' : ''}`} onClick={() => setSourceTab('my')}>My Questions</button>
-        <button className={`source-tab ${sourceTab === 'global' ? 'active' : ''}`} onClick={() => setSourceTab('global')}>Global Questions</button>
-      </div>
+      <QuestionTagFilters tags={availableTags} selectedSlug={selectedTag} onSelect={setSelectedTag} />
 
       {currentQuestions.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">{TABS.find(t => t.key === activeTab)?.icon}</div>
-          <h2>No {TABS.find(t => t.key === activeTab)?.label} Questions</h2>
-          <p>{sourceTab === 'my' ? 'Create your first question to get started.' : 'No global questions available.'}</p>
+        <div className="veq-empty">
+          <h2>No {activeLabel} questions</h2>
+          <p>
+            {search || selectedTag
+              ? 'Try a different search term or tag filter.'
+              : sourceTab === 'my'
+                ? 'Create your first question to get started.'
+                : 'No global questions available for this type.'}
+          </p>
           {sourceTab === 'my' && (
-            <Link to={`/vendor-admin/english-questions/${activeTab}/create`} className="btn btn-primary">Create Question</Link>
+            <Link to={`/vendor-admin/english-questions/${activeTab}/create`} className="vh-btn vh-btn--primary">
+              <FiPlus /> Create question
+            </Link>
           )}
         </div>
       ) : (
-        <div className="questions-grid">
-          {currentQuestions.map(q => (
-            <div key={q._id} className="question-card-eng">
-              <div className="qcard-header">
-                <span className="qcard-type-badge">{getQuestionMeta(q, activeTab)}</span>
-                <span className="qcard-difficulty" style={{ color: DIFFICULTY_COLORS[q.difficulty] }}>{q.difficulty}</span>
-              </div>
-              <div className="qcard-body">
-                <h3 className="qcard-title">{getQuestionTitle(q, activeTab)}</h3>
-              </div>
-              <div className="qcard-footer">
-                <span className="qcard-points">{getPoints(q, activeTab)} pts</span>
-                <div className="qcard-actions">
-                  {q.source === 'vendor' && (
-                    <>
-                      <Link to={`/vendor-admin/english-questions/${activeTab}/edit/${q._id}`} className="btn btn-secondary btn-sm">Edit</Link>
-                      <button onClick={() => handleDelete(activeTab, q._id)} className="btn btn-danger btn-sm">Delete</button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="vh-panel">
+          <div className="vh-panel-body vh-panel-body--flush">
+            <ul className="vh-question-list">
+              {currentQuestions.map((q) => (
+                <QuestionHubRow
+                  key={q._id}
+                  accent={meta.accent}
+                  icon={FiMessageCircle}
+                  title={getQuestionTitle(q, activeTab)}
+                  tags={q.tags}
+                  badges={[
+                    {
+                      key: 'type',
+                      label: getQuestionMeta(q, activeTab),
+                      className: 'vh-badge vh-badge--global',
+                    },
+                    {
+                      key: 'difficulty',
+                      label: q.difficulty || 'medium',
+                      className: `vh-badge vh-badge--${q.difficulty || 'medium'}`,
+                    },
+                  ]}
+                  meta={[{ key: 'pts', label: `${getPoints(q, activeTab)} points` }]}
+                  selectedTag={selectedTag}
+                  onTagClick={setSelectedTag}
+                  actions={
+                    q.source === 'vendor' ? (
+                      <>
+                        <Link
+                          to={`/vendor-admin/english-questions/${activeTab}/edit/${q._id}`}
+                          className="vh-btn vh-btn--secondary vh-btn--sm"
+                        >
+                          Edit
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(activeTab, q._id)}
+                          className="vh-btn vh-btn--danger vh-btn--sm"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    ) : (
+                      <span className="vh-badge vh-badge--global">Read-only</span>
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
       {showBulkModal && (
-        <div className="modal-overlay" onClick={() => setShowBulkModal(false)}>
-          <div className="bulk-import-modal" onClick={e => e.stopPropagation()}>
-            <h2>Bulk Import {TABS.find(t => t.key === activeTab)?.label} Questions</h2>
-            <p className="bulk-info">Upload a <strong>.csv</strong> or <strong>.json</strong> file with question data.</p>
+        <div className="modal-overlay" onClick={() => setShowBulkModal(false)} role="presentation">
+          <div className="veq-bulk-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="bulk-import-title">
+            <h2 id="bulk-import-title">Bulk import {activeLabel} questions</h2>
+            <p>Upload a <strong>.csv</strong> or <strong>.json</strong> file with question data.</p>
 
             {activeTab === 'grammar' && (
-              <div className="bulk-format-guide">
+              <div className="veq-bulk-guide">
                 <strong>CSV columns:</strong> questionText, subType, difficulty, options (pipe-separated or JSON), correctAnswer (index), explanation, isSubjective, blankSentence, grammarCategory
               </div>
             )}
             {activeTab === 'vocabulary' && (
-              <div className="bulk-format-guide">
+              <div className="veq-bulk-guide">
                 <strong>CSV columns:</strong> word, subType, difficulty, options (pipe-separated or JSON), correctAnswer (index), explanation, contextSentence
               </div>
             )}
             {activeTab === 'essay' && (
-              <div className="bulk-format-guide">
+              <div className="veq-bulk-guide">
                 <strong>CSV columns:</strong> prompt, writingType, instructions, wordLimitMin, wordLimitMax, timeLimit, difficulty
               </div>
             )}
 
-            <div className="bulk-file-input">
-              <input
-                type="file"
-                accept=".csv,.json"
-                onChange={e => setBulkFile(e.target.files?.[0] || null)}
-              />
+            <div style={{ margin: '16px 0' }}>
+              <input type="file" accept=".csv,.json" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} />
             </div>
 
             {bulkResult && (
-              <div className={`bulk-result ${bulkResult.created > 0 ? 'success' : 'error'}`}>
+              <div className={`veq-bulk-guide ${bulkResult.created > 0 ? '' : ''}`} style={{ borderColor: bulkResult.created > 0 ? '#86efac' : '#fca5a5' }}>
                 <p>{bulkResult.message}</p>
-                {bulkResult.errors && bulkResult.errors.length > 0 && (
-                  <div className="bulk-errors">
+                {bulkResult.errors?.length > 0 && (
+                  <div>
                     {bulkResult.errors.slice(0, 10).map((e, i) => (
-                      <div key={i} className="bulk-error-item">Row {e.row}: {e.error}</div>
+                      <div key={i}>Row {e.row}: {e.error}</div>
                     ))}
-                    {bulkResult.errors.length > 10 && <p>...and {bulkResult.errors.length - 10} more errors</p>}
+                    {bulkResult.errors.length > 10 && <p>…and {bulkResult.errors.length - 10} more errors</p>}
                   </div>
                 )}
               </div>
             )}
 
-            <div className="bulk-actions">
-              <button className="btn btn-secondary" onClick={() => setShowBulkModal(false)}>Close</button>
-              <button className="btn btn-primary" disabled={!bulkFile || bulkImporting} onClick={handleBulkImport}>
-                {bulkImporting ? 'Importing...' : 'Import'}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="button" className="vh-btn vh-btn--secondary" onClick={() => setShowBulkModal(false)}>Close</button>
+              <button type="button" className="vh-btn vh-btn--primary" disabled={!bulkFile || bulkImporting} onClick={handleBulkImport}>
+                {bulkImporting ? 'Importing…' : 'Import'}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </VendorHubPage>
   );
 };
 

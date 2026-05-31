@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import './VendorAdminCommon.css';
 import './InterviewList.css';
+import { FiEdit2 } from 'react-icons/fi';
 
 const InterviewList = () => {
   const [interviews, setInterviews] = useState([]);
@@ -85,6 +86,9 @@ const InterviewList = () => {
                 <div className="interview-actions">
                   <Link to={`/vendor-admin/interviews/${interview._id}/assign`} className="btn btn-primary btn-sm">
                     Assign
+                  </Link>
+                  <Link to={`/vendor-admin/interviews/${interview._id}/edit`} className="btn btn-secondary btn-sm">
+                    <FiEdit2 /> Edit
                   </Link>
                   <Link to={`/vendor-admin/interviews/${interview._id}/results`} className="btn btn-primary btn-sm interview-results-btn">
                     📊 View results

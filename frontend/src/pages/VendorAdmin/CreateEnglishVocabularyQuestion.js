@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
-import Modal from '../../components/Modal';
+import RichTextEditor from '../../components/RichTextEditor';
+import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
+import TagInput from '../../components/TagInput';
 import './CreateEnglishQuestion.css';
 
 const SUB_TYPES = [
@@ -33,14 +35,16 @@ const CreateEnglishVocabularyQuestion = () => {
     ],
     explanation: '',
     difficulty: 'medium',
-    points: 10
+    points: 10,
+    tags: []
   });
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const fetchQuestion = useCallback(async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const res = await axiosInstance.get(`/questions/english/vocabulary/${id}`);
       const q = res.data;
       setFormData({
@@ -50,12 +54,13 @@ const CreateEnglishVocabularyQuestion = () => {
         options: q.options?.length ? q.options : [{ text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }],
         explanation: q.explanation || '',
         difficulty: q.difficulty || 'medium',
-        points: q.points || 10
+        points: q.points || 10,
+        tags: q.tags || []
       });
     } catch (error) {
       showModal('Error', 'Failed to load question', 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   }, [id]);
 
@@ -87,7 +92,7 @@ const CreateEnglishVocabularyQuestion = () => {
     if (validOpts.length < 2) return showModal('Error', 'At least 2 options required', 'error');
     if (!validOpts.some(o => o.isCorrect)) return showModal('Error', 'Mark at least one correct option', 'error');
 
-    setLoading(true);
+    setSaving(true);
     try {
       const data = { ...formData, options: validOpts };
       if (isEditMode) {
@@ -101,22 +106,23 @@ const CreateEnglishVocabularyQuestion = () => {
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving question', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="container create-english-question">
-      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit' : 'Create'} Vocabulary Question</h1>
-        <button onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Back to Questions</button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <EnglishQuestionFormShell
+      subtype="Vocabulary"
+      title={isEditMode ? 'Edit vocabulary question' : 'Create vocabulary question'}
+      subtitle="Synonyms, antonyms, meanings, idioms, spelling, and contextual usage."
+      pageLoading={pageLoading}
+      modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
+      formId="english-vocab-form"
+      onCancel={() => navigate('/vendor-admin/english-questions')}
+      saving={saving}
+      isEditMode={isEditMode}
+    >
+      <form id="english-vocab-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
           <h2 className="section-title">Word Details</h2>
           <div className="form-row">
@@ -131,9 +137,15 @@ const CreateEnglishVocabularyQuestion = () => {
               </select>
             </div>
           </div>
-          <div className="form-group full-width">
-            <label>Context Sentence (Optional)</label>
-            <input type="text" name="contextSentence" value={formData.contextSentence} onChange={handleChange} placeholder="e.g., The benevolent king helped his people." className="form-input" />
+          <div className="vqf-rich-field">
+            <label>Context sentence (optional)</label>
+            <RichTextEditor
+              variant="standard"
+              value={formData.contextSentence}
+              onChange={(html) => setFormData((prev) => ({ ...prev, contextSentence: html }))}
+              placeholder="Sentence showing how the word is used…"
+              minHeight={80}
+            />
           </div>
           <div className="form-row">
             <div className="form-group">
@@ -148,6 +160,11 @@ const CreateEnglishVocabularyQuestion = () => {
               <label>Points</label>
               <input type="number" name="points" value={formData.points} onChange={handleChange} min="1" className="form-input" />
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
           </div>
         </div>
 
@@ -176,18 +193,19 @@ const CreateEnglishVocabularyQuestion = () => {
         </div>
 
         <div className="form-section">
-          <h2 className="section-title">Explanation (Optional)</h2>
-          <div className="form-group">
-            <textarea name="explanation" value={formData.explanation} onChange={handleChange} rows="3" placeholder="Explain the correct answer..." className="form-textarea" />
+          <h2 className="section-title">Explanation (optional)</h2>
+          <div className="vqf-rich-field">
+            <RichTextEditor
+              variant="standard"
+              value={formData.explanation}
+              onChange={(html) => setFormData((prev) => ({ ...prev, explanation: html }))}
+              placeholder="Explain the correct answer…"
+              minHeight={100}
+            />
           </div>
         </div>
-
-        <div className="form-actions">
-          <button type="button" onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving...' : isEditMode ? 'Update' : 'Create Question'}</button>
-        </div>
       </form>
-    </div>
+    </EnglishQuestionFormShell>
   );
 };
 

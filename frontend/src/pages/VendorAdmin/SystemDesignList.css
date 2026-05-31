@@ -378,6 +378,23 @@
   color: var(--text-secondary, #888);
 }
 
+/* Dark mode — card action buttons (Assign, Submissions, etc.) */
+[data-theme='dark'] .sd-action-btn.edit,
+[data-theme='dark'] .sd-action-btn.assign,
+[data-theme='dark'] .sd-action-btn.subs {
+  background: var(--student-dark-surface-2, #222222);
+}
+
+[data-theme='dark'] .sd-submissions-table thead,
+[data-theme='dark'] .sd-submissions-table tbody tr:hover {
+  background: var(--student-dark-surface-2, #222222);
+}
+
+[data-theme='dark'] .sd-submissions-table {
+  background: var(--student-dark-surface, #1a1a1a);
+  border-color: var(--student-dark-border, #3f3f46);
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .sd-list-container {

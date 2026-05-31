@@ -124,10 +124,11 @@ async function attachStandardQuestionDetails(out) {
   }
 
   out.answers = out.answers.map((a) => {
-    const key = a.questionId?.toString?.() || String(a.questionId);
-    const details = maps[a.questionType]?.[key];
-    if (!details) return a;
-    return { ...a, questionDetails: details };
+    const plain = typeof a.toObject === 'function' ? a.toObject() : { ...a };
+    const key = plain.questionId?.toString?.() || String(plain.questionId);
+    const details = maps[plain.questionType]?.[key];
+    if (!details) return plain;
+    return { ...plain, questionDetails: details };
   });
 
   return out;

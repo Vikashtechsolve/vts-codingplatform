@@ -9,6 +9,7 @@ const AptitudeQuestion = require('../models/AptitudeQuestion');
 const TheoryQuestion = require('../models/TheoryQuestion');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
+const { resolveTagsForSave } = require('../utils/questionTags');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -109,7 +110,8 @@ router.post('/coding', [
       starterCode,
       solution,
       constraints,
-      examples
+      examples,
+      tags
     } = req.body;
 
     // Validate allowed languages
@@ -121,6 +123,8 @@ router.post('/coding', [
     if (!testCases || testCases.length === 0) {
       return res.status(400).json({ message: 'At least one test case is required' });
     }
+
+    const resolvedTags = await resolveTagsForSave(req.vendorId, tags, req.user._id);
 
     const question = new CodingQuestion({
       title: title.trim(),
@@ -134,7 +138,8 @@ router.post('/coding', [
       starterCode: starterCode || {},
       solution: solution || {},
       constraints: constraints || '',
-      examples: examples || []
+      examples: examples || [],
+      tags: resolvedTags
     });
 
     await question.save();
@@ -224,6 +229,10 @@ router.put('/coding/:id', async (req, res) => {
       return res.status(404).json({ message: 'Question not found or you cannot edit this question' });
     }
 
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(req.vendorId, req.body.tags, req.user._id);
+    }
+
     // Update fields
     Object.keys(req.body).forEach(key => {
       if (req.body[key] !== undefined && key !== '_id' && key !== 'isGlobal' && key !== 'vendorId' && key !== 'createdBy') {
@@ -277,7 +286,7 @@ router.post('/mcq', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { question, options, explanation, difficulty, category, points } = req.body;
+    const { question, options, explanation, difficulty, category, points, tags } = req.body;
 
     // Filter out empty options
     const validOptions = (options || []).filter(opt => opt.text && opt.text.trim());
@@ -292,6 +301,8 @@ router.post('/mcq', [
       return res.status(400).json({ message: 'At least one option must be marked as correct' });
     }
 
+    const resolvedTags = await resolveTagsForSave(req.vendorId, tags, req.user._id);
+
     const mcqQuestion = new MCQQuestion({
       question: question.trim(),
       options: validOptions,
@@ -301,7 +312,8 @@ router.post('/mcq', [
       isGlobal: false, // Explicitly set to false for vendor questions
       createdBy: req.user._id,
       category: category || '',
-      points: points || 10
+      points: points || 10,
+      tags: resolvedTags
     });
 
     await mcqQuestion.save();
@@ -387,6 +399,10 @@ router.put('/mcq/:id', async (req, res) => {
       return res.status(404).json({ message: 'Question not found or you cannot edit this question' });
     }
 
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(req.vendorId, req.body.tags, req.user._id);
+    }
+
     // Update fields
     Object.keys(req.body).forEach(key => {
       if (req.body[key] !== undefined && key !== '_id' && key !== 'isGlobal' && key !== 'vendorId' && key !== 'createdBy') {
@@ -447,11 +463,13 @@ router.post('/aptitude', [
       subCategory,
       explanation,
       difficulty,
-      points
+      points,
+      tags
     } = req.body;
 
     const validOptions = (options || []).filter(opt => opt && opt.text && opt.text.trim());
     const normalizedCorrect = normalizeOptionIndexes(correctOptions);
+    const resolvedTags = await resolveTagsForSave(req.vendorId, tags, req.user._id);
 
     const aptitudeQuestion = new AptitudeQuestion({
       question: question.trim(),
@@ -468,7 +486,8 @@ router.post('/aptitude', [
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id,
-      points: points || 10
+      points: points || 10,
+      tags: resolvedTags
     });
 
     await aptitudeQuestion.save();
@@ -560,6 +579,10 @@ router.put('/aptitude/:id', async (req, res) => {
     const updatedOptions = (mergedPayload.options || []).filter(opt => opt && opt.text && opt.text.trim());
     const normalizedCorrect = normalizeOptionIndexes(mergedPayload.correctOptions);
 
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(req.vendorId, req.body.tags, req.user._id);
+    }
+
     Object.keys(req.body).forEach(key => {
       if (req.body[key] !== undefined && key !== '_id' && key !== 'isGlobal' && key !== 'vendorId' && key !== 'createdBy') {
         question[key] = req.body[key];
@@ -640,6 +663,8 @@ router.post('/theory', [
       }
     }
 
+    const resolvedTags = await resolveTagsForSave(req.vendorId, tags, req.user._id);
+
     const theoryQuestion = new TheoryQuestion({
       questionText: questionText.trim(),
       subjectId: subject._id,
@@ -651,7 +676,7 @@ router.post('/theory', [
       keywords: Array.isArray(keywords) ? keywords : [],
       evaluationRubric: evaluationRubric || '',
       evaluationConfig: evaluationConfig || {},
-      tags: Array.isArray(tags) ? tags : [],
+      tags: resolvedTags,
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id
@@ -754,6 +779,10 @@ router.put('/theory/:id', async (req, res) => {
         return res.status(404).json({ message: 'Topic not found' });
       }
       question.topicId = topic._id;
+    }
+
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(req.vendorId, req.body.tags, req.user._id);
     }
 
     Object.keys(req.body).forEach(key => {

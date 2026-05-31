@@ -21,8 +21,25 @@
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 }
 
-.navbar-student {
+.navbar-student,
+.navbar-vendor {
   border-bottom: 1px solid var(--border-color);
+}
+
+.navbar-vendor .navbar-menu {
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+}
+
+.navbar-vendor .navbar-brand {
+  margin-right: auto;
+}
+
+.navbar-vendor .navbar-user {
+  margin-left: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-color);
 }
 
 .navbar-container {

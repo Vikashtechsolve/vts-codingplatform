@@ -7,6 +7,10 @@ const Interview = require('../models/Interview');
 const InterviewQuestion = require('../models/InterviewQuestion');
 const InterviewSession = require('../models/InterviewSession');
 const User = require('../models/User');
+const {
+  enrollStudentsInInterview,
+  assignInterviewToClassrooms,
+} = require('../utils/assignToClassroom');
 
 router.use(auth);
 
@@ -216,11 +220,12 @@ router.delete('/:id', authorize('vendor_admin'), tenantMiddleware, async (req, r
   }
 });
 
-// Assign interview to students
+// Assign interview to students and/or classrooms
 router.post('/:id/assign', [
   authorize('vendor_admin'),
   tenantMiddleware,
-  body('studentIds').isArray().withMessage('Student IDs must be an array')
+  body('studentIds').optional().isArray().withMessage('Student IDs must be an array'),
+  body('classroomIds').optional().isArray().withMessage('Classroom IDs must be an array'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -233,32 +238,51 @@ router.post('/:id/assign', [
       return res.status(404).json({ message: 'Interview not found' });
     }
 
-    const { studentIds } = req.body;
-    const assigned = [];
+    const studentIds = req.body.studentIds || [];
+    const classroomIds = req.body.classroomIds || [];
 
-    for (const studentId of studentIds) {
-      const student = await User.findOne({
-        _id: studentId,
-        vendorId: req.vendorId,
-        role: 'student'
+    if (studentIds.length === 0 && classroomIds.length === 0) {
+      return res.status(400).json({
+        message: 'Select at least one student or one classroom',
       });
-      if (!student) continue;
-
-      const alreadyAssigned = student.enrolledInterviews.some(
-        ei => ei.interviewId && ei.interviewId.toString() === interview._id.toString()
-      );
-
-      if (!alreadyAssigned) {
-        student.enrolledInterviews.push({
-          interviewId: interview._id,
-          status: 'assigned'
-        });
-        await student.save();
-        assigned.push(studentId);
-      }
     }
 
-    res.json({ message: 'Interview assigned successfully', assigned });
+    let assigned = [];
+    let classroomEnrolled = 0;
+
+    if (classroomIds.length > 0) {
+      const result = await assignInterviewToClassrooms(
+        interview._id,
+        classroomIds,
+        req.vendorId,
+        req.user._id
+      );
+      classroomEnrolled = result.enrolledCount;
+    }
+
+    if (studentIds.length > 0) {
+      assigned = await enrollStudentsInInterview(interview._id, studentIds, req.vendorId);
+    }
+
+    const totalNew = assigned.length + classroomEnrolled;
+    const parts = [];
+    if (classroomIds.length > 0) {
+      parts.push(
+        `${classroomIds.length} classroom${classroomIds.length !== 1 ? 's' : ''} (${classroomEnrolled} new enrollment${classroomEnrolled !== 1 ? 's' : ''})`
+      );
+    }
+    if (assigned.length > 0) {
+      parts.push(`${assigned.length} individual student${assigned.length !== 1 ? 's' : ''}`);
+    }
+
+    res.json({
+      message: totalNew > 0
+        ? `Interview assigned successfully to ${parts.join(' and ')}`
+        : 'Interview was already assigned to the selected audience',
+      assigned,
+      classroomEnrolled,
+      totalNew,
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

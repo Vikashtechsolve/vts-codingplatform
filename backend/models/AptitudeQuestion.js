@@ -44,6 +44,18 @@ const aptitudeQuestionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  tags: {
+    type: [String],
+    default: [],
+    set: (tags) =>
+      Array.from(
+        new Set(
+          (Array.isArray(tags) ? tags : [])
+            .map((tag) => String(tag || '').trim())
+            .filter(Boolean)
+        )
+      )
+  },
   difficulty: {
     type: String,
     enum: ['easy', 'medium', 'hard'],

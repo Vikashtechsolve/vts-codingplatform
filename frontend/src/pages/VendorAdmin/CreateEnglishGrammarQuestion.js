@@ -3,6 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
+import RichTextEditor from '../../components/RichTextEditor';
+import VendorQuestionFormPage from '../../components/VendorAdmin/VendorQuestionFormPage';
+import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
+import TagInput from '../../components/TagInput';
 import './CreateEnglishQuestion.css';
 
 const SUB_TYPES = [
@@ -41,14 +46,18 @@ const CreateEnglishGrammarQuestion = () => {
     explanation: '',
     grammarCategory: '',
     difficulty: 'medium',
-    points: 10
+    points: 10,
+    tags: []
   });
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const meta = QUESTION_FORM_META.english;
+  const backTo = meta.back;
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const fetchQuestion = useCallback(async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const res = await axiosInstance.get(`/questions/english/grammar/${id}`);
       const q = res.data;
       setFormData({
@@ -63,12 +72,13 @@ const CreateEnglishGrammarQuestion = () => {
         explanation: q.explanation || '',
         grammarCategory: q.grammarCategory || '',
         difficulty: q.difficulty || 'medium',
-        points: q.points || 10
+        points: q.points || 10,
+        tags: q.tags || []
       });
     } catch (error) {
       showModal('Error', 'Failed to load question', 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   }, [id]);
 
@@ -144,10 +154,15 @@ const CreateEnglishGrammarQuestion = () => {
       return showModal('Error', `Correct answer is required for ${label}`, 'error');
     }
 
-    setLoading(true);
+    if (isRichTextEmpty(formData.questionText)) {
+      return showModal('Error', 'Question / instruction text is required', 'error');
+    }
+
+    setSaving(true);
     try {
       const data = {
         ...formData,
+        tags: formData.tags,
         options: needsOptions ? formData.options.filter(o => o.text.trim()) : [],
         sentences: needsSentences ? formData.sentences.filter(s => s.trim()) : []
       };
@@ -163,24 +178,41 @@ const CreateEnglishGrammarQuestion = () => {
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving question', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
+  const modalEl = (
+    <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
+      <p>{modal.message}</p>
+    </Modal>
+  );
+
+  const formFooter = (
+    <div className="form-actions">
+      <button type="button" onClick={() => navigate(backTo)} className="btn btn-secondary">Cancel</button>
+      <button type="submit" form="english-grammar-form" className="btn btn-primary" disabled={saving}>
+        {saving ? 'Saving…' : isEditMode ? 'Update question' : 'Create question'}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="container create-english-question">
-      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit' : 'Create'} Grammar Question</h1>
-        <button onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Back to Questions</button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <VendorQuestionFormPage
+      className="create-english-question"
+      loading={pageLoading}
+      backTo={backTo}
+      backLabel="Back to English questions"
+      eyebrow={`${meta.label} · Grammar`}
+      title={isEditMode ? 'Edit grammar question' : 'Create grammar question'}
+      subtitle="Fill-in-blank, error detection, parajumble, and related grammar items."
+      accent={meta.accent}
+      modal={modalEl}
+      footer={formFooter}
+    >
+      <form id="english-grammar-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
-          <h2 className="section-title">Question Details</h2>
+          <h2 className="section-title">Question details</h2>
           <div className="form-row">
             <div className="form-group">
               <label>Sub-Type *</label>
@@ -197,9 +229,15 @@ const CreateEnglishGrammarQuestion = () => {
             </div>
           </div>
 
-          <div className="form-group full-width">
-            <label>Question / Instruction Text *</label>
-            <textarea name="questionText" value={formData.questionText} onChange={handleChange} rows="4" placeholder="e.g., Choose the correct option to fill in the blank" className="form-textarea" required />
+          <div className="vqf-rich-field">
+            <label>Question / instruction text *</label>
+            <RichTextEditor
+              variant="full"
+              value={formData.questionText}
+              onChange={(html) => setFormData((prev) => ({ ...prev, questionText: html }))}
+              placeholder="e.g., Choose the correct option to fill in the blank"
+              minHeight={140}
+            />
           </div>
 
           {needsBlankSentence && (
@@ -222,6 +260,11 @@ const CreateEnglishGrammarQuestion = () => {
               <label>Points</label>
               <input type="number" name="points" value={formData.points} onChange={handleChange} min="1" className="form-input" />
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
             {showSubjectiveCheckbox && (
               <div className="form-group">
                 <label className="checkbox-label-inline">
@@ -293,18 +336,19 @@ const CreateEnglishGrammarQuestion = () => {
         )}
 
         <div className="form-section">
-          <h2 className="section-title">Explanation (Optional)</h2>
-          <div className="form-group">
-            <textarea name="explanation" value={formData.explanation} onChange={handleChange} rows="3" placeholder="Explain the correct answer..." className="form-textarea" />
+          <h2 className="section-title">Explanation (optional)</h2>
+          <div className="vqf-rich-field">
+            <RichTextEditor
+              variant="standard"
+              value={formData.explanation}
+              onChange={(html) => setFormData((prev) => ({ ...prev, explanation: html }))}
+              placeholder="Explain the correct answer…"
+              minHeight={100}
+            />
           </div>
         </div>
-
-        <div className="form-actions">
-          <button type="button" onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving...' : isEditMode ? 'Update Question' : 'Create Question'}</button>
-        </div>
       </form>
-    </div>
+    </VendorQuestionFormPage>
   );
 };
 

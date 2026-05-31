@@ -1,0 +1,149 @@
+.tag-input-inline {
+  --ti-accent: #3b82f6;
+  --ti-bg: var(--input-bg, #ffffff);
+  --ti-bg-soft: var(--bg-secondary, #f8fafc);
+  --ti-border: var(--border-color, #e2e8f0);
+  --ti-text: var(--text-primary, #0f172a);
+  --ti-muted: var(--text-secondary, #64748b);
+  --ti-focus: color-mix(in srgb, var(--ti-accent) 30%, transparent);
+  --ti-chip-bg: color-mix(in srgb, var(--ti-accent) 14%, var(--ti-bg));
+  --ti-chip-border: color-mix(in srgb, var(--ti-accent) 30%, var(--ti-border));
+  --ti-chip-text: color-mix(in srgb, var(--ti-accent) 78%, var(--ti-text));
+  margin-bottom: 1rem;
+}
+
+.tag-input-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--ti-text);
+  font-size: 0.9rem;
+}
+
+.tag-input-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: var(--ti-muted);
+  line-height: 1.45;
+}
+
+.tag-input-shell {
+  border: 1px solid var(--ti-border);
+  border-radius: 12px;
+  background: var(--ti-bg);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tag-input-shell:focus-within {
+  border-color: var(--ti-accent);
+  box-shadow: 0 0 0 3px var(--ti-focus);
+}
+
+.tag-input-shell.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.tag-input-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 8px 10px;
+}
+
+.tag-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 999px;
+  background: var(--ti-chip-bg);
+  border: 1px solid var(--ti-chip-border);
+  color: var(--ti-chip-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.tag-input-chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--ti-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.tag-input-chip-remove:hover {
+  color: var(--ti-text);
+}
+
+.tag-input-control {
+  flex: 1 1 140px;
+  min-width: 120px;
+  border: none;
+  outline: none;
+  font-size: 0.9rem;
+  padding: 6px 4px;
+  background: transparent;
+  color: var(--ti-text);
+}
+
+.tag-input-control::placeholder {
+  color: color-mix(in srgb, var(--ti-muted) 70%, transparent);
+}
+
+/* Inline suggestion pills — not a dropdown menu */
+.tag-input-suggest-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--ti-border) 75%, transparent);
+}
+
+.tag-input-suggest-hint {
+  font-size: 0.78rem;
+  color: var(--ti-muted);
+  padding: 4px 0;
+}
+
+.tag-input-suggest-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--ti-border);
+  background: var(--ti-bg-soft);
+  color: var(--ti-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.tag-input-suggest-pill:hover,
+.tag-input-suggest-pill.is-active {
+  background: color-mix(in srgb, var(--ti-bg-soft) 75%, var(--ti-bg));
+  border-color: color-mix(in srgb, var(--ti-accent) 35%, var(--ti-border));
+  border-style: solid;
+  color: var(--ti-text);
+}
+
+.tag-input-suggest-pill.is-create {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ti-accent) 45%, var(--ti-border));
+  background: color-mix(in srgb, var(--ti-accent) 14%, var(--ti-bg));
+  color: var(--ti-accent);
+}
+
+.tag-input-suggest-count {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--ti-muted);
+}

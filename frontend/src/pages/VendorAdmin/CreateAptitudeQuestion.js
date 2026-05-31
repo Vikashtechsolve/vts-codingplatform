@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
+import RichTextEditor from '../../components/RichTextEditor';
+import VendorQuestionFormPage from '../../components/VendorAdmin/VendorQuestionFormPage';
+import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
+import TagInput from '../../components/TagInput';
 import './CreateAptitudeQuestion.css';
 
 const defaultOptions = [
@@ -28,9 +33,11 @@ const CreateAptitudeQuestion = () => {
     explanation: '',
     options: defaultOptions,
     numericAnswer: '',
-    numericTolerance: 0
+    numericTolerance: 0,
+    tags: []
   });
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   useEffect(() => {
@@ -50,7 +57,7 @@ const CreateAptitudeQuestion = () => {
 
   const fetchQuestion = async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const response = await axiosInstance.get(`${apiBase}/aptitude/${id}`);
       const q = response.data;
 
@@ -70,14 +77,18 @@ const CreateAptitudeQuestion = () => {
         explanation: q.explanation || '',
         options: enrichedOptions.length ? enrichedOptions : defaultOptions,
         numericAnswer: q.numericAnswer ?? '',
-        numericTolerance: q.numericTolerance ?? 0
+        numericTolerance: q.numericTolerance ?? 0,
+        tags: q.tags || []
       });
     } catch (error) {
       showModal('Error', `Failed to load question data: ${error.response?.data?.message || error.message}`, 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   };
+
+  const meta = QUESTION_FORM_META.aptitude;
+  const backTo = isGlobal ? '/super-admin/global-questions' : meta.back;
 
   const handleChange = (e) => {
     setFormData({
@@ -117,7 +128,7 @@ const CreateAptitudeQuestion = () => {
   };
 
   const validateForm = () => {
-    if (!formData.question.trim()) {
+    if (isRichTextEmpty(formData.question)) {
       showModal('Validation Error', 'Question text is required', 'error');
       return false;
     }
@@ -154,7 +165,7 @@ const CreateAptitudeQuestion = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setLoading(true);
+    setSaving(true);
     try {
       const validOptions = formData.options.filter(opt => opt.text.trim());
       const correctOptions = validOptions
@@ -170,6 +181,7 @@ const CreateAptitudeQuestion = () => {
         difficulty: formData.difficulty,
         points: formData.points,
         explanation: formData.explanation,
+        tags: formData.tags,
         options: formData.questionType === 'numeric' ? [] : validOptions.map(opt => ({ text: opt.text })),
         correctOptions: formData.questionType === 'numeric' ? [] : correctOptions,
         numericAnswer: formData.questionType === 'numeric' ? formData.numericAnswer : null,
@@ -193,59 +205,66 @@ const CreateAptitudeQuestion = () => {
         `Error ${isEditMode ? 'updating' : 'creating'} question. Please try again.`;
       showModal('Error', errorMsg, 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const isNumeric = formData.questionType === 'numeric';
   const isSingle = ['single', 'case_study'].includes(formData.questionType);
 
+  const modalEl = (
+    <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
+      <p>{modal.message}</p>
+    </Modal>
+  );
+
+  const formFooter = (
+    <div className="form-actions">
+      <button type="button" onClick={() => navigate(backTo)} className="btn btn-secondary">Cancel</button>
+      <button type="submit" form="aptitude-question-form" className="btn btn-primary" disabled={saving}>
+        {saving ? 'Saving…' : isEditMode ? 'Update question' : 'Create question'}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="container create-aptitude-question">
-      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit' : 'Create'} Aptitude Question</h1>
-        <button
-          onClick={() => navigate(isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions')}
-          className="btn btn-secondary"
-        >
-          Back to Questions
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <VendorQuestionFormPage
+      className="create-aptitude-question"
+      loading={pageLoading}
+      backTo={backTo}
+      backLabel="Back to questions"
+      eyebrow={meta.label}
+      title={isEditMode ? meta.editTitle : meta.createTitle}
+      subtitle={meta.subtitle}
+      accent={meta.accent}
+      isGlobal={isGlobal}
+      modal={modalEl}
+      footer={formFooter}
+    >
+      <form id="aptitude-question-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
-          <h2 className="section-title">Question Details</h2>
-          <div className="form-row">
-            <div className="form-group full-width">
-              <label>Question Text *</label>
-              <textarea
-                name="question"
-                value={formData.question}
-                onChange={handleChange}
-                required
-                rows="4"
-                placeholder="Enter the aptitude question..."
-                className="form-textarea"
-              />
-            </div>
+          <h2 className="section-title">Question details</h2>
+
+          <div className="vqf-rich-field">
+            <label>Question text *</label>
+            <RichTextEditor
+              variant="full"
+              value={formData.question}
+              onChange={(html) => setFormData((prev) => ({ ...prev, question: html }))}
+              placeholder="Enter the aptitude question…"
+              minHeight={160}
+            />
           </div>
 
-          <div className="form-row">
-            <div className="form-group full-width">
-              <label>Case Study (Optional)</label>
-              <textarea
-                name="caseStudy"
-                value={formData.caseStudy}
-                onChange={handleChange}
-                rows="4"
-                placeholder="Add case study/context if required..."
-                className="form-textarea"
-              />
-            </div>
+          <div className="vqf-rich-field">
+            <label>Case study / context (optional)</label>
+            <RichTextEditor
+              variant="standard"
+              value={formData.caseStudy}
+              onChange={(html) => setFormData((prev) => ({ ...prev, caseStudy: html }))}
+              placeholder="Passage or scenario shown before the question…"
+              minHeight={120}
+            />
           </div>
 
           <div className="form-row">
@@ -300,6 +319,11 @@ const CreateAptitudeQuestion = () => {
                 required
               />
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
           </div>
         </div>
 
@@ -394,33 +418,19 @@ const CreateAptitudeQuestion = () => {
         )}
 
         <div className="form-section">
-          <h2 className="section-title">Explanation (Optional)</h2>
-          <div className="form-group">
-            <textarea
-              name="explanation"
+          <h2 className="section-title">Explanation (optional)</h2>
+          <div className="vqf-rich-field">
+            <RichTextEditor
+              variant="standard"
               value={formData.explanation}
-              onChange={handleChange}
-              rows="4"
-              placeholder="Provide an explanation or solution approach..."
-              className="form-textarea"
+              onChange={(html) => setFormData((prev) => ({ ...prev, explanation: html }))}
+              placeholder="Solution approach or explanation…"
+              minHeight={120}
             />
           </div>
         </div>
-
-        <div className="form-actions">
-          <button
-            type="button"
-            onClick={() => navigate(isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions')}
-            className="btn btn-secondary"
-          >
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Saving...' : isEditMode ? 'Update Question' : 'Create Question'}
-          </button>
-        </div>
       </form>
-    </div>
+    </VendorQuestionFormPage>
   );
 };
 

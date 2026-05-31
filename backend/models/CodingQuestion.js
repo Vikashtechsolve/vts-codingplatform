@@ -64,6 +64,18 @@ const codingQuestionSchema = new mongoose.Schema({
     python: String
   },
   constraints: String,
+  tags: {
+    type: [String],
+    default: [],
+    set: (tags) =>
+      Array.from(
+        new Set(
+          (Array.isArray(tags) ? tags : [])
+            .map((tag) => String(tag || '').trim())
+            .filter(Boolean)
+        )
+      )
+  },
   examples: [{
     input: String,
     output: String,

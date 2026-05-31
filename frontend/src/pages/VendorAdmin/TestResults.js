@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { FiDownload, FiBarChart2 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import ExportReportModal from '../../components/ExportReportModal';
-import './VendorAdminCommon.css';
-import './TestResults.css';
+import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
+import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
+import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
+import { computeResultStats, formatDateTime, scoreTone } from '../../utils/vendorAssessmentUi';
 
 const SECTION_LABELS = {
   english_grammar: 'Grammar',
@@ -14,6 +17,16 @@ const SECTION_LABELS = {
   english_listening: 'Listening',
 };
 
+const TYPE_ACCENTS = {
+  coding: '#2563eb',
+  mcq: '#7c3aed',
+  aptitude: '#059669',
+  theory: '#475569',
+  mixed: '#0891b2',
+  sql: '#ca8a04',
+  english: '#db2777',
+};
+
 const TestResults = () => {
   const { testId } = useParams();
   const [results, setResults] = useState([]);
@@ -21,11 +34,12 @@ const TestResults = () => {
   const [loading, setLoading] = useState(true);
   const [speakingAnalytics, setSpeakingAnalytics] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetchResults();
     fetchTest();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when testId changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId]);
 
   const fetchResults = async () => {
@@ -53,67 +67,75 @@ const TestResults = () => {
     try {
       const response = await axiosInstance.get(`/vendor-admin/tests/${testId}/speaking-analytics`);
       if (response.data?.totalSubmissions > 0) setSpeakingAnalytics(response.data);
-    } catch { /* optional */ }
+    } catch {
+      /* optional */
+    }
   };
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  const stats = useMemo(
+    () => computeResultStats(results, (r) => r.percentage),
+    [results]
+  );
 
-  const getScoreClass = (percentage) => {
-    if (percentage >= 70) return 'excellent';
-    if (percentage >= 50) return 'good';
-    return 'poor';
-  };
+  const filteredResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return results;
+    return results.filter(
+      (r) =>
+        r.studentId?.name?.toLowerCase().includes(q) ||
+        r.studentId?.email?.toLowerCase().includes(q)
+    );
+  }, [results, search]);
 
-  const isEnglishTest = test?.type === 'english';
-
-  const getSectionAnalytics = () => {
-    if (!isEnglishTest || results.length === 0) return null;
-    const completedResults = results.filter(r => r.status === 'completed');
-    if (completedResults.length === 0) return null;
-
-    const sectionTypes = [...new Set(
-      completedResults.flatMap(r => (r.sectionScores || []).map(s => s.sectionType))
-    )];
-
-    return sectionTypes.map(type => {
-      const scores = completedResults
-        .map(r => (r.sectionScores || []).find(s => s.sectionType === type))
+  const sectionAnalytics = useMemo(() => {
+    if (test?.type !== 'english' || results.length === 0) return null;
+    const completed = results.filter((r) => r.status === 'completed');
+    if (!completed.length) return null;
+    const sectionTypes = [
+      ...new Set(completed.flatMap((r) => (r.sectionScores || []).map((s) => s.sectionType))),
+    ];
+    return sectionTypes.map((type) => {
+      const scores = completed
+        .map((r) => (r.sectionScores || []).find((s) => s.sectionType === type))
         .filter(Boolean);
-      const percentages = scores.map(s => s.maxScore > 0 ? Math.round((s.score / s.maxScore) * 100) : 0);
+      const percentages = scores.map((s) =>
+        s.maxScore > 0 ? Math.round((s.score / s.maxScore) * 100) : 0
+      );
       return {
         type,
         label: SECTION_LABELS[type] || type,
-        avgPercent: percentages.length > 0 ? Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length) : 0,
-        highest: percentages.length > 0 ? Math.max(...percentages) : 0,
-        lowest: percentages.length > 0 ? Math.min(...percentages) : 0,
-        count: scores.length,
+        avgPercent:
+          percentages.length > 0
+            ? Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length)
+            : 0,
+        highest: percentages.length ? Math.max(...percentages) : 0,
+        lowest: percentages.length ? Math.min(...percentages) : 0,
       };
     });
-  };
+  }, [test, results]);
 
-  const sectionAnalytics = getSectionAnalytics();
+  const accent = TYPE_ACCENTS[test?.type] || '#2563eb';
+  const backTo = test?.type ? `/vendor-admin/tests?type=${test.type}` : '/vendor-admin/tests';
 
   return (
-    <div className="container test-results-page">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <Link to="/vendor-admin/tests" className="btn btn-secondary" style={{ marginBottom: '20px' }}>
-            ← Back to Tests
-          </Link>
-          <h1 className="page-title">Test Results: {test?.title}</h1>
-          {test?.type && (
-            <p style={{ marginTop: '4px', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
-              {test.type} test
-            </p>
-          )}
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setExportOpen(true)}>
-          Download Excel report
+    <VendorAssessPage
+      loading={loading}
+      backTo={backTo}
+      backLabel="Back to tests"
+      eyebrow="Test results"
+      title={test?.title || 'Results'}
+      subtitle={
+        test
+          ? `${test.type} test · ${test.duration} min · ${results.length} submission${results.length !== 1 ? 's' : ''}`
+          : 'Review student submissions and scores.'
+      }
+      accent={accent}
+      actions={
+        <button type="button" className="va-btn va-btn--primary" onClick={() => setExportOpen(true)}>
+          <FiDownload /> Export report
         </button>
-      </div>
-
+      }
+    >
       <ExportReportModal
         isOpen={exportOpen}
         onClose={() => setExportOpen(false)}
@@ -122,184 +144,187 @@ const TestResults = () => {
         title={test?.title || 'Test report'}
       />
 
-      <div className="results-table-card">
-        <h2>Submissions ({results.length})</h2>
-        {results.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">📊</div>
-            <h2>No Submissions Yet</h2>
-            <p>No students have submitted this test yet.</p>
-          </div>
-        ) : (
-          <div className="table-container">
-            <table className="results-table-modern">
-              <thead>
-                <tr>
-                  <th>Student Name</th>
-                  <th>Email</th>
-                  <th>Score</th>
-                  <th>Percentage</th>
-                  <th>Status</th>
-                  <th>Submitted At</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map(result => (
-                  <tr key={result._id}>
-                    <td><strong>{result.studentId?.name || 'N/A'}</strong></td>
-                    <td>{result.studentId?.email || 'N/A'}</td>
-                    <td><strong>{result.totalScore} / {result.maxScore}</strong></td>
-                    <td>
-                      <span className={`score-badge-result ${getScoreClass(result.percentage)}`}>
-                        {result.percentage}%
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${result.status === 'completed' ? 'active' : 'inactive'}`}>
-                        {result.status}
-                      </span>
-                    </td>
-                    <td>{result.submittedAt ? new Date(result.submittedAt).toLocaleString() : 'N/A'}</td>
-                    <td>
-                      <Link to={`/vendor-admin/results/${result._id}`} className="btn btn-sm btn-primary">
-                        View Details
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       {results.length > 0 && (
-        <div className="stats-card-modern">
-          <h2>Statistics</h2>
-          <div className="stats-grid-results">
-            <div className="stat-card-result">
-              <h3>Average Score</h3>
-              <p className="stat-number-result">
-                {results.length > 0
-                  ? Math.round(results.reduce((sum, r) => sum + (r.percentage || 0), 0) / results.length)
-                  : 0}%
-              </p>
-            </div>
-            <div className="stat-card-result">
-              <h3>Highest Score</h3>
-              <p className="stat-number-result">
-                {results.length > 0
-                  ? Math.max(...results.map(r => r.percentage || 0))
-                  : 0}%
-              </p>
-            </div>
-            <div className="stat-card-result">
-              <h3>Lowest Score</h3>
-              <p className="stat-number-result">
-                {results.length > 0
-                  ? Math.min(...results.map(r => r.percentage || 0))
-                  : 0}%
-              </p>
-            </div>
-            <div className="stat-card-result">
-              <h3>Completed</h3>
-              <p className="stat-number-result">
-                {results.filter(r => r.status === 'completed').length}
-              </p>
-            </div>
+        <div className="va-stats">
+          <div className="va-stat va-stat--accent">
+            <span className="va-stat-label">Submissions</span>
+            <span className="va-stat-value">{stats.total}</span>
+          </div>
+          <div className="va-stat">
+            <span className="va-stat-label">Completed</span>
+            <span className="va-stat-value">{stats.completed}</span>
+          </div>
+          <div className="va-stat">
+            <span className="va-stat-label">Average</span>
+            <span className="va-stat-value">{stats.average}%</span>
+          </div>
+          <div className="va-stat">
+            <span className="va-stat-label">Highest</span>
+            <span className="va-stat-value">{stats.highest}%</span>
+          </div>
+          <div className="va-stat">
+            <span className="va-stat-label">Lowest</span>
+            <span className="va-stat-value">{stats.lowest}%</span>
           </div>
         </div>
       )}
 
-      {sectionAnalytics && sectionAnalytics.length > 0 && (
-        <div className="stats-card-modern">
-          <h2>Section-wise Analytics</h2>
-          <div className="english-section-analytics-grid">
-            {sectionAnalytics.map(sec => (
-              <div key={sec.type} className="english-section-analytics-card">
-                <h3>{sec.label}</h3>
-                <div className="section-analytics-bar-wrap">
-                  <div
-                    className={`section-analytics-bar ${getScoreClass(sec.avgPercent)}`}
-                    style={{ width: `${sec.avgPercent}%` }}
-                  />
-                </div>
-                <div className="section-analytics-stats">
-                  <span>Avg: <strong>{sec.avgPercent}%</strong></span>
-                  <span>High: <strong>{sec.highest}%</strong></span>
-                  <span>Low: <strong>{sec.lowest}%</strong></span>
-                </div>
+      <div className="va-panel">
+        <div className="va-panel-header">
+          <h2>
+            <FiBarChart2 style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Submissions
+          </h2>
+        </div>
+        <div className="va-panel-body">
+          {results.length > 0 && (
+            <div className="va-toolbar" style={{ marginTop: 0 }}>
+              <div className="va-search">
+                <input
+                  type="search"
+                  placeholder="Search students…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
-            ))}
+            </div>
+          )}
+
+          {filteredResults.length === 0 ? (
+            <div className="va-empty">
+              <div className="va-empty-icon">📊</div>
+              <h3>{search ? 'No matches' : 'No submissions yet'}</h3>
+              <p>
+                {search
+                  ? 'Try another search term.'
+                  : 'Results appear here when students complete this test.'}
+              </p>
+            </div>
+          ) : (
+            <div className="va-table-wrap">
+              <table className="va-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Score</th>
+                    <th>%</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredResults.map((result) => (
+                    <tr key={result._id}>
+                      <td>
+                        <strong>{result.studentId?.name || 'N/A'}</strong>
+                        <div className="va-cell-muted">{result.studentId?.email}</div>
+                      </td>
+                      <td>
+                        <strong>
+                          {result.totalScore} / {result.maxScore}
+                        </strong>
+                      </td>
+                      <td>
+                        <VendorScoreBadge value={result.percentage} />
+                      </td>
+                      <td>
+                        <VendorStatusBadge status={result.status} />
+                      </td>
+                      <td className="va-cell-muted">{formatDateTime(result.submittedAt)}</td>
+                      <td>
+                        <Link
+                          to={`/vendor-admin/results/${result._id}`}
+                          className="va-btn va-btn--ghost va-btn--sm"
+                        >
+                          View details
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {sectionAnalytics && sectionAnalytics.length > 0 && (
+        <div className="va-panel">
+          <div className="va-panel-header">
+            <h2>Section analytics</h2>
+          </div>
+          <div className="va-panel-body">
+            <div className="va-analytics-grid">
+              {sectionAnalytics.map((sec) => (
+                <div key={sec.type} className="va-analytics-card">
+                  <h3>{sec.label}</h3>
+                  <div className="va-bar-track">
+                    <div
+                      className={`va-bar-fill va-bar-fill--${scoreTone(sec.avgPercent)}`}
+                      style={{ width: `${sec.avgPercent}%` }}
+                    />
+                  </div>
+                  <div className="va-analytics-meta">
+                    <span>
+                      Avg <strong>{sec.avgPercent}%</strong>
+                    </span>
+                    <span>
+                      {sec.lowest}% – {sec.highest}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {speakingAnalytics && (
-        <div className="stats-card-modern">
-          <h2>Speaking Analytics</h2>
-          <div className="speaking-analytics-overview">
-            <div className="sa-stat">
-              <span className="sa-stat-value">{speakingAnalytics.totalSubmissions}</span>
-              <span className="sa-stat-label">Submissions</span>
-            </div>
-            <div className="sa-stat">
-              <span className="sa-stat-value">{speakingAnalytics.avgSpeakingRate}</span>
-              <span className="sa-stat-label">Avg WPM</span>
-            </div>
-            <div className="sa-stat">
-              <span className="sa-stat-value">{speakingAnalytics.avgFillerWords}</span>
-              <span className="sa-stat-label">Avg Filler Words</span>
-            </div>
-            <div className="sa-stat">
-              <span className="sa-stat-value">{speakingAnalytics.avgVocabDiversity}%</span>
-              <span className="sa-stat-label">Vocab Diversity</span>
-            </div>
+        <div className="va-panel">
+          <div className="va-panel-header">
+            <h2>Speaking analytics</h2>
           </div>
-
-          <h3 style={{ marginTop: '20px', fontSize: '1em', fontWeight: 700 }}>Skill Breakdown (Avg %)</h3>
-          <div className="sa-skills-grid">
-            {Object.entries(speakingAnalytics.averages || {}).map(([key, val]) => (
-              <div key={key} className="sa-skill-row">
-                <span className="sa-skill-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                <div className="sa-skill-bar-wrap">
-                  <div className={`sa-skill-bar ${val >= 70 ? 'excellent' : val >= 50 ? 'good' : 'poor'}`} style={{ width: `${val}%` }} />
-                </div>
-                <span className="sa-skill-value">{val}%</span>
+          <div className="va-panel-body">
+            <div className="va-stats" style={{ marginBottom: 16 }}>
+              <div className="va-stat">
+                <span className="va-stat-label">Submissions</span>
+                <span className="va-stat-value">{speakingAnalytics.totalSubmissions}</span>
               </div>
-            ))}
-          </div>
-
-          <h3 style={{ marginTop: '20px', fontSize: '1em', fontWeight: 700 }}>Score Distribution</h3>
-          <div className="sa-distribution">
-            {Object.entries(speakingAnalytics.distribution || {}).map(([key, count]) => (
-              <div key={key} className={`sa-dist-item ${key}`}>
-                <span className="sa-dist-label">{key}</span>
-                <span className="sa-dist-count">{count}</span>
+              <div className="va-stat">
+                <span className="va-stat-label">Avg WPM</span>
+                <span className="va-stat-value">{speakingAnalytics.avgSpeakingRate}</span>
               </div>
-            ))}
-          </div>
-
-          {speakingAnalytics.topPerformers && speakingAnalytics.topPerformers.length > 0 && (
-            <>
-              <h3 style={{ marginTop: '20px', fontSize: '1em', fontWeight: 700 }}>Top Performers</h3>
-              <div className="sa-top-list">
-                {speakingAnalytics.topPerformers.map((p, i) => (
-                  <div key={i} className="sa-top-item">
-                    <span className="sa-top-rank">#{i + 1}</span>
-                    <span className="sa-top-name">{p.name}</span>
-                    <span className="sa-top-score">{p.score}/{p.maxScore}</span>
+              <div className="va-stat">
+                <span className="va-stat-label">Filler words</span>
+                <span className="va-stat-value">{speakingAnalytics.avgFillerWords}</span>
+              </div>
+              <div className="va-stat">
+                <span className="va-stat-label">Vocab diversity</span>
+                <span className="va-stat-value">{speakingAnalytics.avgVocabDiversity}%</span>
+              </div>
+            </div>
+            <div className="va-analytics-grid">
+              {Object.entries(speakingAnalytics.averages || {}).map(([key, val]) => (
+                <div key={key} className="va-analytics-card">
+                  <h3>{key.charAt(0).toUpperCase() + key.slice(1)}</h3>
+                  <div className="va-bar-track">
+                    <div
+                      className={`va-bar-fill va-bar-fill--${scoreTone(val)}`}
+                      style={{ width: `${val}%` }}
+                    />
                   </div>
-                ))}
-              </div>
-            </>
-          )}
+                  <div className="va-analytics-meta">
+                    <strong>{val}%</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </VendorAssessPage>
   );
 };
 
 export default TestResults;
-

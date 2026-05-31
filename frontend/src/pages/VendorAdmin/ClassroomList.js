@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  FiPlus,
+  FiUsers,
+  FiFileText,
+  FiEdit2,
+  FiTrash2,
+  FiGrid,
+} from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
-import './VendorAdminCommon.css';
-import './ClassroomList.css';
+import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 
 const ClassroomList = () => {
   const [classrooms, setClassrooms] = useState([]);
@@ -13,7 +20,6 @@ const ClassroomList = () => {
 
   useEffect(() => {
     fetchClassrooms();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   const showModal = (title, message, type = 'info') => {
@@ -27,12 +33,10 @@ const ClassroomList = () => {
   const fetchClassrooms = async () => {
     try {
       setLoading(true);
-      console.log('📥 Fetching classrooms...');
       const response = await axiosInstance.get('/vendor-admin/classrooms');
-      console.log('✅ Classrooms fetched:', response.data.length);
-      setClassrooms(response.data);
+      setClassrooms(response.data || []);
     } catch (error) {
-      console.error('❌ Error fetching classrooms:', error);
+      console.error('Error fetching classrooms:', error);
       showModal('Error', error.response?.data?.message || 'Failed to load classrooms.', 'error');
     } finally {
       setLoading(false);
@@ -40,121 +44,151 @@ const ClassroomList = () => {
   };
 
   const handleDelete = async (classroomId, classroomName) => {
-    if (!window.confirm(`Are you sure you want to delete "${classroomName}"? This action cannot be undone.`)) {
+    if (
+      !window.confirm(
+        `Delete "${classroomName}"? Students will be unlinked from this classroom. This cannot be undone.`
+      )
+    ) {
       return;
     }
 
     try {
       setDeletingId(classroomId);
       await axiosInstance.delete(`/vendor-admin/classrooms/${classroomId}`);
-      showModal('Success', 'Classroom deleted successfully!', 'success');
+      showModal('Deleted', 'Classroom removed successfully.', 'success');
       fetchClassrooms();
     } catch (error) {
-      console.error('❌ Error deleting classroom:', error);
+      console.error('Error deleting classroom:', error);
       showModal('Error', error.response?.data?.message || 'Failed to delete classroom.', 'error');
     } finally {
       setDeletingId(null);
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading classrooms...</div>;
-  }
+  const totalStudents = classrooms.reduce((s, c) => s + (c.students?.length || 0), 0);
+  const totalAssigned = classrooms.reduce(
+    (s, c) => s + (c.assignedTests?.length || 0) + (c.assignedInterviews?.length || 0),
+    0
+  );
 
   return (
-    <div className="container classroom-list">
-      <Modal 
-        isOpen={modal.isOpen} 
-        onClose={closeModal}
-        title={modal.title}
-        type={modal.type}
-      >
+    <VendorHubPage
+      className="vh-classrooms-page"
+      loading={loading}
+      eyebrow="Organization"
+      title="Classrooms"
+      subtitle="Group students into batches, manage rosters, and assign tests or interviews per classroom."
+      accent="#0891b2"
+      actions={
+        <Link to="/vendor-admin/classrooms/create" className="vh-btn vh-btn--primary">
+          <FiPlus /> Create classroom
+        </Link>
+      }
+    >
+      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
         <p>{modal.message}</p>
       </Modal>
 
-      <div className="page-header">
-        <h1 className="page-title">Classrooms</h1>
-        <Link to="/vendor-admin/classrooms/create" className="btn btn-primary">
-          + Create Classroom
-        </Link>
+      <div className="vh-stats">
+        <div className="vh-stat vh-stat--accent">
+          <span className="vh-stat-label">Classrooms</span>
+          <span className="vh-stat-value">{classrooms.length}</span>
+        </div>
+        <div className="vh-stat">
+          <span className="vh-stat-label">Students enrolled</span>
+          <span className="vh-stat-value">{totalStudents}</span>
+        </div>
+        <div className="vh-stat">
+          <span className="vh-stat-label">Test assignments</span>
+          <span className="vh-stat-value">{totalAssigned}</span>
+        </div>
       </div>
 
       {classrooms.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">📚</div>
-          <h2>No Classrooms Yet</h2>
-          <p>Create your first classroom to organize students and assign tests efficiently.</p>
-          <Link to="/vendor-admin/classrooms/create" className="btn btn-primary">
-            Create Your First Classroom
-          </Link>
+        <div className="vh-panel">
+          <div className="vh-empty">
+            <div className="vh-empty-icon"><FiGrid /></div>
+            <h2>No classrooms yet</h2>
+            <p>Create a classroom to organize students and assign assessments in bulk.</p>
+            <Link to="/vendor-admin/classrooms/create" className="vh-btn vh-btn--primary">
+              <FiPlus /> Create your first classroom
+            </Link>
+          </div>
         </div>
       ) : (
-        <div className="classrooms-grid">
-          {classrooms.map(classroom => (
-            <div key={classroom._id} className="classroom-card">
-              <div className="classroom-card-header">
-                <div className="classroom-title-section">
-                  <h3>{classroom.name}</h3>
-                  {classroom.description && (
-                    <p className="classroom-description">{classroom.description}</p>
-                  )}
-                </div>
-                <div className="classroom-actions">
-                  <Link 
-                    to={`/vendor-admin/classrooms/${classroom._id}/edit`}
-                    className="btn-icon btn-edit"
-                    title="Edit Classroom"
-                  >
-                    ✏️
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(classroom._id, classroom.name)}
-                    className="btn-icon btn-delete"
-                    disabled={deletingId === classroom._id}
-                    title="Delete Classroom"
-                  >
-                    {deletingId === classroom._id ? '⏳' : '🗑️'}
-                  </button>
-                </div>
-              </div>
+        <div className="vh-classroom-grid">
+          {classrooms.map((classroom) => {
+            const studentCount = classroom.students?.length || 0;
+            const assignCount =
+              (classroom.assignedTests?.length || 0) +
+              (classroom.assignedInterviews?.length || 0);
 
-              <div className="classroom-stats">
-                <div className="stat-item">
-                  <span className="stat-icon">👥</span>
-                  <span className="stat-label">Students:</span>
-                  <span className="stat-value">{classroom.students?.length || 0}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-icon">📝</span>
-                  <span className="stat-label">Assigned:</span>
-                  <span className="stat-value">
-                    {(classroom.assignedTests?.length || 0) + (classroom.assignedInterviews?.length || 0)}
-                  </span>
-                  <span className="stat-sublabel">tests</span>
-                </div>
-              </div>
+            return (
+              <article key={classroom._id} className="vh-classroom-card">
+                <div className="vh-classroom-card-accent" />
+                <div className="vh-classroom-card-body">
+                  <div className="vh-classroom-card-top">
+                    <div>
+                      <h3>{classroom.name}</h3>
+                      {classroom.description ? (
+                        <p className="vh-cell-muted" style={{ margin: 0, lineHeight: 1.5 }}>
+                          {classroom.description}
+                        </p>
+                      ) : (
+                        <p className="vh-cell-muted" style={{ margin: 0 }}>No description</p>
+                      )}
+                    </div>
+                    <div className="vh-classroom-card-actions">
+                      <Link
+                        to={`/vendor-admin/classrooms/${classroom._id}/edit`}
+                        className="vh-btn vh-btn--icon vh-btn--ghost"
+                        title="Edit"
+                      >
+                        <FiEdit2 />
+                      </Link>
+                      <button
+                        type="button"
+                        className="vh-btn vh-btn--icon vh-btn--danger"
+                        title="Delete"
+                        disabled={deletingId === classroom._id}
+                        onClick={() => handleDelete(classroom._id, classroom.name)}
+                      >
+                        <FiTrash2 />
+                      </button>
+                    </div>
+                  </div>
 
-              <div className="classroom-card-footer">
-                <Link 
-                  to={`/vendor-admin/classrooms/${classroom._id}/students`}
-                  className="btn btn-secondary btn-sm"
-                >
-                  Manage Students
-                </Link>
-                <Link 
-                  to={`/vendor-admin/classrooms/${classroom._id}/tests`}
-                  className="btn btn-primary btn-sm"
-                >
-                  Assign Tests
-                </Link>
-              </div>
-            </div>
-          ))}
+                  <div className="vh-classroom-meta">
+                    <span className="vh-classroom-meta-item">
+                      <FiUsers /> <strong>{studentCount}</strong> students
+                    </span>
+                    <span className="vh-classroom-meta-item">
+                      <FiFileText /> <strong>{assignCount}</strong> assigned
+                    </span>
+                  </div>
+
+                  <div className="vh-classroom-card-foot">
+                    <Link
+                      to={`/vendor-admin/classrooms/${classroom._id}/students`}
+                      className="vh-btn vh-btn--secondary vh-btn--sm"
+                    >
+                      <FiUsers /> Manage students
+                    </Link>
+                    <Link
+                      to={`/vendor-admin/classrooms/${classroom._id}/tests`}
+                      className="vh-btn vh-btn--primary vh-btn--sm"
+                    >
+                      Assign tests
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
-    </div>
+    </VendorHubPage>
   );
 };
 
 export default ClassroomList;
-

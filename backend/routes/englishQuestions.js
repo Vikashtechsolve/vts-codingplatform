@@ -12,6 +12,7 @@ const EnglishReadingQuestion = require('../models/EnglishReadingQuestion');
 const EnglishEssayQuestion = require('../models/EnglishEssayQuestion');
 const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
 const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
+const { resolveTagsForSave } = require('../utils/questionTags');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -53,6 +54,15 @@ const vendorOnlyQuery = (vendorId) => ({
 });
 
 const protectedFields = ['_id', 'isGlobal', 'vendorId', 'createdBy'];
+const parseMaybeJsonTags = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value.split(',');
+  }
+};
 
 const updateAllowedFields = (doc, body) => {
   Object.keys(body).forEach(key => {
@@ -60,6 +70,12 @@ const updateAllowedFields = (doc, body) => {
       doc[key] = body[key];
     }
   });
+};
+
+const resolveBodyTags = async (req) => {
+  if (req.body.tags === undefined) return;
+  const raw = Array.isArray(req.body.tags) ? req.body.tags : parseMaybeJsonTags(req.body.tags);
+  req.body.tags = await resolveTagsForSave(req.vendorId, raw, req.user._id);
 };
 
 // ============================================
@@ -77,7 +93,7 @@ router.post('/grammar', [
     const {
       questionText, subType, blankSentence, sentences, correctOrder,
       options, correctAnswer, isSubjective, explanation, grammarCategory,
-      difficulty, points
+      difficulty, points, tags
     } = req.body;
 
     const optionBasedSubTypes = ['error_detection', 'active_passive', 'direct_indirect'];
@@ -111,7 +127,8 @@ router.post('/grammar', [
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id,
-      points: points || 10
+      points: points || 10,
+      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id)
     });
 
     await question.save();
@@ -149,6 +166,7 @@ router.put('/grammar/:id', async (req, res) => {
   try {
     const question = await EnglishGrammarQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
+    await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
     await question.save();
     res.json(question);
@@ -180,7 +198,7 @@ router.post('/vocabulary', [
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { word, subType, contextSentence, options, explanation, difficulty, points } = req.body;
+    const { word, subType, contextSentence, options, explanation, difficulty, points, tags } = req.body;
 
     const validOptions = (options || []).filter(o => o.text && o.text.trim());
     if (!validOptions.some(o => o.isCorrect)) return res.status(400).json({ message: 'At least one option must be correct' });
@@ -195,7 +213,8 @@ router.post('/vocabulary', [
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id,
-      points: points || 10
+      points: points || 10,
+      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id)
     });
 
     await question.save();
@@ -233,6 +252,7 @@ router.put('/vocabulary/:id', async (req, res) => {
   try {
     const question = await EnglishVocabularyQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
+    await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
     await question.save();
     res.json(question);
@@ -264,7 +284,7 @@ router.post('/reading', [
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { passage, questions, difficulty } = req.body;
+    const { passage, questions, difficulty, tags } = req.body;
 
     for (const q of questions) {
       if (!q.questionText || !q.questionText.trim()) return res.status(400).json({ message: 'Each question must have text' });
@@ -296,6 +316,7 @@ router.post('/reading', [
         points: q.points || 5
       })),
       difficulty: difficulty || 'medium',
+      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id),
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id
@@ -336,6 +357,7 @@ router.put('/reading/:id', async (req, res) => {
   try {
     const question = await EnglishReadingQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
+    await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
     await question.save();
     res.json(question);
@@ -372,7 +394,7 @@ router.post('/essay', [
 
     const {
       prompt, writingType, instructions, wordLimit, timeLimit,
-      sampleResponse, expectedFormat, evaluationWeights, difficulty, points
+      sampleResponse, expectedFormat, evaluationWeights, difficulty, points, tags
     } = req.body;
 
     const question = new EnglishEssayQuestion({
@@ -388,7 +410,8 @@ router.post('/essay', [
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id,
-      points: points || 20
+      points: points || 20,
+      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id)
     });
 
     await question.save();
@@ -426,6 +449,7 @@ router.put('/essay/:id', async (req, res) => {
   try {
     const question = await EnglishEssayQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
+    await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
     await question.save();
     res.json(question);
@@ -452,7 +476,7 @@ router.post('/speaking', uploadImage.single('image'), async (req, res) => {
   try {
     const {
       prompt, speakingType, referenceText, preparationTime,
-      speakingTime, maxAttempts, evaluationWeights, difficulty, points
+      speakingTime, maxAttempts, evaluationWeights, difficulty, points, tags
     } = req.body;
 
     if (!prompt || !prompt.trim()) return res.status(400).json({ message: 'Prompt is required' });
@@ -486,7 +510,8 @@ router.post('/speaking', uploadImage.single('image'), async (req, res) => {
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id,
-      points: points || 20
+      points: points || 20,
+      tags: await resolveTagsForSave(req.vendorId, parseMaybeJsonTags(tags), req.user._id)
     });
 
     await question.save();
@@ -531,6 +556,7 @@ router.put('/speaking/:id', uploadImage.single('image'), async (req, res) => {
     }
     if (req.body.speakingTime && typeof req.body.speakingTime === 'string') req.body.speakingTime = JSON.parse(req.body.speakingTime);
     if (req.body.evaluationWeights && typeof req.body.evaluationWeights === 'string') req.body.evaluationWeights = JSON.parse(req.body.evaluationWeights);
+    await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
     await question.save();
     res.json(question);
@@ -555,7 +581,7 @@ router.delete('/speaking/:id', async (req, res) => {
 
 router.post('/listening', uploadAudio.single('audio'), async (req, res) => {
   try {
-    const { title, audioTranscript, audioDuration, maxReplays, questionDelay, questions, difficulty } = req.body;
+    const { title, audioTranscript, audioDuration, maxReplays, questionDelay, questions, difficulty, tags } = req.body;
 
     if (!title || !title.trim()) return res.status(400).json({ message: 'Title is required' });
     if (!req.file && !req.body.audioUrl) return res.status(400).json({ message: 'Audio file is required' });
@@ -594,6 +620,7 @@ router.post('/listening', uploadAudio.single('audio'), async (req, res) => {
         points: q.points || 5
       })),
       difficulty: difficulty || 'medium',
+      tags: await resolveTagsForSave(req.vendorId, parseMaybeJsonTags(tags), req.user._id),
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id
@@ -640,6 +667,7 @@ router.put('/listening/:id', uploadAudio.single('audio'), async (req, res) => {
       req.body.audioUrl = await uploadToR2(req.file.buffer, r2Key, req.file.originalname);
     }
     if (req.body.questions && typeof req.body.questions === 'string') req.body.questions = JSON.parse(req.body.questions);
+    await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
     await question.save();
     res.json(question);

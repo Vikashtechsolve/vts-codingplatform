@@ -16,6 +16,10 @@ const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
 const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
 const User = require('../models/User');
 const Result = require('../models/Result');
+const {
+  enrollStudentsInTest,
+  assignTestToClassrooms,
+} = require('../utils/assignToClassroom');
 
 const ENGLISH_QUESTION_MODELS = {
   english_grammar: EnglishGrammarQuestion,
@@ -353,7 +357,7 @@ router.put('/:id', [
       return res.status(404).json({ message: 'Test not found' });
     }
 
-    const { title, description, duration, questions, startDate, endDate, isActive, settings, englishSections } = req.body;
+    const { title, description, duration, questions, startDate, endDate, isActive, settings, englishSections, datasetTemplateId } = req.body;
 
     if (title) test.title = title;
     if (description !== undefined) test.description = description;
@@ -364,6 +368,7 @@ router.put('/:id', [
     if (isActive !== undefined) test.isActive = isActive;
     if (settings) test.settings = { ...test.settings, ...settings };
     if (englishSections !== undefined) test.englishSections = englishSections;
+    if (test.type === 'sql' && datasetTemplateId) test.datasetTemplateId = datasetTemplateId;
 
     await test.save();
     res.json(test);
@@ -394,12 +399,13 @@ router.delete('/:id', [
   }
 });
 
-// Assign test to students
+// Assign test to students and/or classrooms
 router.post('/:id/assign', [
   auth,
   authorize('vendor_admin'),
   tenantMiddleware,
-  body('studentIds').isArray().withMessage('Student IDs must be an array')
+  body('studentIds').optional().isArray().withMessage('Student IDs must be an array'),
+  body('classroomIds').optional().isArray().withMessage('Classroom IDs must be an array'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -412,34 +418,51 @@ router.post('/:id/assign', [
       return res.status(404).json({ message: 'Test not found' });
     }
 
-    const { studentIds } = req.body;
-    const assigned = [];
+    const studentIds = req.body.studentIds || [];
+    const classroomIds = req.body.classroomIds || [];
 
-    for (const studentId of studentIds) {
-      const student = await User.findOne({
-        _id: studentId,
-        vendorId: req.vendorId,
-        role: 'student'
+    if (studentIds.length === 0 && classroomIds.length === 0) {
+      return res.status(400).json({
+        message: 'Select at least one student or one classroom',
       });
-
-      if (!student) continue;
-
-      // Check if already assigned
-      const alreadyAssigned = student.enrolledTests.some(
-        et => et.testId.toString() === test._id.toString()
-      );
-
-      if (!alreadyAssigned) {
-        student.enrolledTests.push({
-          testId: test._id,
-          status: 'assigned'
-        });
-        await student.save();
-        assigned.push(studentId);
-      }
     }
 
-    res.json({ message: 'Test assigned successfully', assigned });
+    let assigned = [];
+    let classroomEnrolled = 0;
+
+    if (classroomIds.length > 0) {
+      const result = await assignTestToClassrooms(
+        test._id,
+        classroomIds,
+        req.vendorId,
+        req.user._id
+      );
+      classroomEnrolled = result.enrolledCount;
+    }
+
+    if (studentIds.length > 0) {
+      assigned = await enrollStudentsInTest(test._id, studentIds, req.vendorId);
+    }
+
+    const totalNew = assigned.length + classroomEnrolled;
+    const parts = [];
+    if (classroomIds.length > 0) {
+      parts.push(
+        `${classroomIds.length} classroom${classroomIds.length !== 1 ? 's' : ''} (${classroomEnrolled} new enrollment${classroomEnrolled !== 1 ? 's' : ''})`
+      );
+    }
+    if (assigned.length > 0) {
+      parts.push(`${assigned.length} individual student${assigned.length !== 1 ? 's' : ''}`);
+    }
+
+    res.json({
+      message: totalNew > 0
+        ? `Test assigned successfully to ${parts.join(' and ')}`
+        : 'Test was already assigned to the selected audience',
+      assigned,
+      classroomEnrolled,
+      totalNew,
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

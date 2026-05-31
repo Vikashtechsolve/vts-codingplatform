@@ -352,3 +352,13 @@
   background: var(--student-dark-surface);
   border-color: var(--student-dark-border);
 }
+
+/* —— Vendor panel (shared dark surfaces) —— */
+[data-theme='dark'] .vendor-panel {
+  background: #121212;
+}
+
+[data-theme='dark'] .vendor-nav-item.active .vendor-nav-icon {
+  background: #1f1f1f;
+  border-color: var(--student-dark-border);
+}

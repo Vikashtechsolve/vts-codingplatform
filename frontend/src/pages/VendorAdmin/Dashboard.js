@@ -1,244 +1,284 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import axiosInstance from '../../utils/axios';
+import { useAuth } from '../../context/AuthContext';
+import { useVendorBranding } from '../../context/VendorBrandingContext';
+import { useVendorPanel } from '../../context/VendorPanelContext';
+import { VENDOR_TEST_SECTIONS } from '../../constants/vendorSections';
+import {
+  FiArrowRight,
+  FiUsers,
+  FiFileText,
+  FiCheckCircle,
+  FiGrid,
+  FiPlus,
+  FiBarChart2,
+  FiSettings,
+} from 'react-icons/fi';
 import './Dashboard.css';
 
 const VendorAdminDashboard = () => {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { branding } = useVendorBranding();
+  const { stats, loading, getSectionCount } = useVendorPanel();
 
-  useEffect(() => {
-    fetchStats();
-    
-    // Refresh stats when component becomes visible (user navigates back)
-    const handleFocus = () => {
-      fetchStats();
-    };
-    window.addEventListener('focus', handleFocus);
-    
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
+  const firstName = user?.name?.split(' ')[0] || 'Admin';
+  const company = branding?.companyName || 'your organization';
 
-  const fetchStats = async () => {
-    try {
-      console.log('📥 Fetching dashboard stats...');
-      const response = await axiosInstance.get('/vendor-admin/dashboard/stats');
-      console.log('✅ Dashboard stats:', response.data);
-      setStats(response.data);
-    } catch (error) {
-      console.error('❌ Error fetching stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const statCards = [
+    {
+      key: 'tests',
+      label: 'Total tests',
+      value: stats.totalTests,
+      icon: FiFileText,
+      accent: '#2563eb',
+      to: '/vendor-admin/tests',
+    },
+    {
+      key: 'students',
+      label: 'Students',
+      value: stats.totalStudents,
+      icon: FiUsers,
+      accent: '#059669',
+      to: '/vendor-admin/students',
+    },
+    {
+      key: 'classrooms',
+      label: 'Classrooms',
+      value: stats.totalClassrooms,
+      icon: FiGrid,
+      accent: '#0891b2',
+      to: '/vendor-admin/classrooms',
+    },
+    {
+      key: 'results',
+      label: 'Submissions',
+      value: stats.totalResults,
+      icon: FiBarChart2,
+      accent: '#6366f1',
+      to: '/vendor-admin/analytics',
+    },
+    {
+      key: 'completed',
+      label: 'Completed',
+      value: stats.completedResults,
+      icon: FiCheckCircle,
+      accent: '#7c3aed',
+      to: '/vendor-admin/analytics',
+    },
+  ];
 
-  const testTypeCards = [
-    {
-      key: 'coding',
-      title: 'Coding Tests',
-      description: 'DSA problems with automated evaluation.',
-      icon: '💻',
-      actions: [
-        { label: 'Create Questions', to: '/vendor-admin/questions/coding/create' },
-        { label: 'Create Test', to: '/vendor-admin/tests/create?type=coding' }
-      ]
-    },
-    {
-      key: 'aptitude',
-      title: 'Aptitude Tests',
-      description: 'Quantitative, logical, and analytical aptitude.',
-      icon: '🧠',
-      actions: [
-        { label: 'Create Questions', to: '/vendor-admin/questions/aptitude/create' },
-        { label: 'Create Test', to: '/vendor-admin/tests/create?type=aptitude' }
-      ]
-    },
-    {
-      key: 'mcq',
-      title: 'MCQ Tests',
-      description: 'Single/multiple correct objective questions.',
-      icon: '❓',
-      actions: [
-        { label: 'Create Questions', to: '/vendor-admin/questions/mcq/create' },
-        { label: 'Create Test', to: '/vendor-admin/tests/create?type=mcq' }
-      ]
-    },
-    {
-      key: 'english',
-      title: 'Verbal & English',
-      description: 'Grammar, vocabulary, reading, writing, speaking, and listening.',
-      icon: '🗣️',
-      actions: [
-        { label: 'Create Test', to: '/vendor-admin/english-tests/create' },
-        { label: 'View Tests', to: '/vendor-admin/tests?type=english' }
-      ]
-    },
-    {
-      key: 'theory',
-      title: 'Core CS / Theoretical',
-      description: 'OS, DBMS, Networks, OOP fundamentals.',
-      icon: '📚',
-      actions: [
-        { label: 'Create Questions', to: '/vendor-admin/questions/theory/create' },
-        { label: 'Create Test', to: '/vendor-admin/tests/create?type=theory' }
-      ]
-    },
-    {
-      key: 'project',
-      title: 'Project Evaluation (AI)',
-      description: 'AI-based project review and scoring.',
-      icon: '🤖',
-      actions: [
-        { label: 'Create Assignment', to: '/vendor-admin/create-assignment' },
-        { label: 'View Assignments', to: '/vendor-admin/assignments' }
-      ]
-    },
-    {
-      key: 'interview',
-      title: 'Interview',
-      description: 'Voice-based interview tests.',
-      icon: '🎤',
-      actions: [
-        { label: 'Create Test', to: '/vendor-admin/interviews/create' },
-        { label: 'View Tests', to: '/vendor-admin/tests?type=interview' }
-      ]
-    },
-    {
-      key: 'system',
-      title: 'System Design',
-      description: 'Architecture and scalability assessments.',
-      icon: '🏗️',
-      actions: [
-        { label: 'Create Problem', to: '/vendor-admin/system-designs/create' },
-        { label: 'View Problems', to: '/vendor-admin/system-designs' }
-      ]
-    },
-    {
-      key: 'tools',
-      title: 'Practical Tools (SQL)',
-      description: 'SQL exams with dataset templates and output-based evaluation.',
-      icon: '🧰',
-      actions: [
-        { label: 'Dataset Templates', to: '/vendor-admin/dataset-templates' },
-        { label: 'Create SQL Test', to: '/vendor-admin/sql-tests/create' }
-      ]
-    },
-    {
-      key: 'company',
-      title: 'Company Specific',
-      description: 'Company-focused test templates.',
-      icon: '🏢',
-      comingSoon: true
-    }
+  const quickLinks = [
+    { label: 'Create test', to: '/vendor-admin/tests/create', icon: FiPlus, primary: true },
+    { label: 'New classroom', to: '/vendor-admin/classrooms/create', icon: FiGrid },
+    { label: 'Question bank', to: '/vendor-admin/questions', icon: FiFileText },
+    { label: 'Announcements', to: '/vendor-admin/announcements', icon: FiUsers },
   ];
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return (
+      <div className="vendor-dashboard-page">
+        <div className="vendor-dashboard-loading">
+          <div className="vendor-loading-spinner" />
+          <p>Loading dashboard…</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="container vendor-dashboard">
-      <h1 className="page-title">Vendor Admin Dashboard</h1>
+    <div className="vendor-dashboard-page">
+      <section className="vendor-hero">
+        <div className="vendor-hero-content">
+          <p className="vendor-hero-eyebrow">Vendor admin · {stats.totalAssessments ?? 0} assessments</p>
+          <h1>Hello, {firstName}</h1>
+          <p className="vendor-hero-sub">
+            Manage assessments, students, and classrooms for <strong>{company}</strong>. Use the
+            left panel to jump to any test type or open a section below.
+          </p>
+          <div className="vendor-hero-actions">
+            <Link to="/vendor-admin/tests/create" className="vendor-hero-cta">
+              Create test <FiArrowRight />
+            </Link>
+            <Link to="/vendor-admin/analytics" className="vendor-hero-cta-secondary">
+              View analytics
+            </Link>
+          </div>
+        </div>
+        <div className="vendor-hero-visual" aria-hidden>
+          <div className="vendor-hero-card-stack">
+            <div className="vendor-hero-mini-card" style={{ '--c': '#2563eb' }}>
+              <span>Coding</span>
+              <strong>{getSectionCount('coding')}</strong>
+            </div>
+            <div className="vendor-hero-mini-card" style={{ '--c': '#6366f1' }}>
+              <span>Projects</span>
+              <strong>{stats.totalAssignments}</strong>
+            </div>
+            <div className="vendor-hero-mini-card" style={{ '--c': '#c026d3' }}>
+              <span>Interviews</span>
+              <strong>{stats.totalInterviews}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <div className="stats-grid-vendor">
-        <div className="stat-card-vendor tests">
-          <h3>Total Tests</h3>
-          <p className="stat-number-vendor">{stats?.totalTests || 0}</p>
-        </div>
-        <div className="stat-card-vendor students">
-          <h3>Total Students</h3>
-          <p className="stat-number-vendor">{stats?.totalStudents || 0}</p>
-        </div>
-        <div className="stat-card-vendor results">
-          <h3>Total Results</h3>
-          <p className="stat-number-vendor">{stats?.totalResults || 0}</p>
-        </div>
-        <div className="stat-card-vendor completed">
-          <h3>Completed Results</h3>
-          <p className="stat-number-vendor">{stats?.completedResults || 0}</p>
-        </div>
-      </div>
+      <section className="vendor-stats-row" aria-label="Overview statistics">
+        {statCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <Link key={card.key} to={card.to} className="vendor-stat-card">
+              <span className="vendor-stat-icon" style={{ '--stat-accent': card.accent }}>
+                <Icon />
+              </span>
+              <div className="vendor-stat-body">
+                <span className="vendor-stat-label">{card.label}</span>
+                <span className="vendor-stat-value">{card.value ?? 0}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </section>
 
-      <div className="test-type-section">
-        <div className="section-header">
-          <h2>Test Types</h2>
-          <Link to="/vendor-admin/tests" className="btn btn-secondary btn-sm">
-            View All Tests
+      <section className="vendor-quick-section">
+        <h2 className="vendor-section-title">Quick actions</h2>
+        <div className="vendor-quick-grid">
+          {quickLinks.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.label}
+                to={item.to}
+                className={`vendor-quick-card ${item.primary ? 'vendor-quick-card--primary' : ''}`}
+              >
+                <Icon className="vendor-quick-icon" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="vendor-sections-overview">
+        <div className="vendor-sections-header">
+          <h2 className="vendor-section-title">Assessment types</h2>
+          <p className="vendor-section-sub">
+            Every test category from the sidebar — counts, description, and shortcuts.
+          </p>
+        </div>
+        <div className="vendor-section-cards">
+          {VENDOR_TEST_SECTIONS.map((section) => {
+            const Icon = section.icon;
+            const count = section.comingSoon ? null : getSectionCount(section.id);
+            const questionCount =
+              section.id === 'coding'
+                ? stats.questions?.coding
+                : section.id === 'mcq'
+                  ? stats.questions?.mcq
+                  : section.id === 'aptitude'
+                    ? stats.questions?.aptitude
+                    : section.id === 'theory'
+                      ? stats.questions?.theory
+                      : null;
+
+            const hubLink = section.comingSoon
+              ? null
+              : section.testType
+                ? `/vendor-admin/tests?type=${section.testType}`
+                : section.path;
+
+            return (
+              <article
+                key={section.id}
+                className={`vendor-type-card ${section.comingSoon ? 'vendor-type-card--soon' : ''}`}
+                style={{ '--type-accent': section.accent }}
+              >
+                <div className="vendor-type-card-top">
+                  <span className="vendor-type-icon">
+                    <Icon />
+                  </span>
+                  <div>
+                    <h3>{section.label}</h3>
+                    {section.comingSoon ? (
+                      <span className="vendor-soon-badge">Coming soon</span>
+                    ) : (
+                      <span className="vendor-type-count">
+                        <strong>{count ?? 0}</strong>
+                        {section.hub === 'assignments'
+                          ? ' assignments'
+                          : section.hub === 'interviews'
+                            ? ' interviews'
+                            : section.hub === 'system_design'
+                              ? ' problems'
+                              : section.hub === 'sql'
+                                ? ' SQL tests'
+                                : ' tests'}
+                        {questionCount != null && questionCount > 0 && (
+                          <> · {questionCount} in question bank</>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="vendor-type-desc">{section.description}</p>
+                {!section.comingSoon && section.actions?.length > 0 && (
+                  <div className="vendor-type-actions">
+                    {section.actions.map((action) => (
+                      <Link
+                        key={action.label}
+                        to={action.to}
+                        className={action.primary ? 'vendor-btn vendor-btn--primary' : 'vendor-btn'}
+                      >
+                        {action.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {hubLink && !section.comingSoon && (
+                  <Link to={hubLink} className="vendor-type-open">
+                    Open section <FiArrowRight />
+                  </Link>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="vendor-manage-panel">
+        <h2 className="vendor-section-title">Platform management</h2>
+        <div className="vendor-manage-grid">
+          <Link to="/vendor-admin/students" className="vendor-manage-card">
+            <FiUsers />
+            <div>
+              <strong>Students</strong>
+              <span>{stats.totalStudents} enrolled</span>
+            </div>
+          </Link>
+          <Link to="/vendor-admin/classrooms" className="vendor-manage-card">
+            <FiGrid />
+            <div>
+              <strong>Classrooms</strong>
+              <span>{stats.totalClassrooms} active</span>
+            </div>
+          </Link>
+          <Link to="/vendor-admin/questions" className="vendor-manage-card">
+            <FiFileText />
+            <div>
+              <strong>Question bank</strong>
+              <span>MCQ, coding, aptitude, theory</span>
+            </div>
+          </Link>
+          <Link to="/vendor-admin/settings" className="vendor-manage-card">
+            <FiSettings />
+            <div>
+              <strong>Settings & branding</strong>
+              <span>Logo, colors, profile</span>
+            </div>
           </Link>
         </div>
-        <div className="test-type-grid">
-          {testTypeCards.map(card => (
-            <div key={card.key} className={`test-type-card ${card.comingSoon ? 'coming-soon' : ''}`}>
-              <div className="test-type-card-header">
-                <span className="test-type-icon">{card.icon}</span>
-                <div>
-                  <h3>{card.title}</h3>
-                  {card.comingSoon && <span className="coming-soon-badge">Coming Soon</span>}
-                </div>
-              </div>
-              <p className="test-type-description">{card.description}</p>
-              <div className="test-type-actions">
-                {card.actions ? (
-                  card.actions.map(action => (
-                    <Link key={action.label} to={action.to} className="btn btn-primary btn-sm">
-                      {action.label}
-                    </Link>
-                  ))
-                ) : (
-                  <>
-                    <button className="btn btn-secondary btn-sm" disabled>
-                      Create Questions
-                    </button>
-                    <button className="btn btn-secondary btn-sm" disabled>
-                      Create Test
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="action-buttons-vendor">
-        <Link to="/vendor-admin/tests/create" className="action-card action-card-primary">
-          <span className="action-card-icon">➕</span>
-          <h3 className="action-card-title">Create Test</h3>
-        </Link>
-        <Link to="/vendor-admin/classrooms/create" className="action-card action-card-primary">
-          <span className="action-card-icon">🏫</span>
-          <h3 className="action-card-title">Create Classroom</h3>
-        </Link>
-        <Link to="/vendor-admin/tests" className="action-card">
-          <span className="action-card-icon">📋</span>
-          <h3 className="action-card-title">View Tests</h3>
-        </Link>
-        <Link to="/vendor-admin/classrooms" className="action-card">
-          <span className="action-card-icon">👥</span>
-          <h3 className="action-card-title">View Classrooms</h3>
-        </Link>
-        <Link to="/vendor-admin/questions" className="action-card">
-          <span className="action-card-icon">❓</span>
-          <h3 className="action-card-title">Manage Questions</h3>
-        </Link>
-        <Link to="/vendor-admin/students" className="action-card">
-          <span className="action-card-icon">👨‍🎓</span>
-          <h3 className="action-card-title">Manage Students</h3>
-        </Link>
-        <Link to="/vendor-admin/analytics" className="action-card">
-          <span className="action-card-icon">📊</span>
-          <h3 className="action-card-title">Analytics</h3>
-        </Link>
-        <Link to="/vendor-admin/settings" className="action-card">
-          <span className="action-card-icon">⚙️</span>
-          <h3 className="action-card-title">Settings</h3>
-        </Link>
-      </div>
+      </section>
     </div>
   );
 };
 
 export default VendorAdminDashboard;
-

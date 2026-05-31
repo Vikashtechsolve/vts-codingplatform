@@ -36,6 +36,18 @@ const mcqQuestionSchema = new mongoose.Schema({
     required: true
   },
   category: String,
+  tags: {
+    type: [String],
+    default: [],
+    set: (tags) =>
+      Array.from(
+        new Set(
+          (Array.isArray(tags) ? tags : [])
+            .map((tag) => String(tag || '').trim())
+            .filter(Boolean)
+        )
+      )
+  },
   points: {
     type: Number,
     default: 10

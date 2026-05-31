@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { FiDownload, FiRefreshCw } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import ExportReportModal from '../../components/ExportReportModal';
-import './VendorAdminCommon.css';
-import './TestResults.css';
+import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
+import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
+import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
+import { formatDateTime } from '../../utils/vendorAssessmentUi';
 
 const AssignmentSubmissions = () => {
   const { id: assignmentId } = useParams();
@@ -11,13 +14,14 @@ const AssignmentSubmissions = () => {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [submissionsRes, assignmentRes] = await Promise.all([
         axiosInstance.get(`/project-submissions/assignment/${assignmentId}`),
-        axiosInstance.get(`/assignments/${assignmentId}`)
+        axiosInstance.get(`/assignments/${assignmentId}`),
       ]);
       if (submissionsRes.data?.success) {
         setSubmissions(submissionsRes.data.submissions || []);
@@ -37,41 +41,51 @@ const AssignmentSubmissions = () => {
   }, [fetchData]);
 
   const handleRetry = async (submissionId) => {
-    if (!window.confirm('Retry evaluation for this submission?')) return;
+    if (!window.confirm('Retry AI evaluation for this submission?')) return;
     try {
       await axiosInstance.post(`/project-submissions/${submissionId}/retry-evaluation`);
-      alert('Evaluation queued for retry');
       fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to retry');
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  const evaluated = submissions.filter((s) => s.status === 'evaluated');
+  const avgPct =
+    evaluated.length > 0
+      ? Math.round(
+          evaluated.reduce((sum, s) => sum + (s.evaluationResult?.percentage || 0), 0) /
+            evaluated.length
+        )
+      : 0;
 
-  const getScoreClass = (percentage) => {
-    if (!percentage && percentage !== 0) return '';
-    if (percentage >= 70) return 'excellent';
-    if (percentage >= 50) return 'good';
-    return 'poor';
-  };
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return submissions;
+    return submissions.filter(
+      (s) =>
+        s.studentId?.name?.toLowerCase().includes(q) ||
+        s.studentId?.email?.toLowerCase().includes(q)
+    );
+  }, [submissions, search]);
+
+  const accent = '#6366f1';
 
   return (
-    <div className="container test-results-page">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <Link to="/vendor-admin/tests?type=project" className="btn btn-secondary" style={{ marginBottom: '20px' }}>
-            ← Back to Tests
-          </Link>
-          <h1 className="page-title">Submissions: {assignment?.title || 'Assignment'}</h1>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setExportOpen(true)}>
-          Download Excel report
+    <VendorAssessPage
+      loading={loading}
+      backTo="/vendor-admin/tests?type=project"
+      backLabel="Back to projects"
+      eyebrow="Project evaluation"
+      title={assignment?.title ? `Submissions: ${assignment.title}` : 'Submissions'}
+      subtitle="AI-graded repository submissions with feature checklist scores."
+      accent={accent}
+      actions={
+        <button type="button" className="va-btn va-btn--primary" onClick={() => setExportOpen(true)}>
+          <FiDownload /> Export report
         </button>
-      </div>
-
+      }
+    >
       <ExportReportModal
         isOpen={exportOpen}
         onClose={() => setExportOpen(false)}
@@ -80,85 +94,126 @@ const AssignmentSubmissions = () => {
         title={assignment?.title || 'Assignment report'}
       />
 
-      <div className="results-table-card">
-        <h2>Project Submissions ({submissions.length})</h2>
-        {submissions.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">📊</div>
-            <h2>No Submissions Yet</h2>
-            <p>No students have submitted this project yet.</p>
+      {submissions.length > 0 && (
+        <div className="va-stats">
+          <div className="va-stat va-stat--accent">
+            <span className="va-stat-label">Total</span>
+            <span className="va-stat-value">{submissions.length}</span>
           </div>
-        ) : (
-          <div className="table-container">
-            <table className="results-table-modern">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Email</th>
-                  <th>Score</th>
-                  <th>Grade</th>
-                  <th>Status</th>
-                  <th>Submitted At</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {submissions.map(sub => (
-                  <tr key={sub._id}>
-                    <td><strong>{sub.studentId?.name || 'N/A'}</strong></td>
-                    <td>{sub.studentId?.email || 'N/A'}</td>
-                    <td>
-                      {sub.evaluationResult ? (
-                        <strong>{sub.evaluationResult.totalScore} / {assignment?.totalMarks || 100}</strong>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td>
-                      {sub.evaluationResult?.grade ? (
-                        <span className={`score-badge-result ${getScoreClass(sub.evaluationResult.percentage)}`}>
-                          {sub.evaluationResult.grade} ({sub.evaluationResult.percentage}%)
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td>
-                      <span className={`status-badge ${sub.status === 'evaluated' ? 'active' : 'inactive'}`}>
-                        {sub.status}
-                      </span>
-                    </td>
-                    <td>{sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : 'N/A'}</td>
-                    <td>
-                      {sub.status === 'evaluated' && (
-                        <Link
-                          to={`/vendor-admin/submission/${sub._id}/result`}
-                          state={{
-                            backPath: `/vendor-admin/assignments/${assignmentId}/submissions`,
-                            backLabel: 'Back to Submissions'
-                          }}
-                          className="btn btn-sm btn-primary"
-                        >
-                          View Result
-                        </Link>
-                      )}
-                      {sub.status === 'failed' && (
-                        <button
-                          onClick={() => handleRetry(sub._id)}
-                          className="btn btn-sm btn-secondary"
-                        >
-                          Retry Evaluation
-                        </button>
-                      )}
-                    </td>
+          <div className="va-stat">
+            <span className="va-stat-label">Evaluated</span>
+            <span className="va-stat-value">{evaluated.length}</span>
+          </div>
+          <div className="va-stat">
+            <span className="va-stat-label">Avg score</span>
+            <span className="va-stat-value">{avgPct}%</span>
+          </div>
+          <div className="va-stat">
+            <span className="va-stat-label">Max marks</span>
+            <span className="va-stat-value">{assignment?.totalMarks ?? '—'}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="va-panel">
+        <div className="va-panel-header">
+          <h2>All submissions</h2>
+        </div>
+        <div className="va-panel-body">
+          {submissions.length > 0 && (
+            <div className="va-toolbar" style={{ marginTop: 0 }}>
+              <div className="va-search">
+                <input
+                  type="search"
+                  placeholder="Search students…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <div className="va-empty">
+              <div className="va-empty-icon">📁</div>
+              <h3>{search ? 'No matches' : 'No submissions yet'}</h3>
+              <p>Students will appear here after they submit their project repository.</p>
+            </div>
+          ) : (
+            <div className="va-table-wrap">
+              <table className="va-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Score</th>
+                    <th>Grade</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {filtered.map((sub) => (
+                    <tr key={sub._id}>
+                      <td>
+                        <strong>{sub.studentId?.name || 'N/A'}</strong>
+                        <div className="va-cell-muted">{sub.studentId?.email}</div>
+                      </td>
+                      <td>
+                        {sub.evaluationResult ? (
+                          <strong>
+                            {sub.evaluationResult.totalScore} / {assignment?.totalMarks || 100}
+                          </strong>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        {sub.evaluationResult?.grade ? (
+                          <VendorScoreBadge
+                            value={`${sub.evaluationResult.grade} (${sub.evaluationResult.percentage}%)`}
+                            suffix=""
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <VendorStatusBadge status={sub.status} />
+                      </td>
+                      <td className="va-cell-muted">{formatDateTime(sub.submittedAt)}</td>
+                      <td className="va-cell-actions">
+                        {sub.status === 'evaluated' && (
+                          <Link
+                            to={`/vendor-admin/submission/${sub._id}/result`}
+                            state={{
+                              backPath: `/vendor-admin/assignments/${assignmentId}/submissions`,
+                              backLabel: 'Back to submissions',
+                            }}
+                            className="va-btn va-btn--ghost va-btn--sm"
+                          >
+                            View result
+                          </Link>
+                        )}
+                        {sub.status === 'failed' && (
+                          <button
+                            type="button"
+                            className="va-btn va-btn--secondary va-btn--sm"
+                            onClick={() => handleRetry(sub._id)}
+                          >
+                            <FiRefreshCw /> Retry
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </VendorAssessPage>
   );
 };
 

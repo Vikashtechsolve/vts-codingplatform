@@ -1,0 +1,979 @@
+/**
+ * Vendor assessment flows: assign, submissions, results, detail
+ * Import once in App.js — works in light + dark mode
+ */
+
+.va-page {
+  --va-accent: #e7210b;
+  --va-radius: 14px;
+  --va-radius-lg: 18px;
+  --va-surface: #ffffff;
+  --va-surface-2: #f8fafc;
+  --va-border: #e5e7eb;
+  --va-text: var(--text-primary, #0f172a);
+  --va-muted: var(--text-secondary, #64748b);
+  --va-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --va-shadow-hover: 0 8px 24px rgba(15, 23, 42, 0.08);
+  max-width: 1180px;
+  margin: 0 auto;
+  animation: vaFadeIn 0.35s ease;
+}
+
+@keyframes vaFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.va-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  gap: 14px;
+  color: var(--va-muted);
+}
+
+.va-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--va-border);
+  border-top-color: var(--va-accent);
+  border-radius: 50%;
+  animation: vaSpin 0.75s linear infinite;
+}
+
+@keyframes vaSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Header */
+.va-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.va-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--va-muted);
+  text-decoration: none;
+  border: 1px solid var(--va-border);
+  background: var(--va-surface);
+  transition: all 0.15s ease;
+}
+
+.va-back:hover {
+  color: var(--va-text);
+  border-color: #cbd5e1;
+  text-decoration: none;
+}
+
+.va-eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--va-muted);
+}
+
+.va-title {
+  margin: 0 0 6px;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 800;
+  color: var(--va-text);
+  letter-spacing: -0.02em;
+}
+
+.va-subtitle {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--va-muted);
+  line-height: 1.5;
+}
+
+.va-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.va-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.va-btn--primary {
+  background: var(--va-accent);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(231, 33, 11, 0.2);
+}
+
+.va-btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(231, 33, 11, 0.28);
+  color: #fff;
+}
+
+.va-btn--secondary {
+  background: var(--va-surface);
+  color: var(--va-text);
+  border-color: var(--va-border);
+}
+
+.va-btn--secondary:hover:not(:disabled) {
+  background: var(--va-surface-2);
+  color: var(--va-text);
+  text-decoration: none;
+}
+
+.va-btn--ghost {
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 10%, var(--va-surface));
+  color: var(--card-accent, var(--va-accent));
+  border-color: color-mix(in srgb, var(--card-accent, var(--va-accent)) 30%, transparent);
+}
+
+.va-btn--ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 16%, var(--va-surface));
+  color: var(--card-accent, var(--va-accent));
+  text-decoration: none;
+}
+
+.va-btn--danger {
+  background: #fff;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.va-btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.va-btn--sm {
+  padding: 7px 12px;
+  font-size: 0.8rem;
+}
+
+.va-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Stats */
+.va-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.va-stat {
+  padding: 16px 18px;
+  border-radius: var(--va-radius);
+  background: var(--va-surface);
+  border: 1px solid var(--va-border);
+}
+
+.va-stat-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--va-muted);
+  margin-bottom: 6px;
+}
+
+.va-stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--va-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.va-stat--accent .va-stat-value {
+  color: var(--card-accent, var(--va-accent));
+}
+
+/* Panels */
+.va-panel {
+  background: var(--va-surface);
+  border: 1px solid var(--va-border);
+  border-radius: var(--va-radius-lg);
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--va-shadow);
+}
+
+.va-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--va-border);
+  background: var(--va-surface-2);
+}
+
+.va-panel-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.va-panel-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--va-text);
+}
+
+.va-panel-body {
+  padding: 20px;
+}
+
+/* Title placed directly on .va-panel (detail / interview pages) */
+.va-panel > .va-panel-title,
+.va-panel > h2.va-panel-title {
+  margin: 0;
+  padding: 16px 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--va-text);
+  border-bottom: 1px solid var(--va-border);
+  background: var(--va-surface-2);
+}
+
+.va-panel > .va-panel-title ~ :not(.va-panel-header):not(.va-panel-body) {
+  padding: 16px 20px 20px;
+}
+
+.va-panel > .va-panel-title ~ ul,
+.va-panel > .va-panel-title ~ .ird-list,
+.va-panel > .va-panel-title ~ .ird-answers,
+.va-panel > .va-panel-title ~ .ird-skill-grid,
+.va-panel > .va-panel-title ~ p {
+  margin-top: 0;
+}
+
+/* Toolbar */
+.va-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.va-search {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--va-border);
+  background: var(--va-surface);
+  color: var(--va-muted);
+}
+
+.va-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: var(--va-text);
+}
+
+.va-select {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--va-border);
+  background: var(--va-surface);
+  color: var(--va-text);
+  font-size: 0.88rem;
+  min-width: 200px;
+}
+
+.va-selection-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--card-accent, #2563eb);
+  background: color-mix(in srgb, var(--card-accent, #2563eb) 10%, var(--va-surface));
+  border: 1px solid color-mix(in srgb, var(--card-accent, #2563eb) 28%, transparent);
+}
+
+/* Student assign grid */
+.va-student-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.va-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.va-student-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--va-border);
+  background: var(--va-surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+}
+
+.va-student-card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--card-accent, var(--va-accent)) 40%, var(--va-border));
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 4%, var(--va-surface));
+}
+
+.va-student-card.selected {
+  border-color: color-mix(in srgb, var(--card-accent, var(--va-accent)) 50%, transparent);
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 8%, var(--va-surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-accent, var(--va-accent)) 15%, transparent);
+}
+
+.va-student-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.va-student-card input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--card-accent, var(--va-accent));
+  flex-shrink: 0;
+}
+
+.va-student-name {
+  display: block;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--va-text);
+}
+
+.va-student-email {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--va-muted);
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.va-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--va-border);
+}
+
+/* Assign flow */
+.va-assign-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: var(--va-radius-lg);
+  border: 1px solid var(--va-border);
+  background: color-mix(in srgb, var(--va-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--va-shadow);
+}
+
+.va-assign-toolbar-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--va-text);
+  min-width: 0;
+}
+
+.va-assign-toolbar-icon {
+  flex-shrink: 0;
+  color: var(--card-accent, var(--va-accent));
+}
+
+.va-assign-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.va-assign-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 4px;
+  background: var(--va-surface-2);
+  border-radius: 12px;
+  border: 1px solid var(--va-border);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.va-assign-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--va-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.va-assign-mode-tab:hover {
+  color: var(--va-text);
+}
+
+.va-assign-mode-tab.active {
+  background: var(--va-surface);
+  color: var(--card-accent, var(--va-accent));
+  box-shadow: var(--va-shadow);
+}
+
+.va-assign-hint {
+  margin: 0 0 16px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--va-muted);
+}
+
+.va-classroom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.va-classroom-card {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid var(--va-border);
+  background: var(--va-surface);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.va-classroom-card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--card-accent, var(--va-accent)) 40%, var(--va-border));
+}
+
+.va-classroom-card.selected {
+  border-color: color-mix(in srgb, var(--card-accent, var(--va-accent)) 55%, transparent);
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 10%, var(--va-surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-accent, var(--va-accent)) 15%, transparent);
+}
+
+.va-classroom-card.empty {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.va-classroom-card-check {
+  flex-shrink: 0;
+  margin-top: 2px;
+  accent-color: var(--card-accent, var(--va-accent));
+  pointer-events: none;
+}
+
+.va-classroom-card-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.va-classroom-card-name {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--va-text);
+}
+
+.va-classroom-card-meta {
+  font-size: 0.8rem;
+  color: var(--va-muted);
+}
+
+.va-assign-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.va-assign-roster li {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: var(--va-surface-2);
+  border: 1px solid var(--va-border);
+  color: var(--va-text);
+}
+
+.va-assign-roster-more {
+  color: var(--va-muted);
+  font-style: italic;
+}
+
+.va-assign-preview {
+  margin-top: 16px;
+}
+
+.va-assign-class-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.va-assign-class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--card-accent, var(--va-accent));
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 12%, var(--va-surface));
+  border: 1px solid color-mix(in srgb, var(--card-accent, var(--va-accent)) 35%, transparent);
+}
+
+.va-assign-class-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 18%, transparent);
+  font-family: inherit;
+}
+
+.va-assign-class-chip-remove:hover {
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 28%, transparent);
+}
+
+/* Table */
+.va-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--va-border);
+}
+
+.va-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.va-table thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--va-muted);
+  background: var(--va-surface-2);
+  border-bottom: 1px solid var(--va-border);
+  white-space: nowrap;
+}
+
+.va-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--va-border);
+  color: var(--va-text);
+  vertical-align: middle;
+}
+
+.va-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.va-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 4%, var(--va-surface));
+}
+
+.va-table .va-cell-muted {
+  color: var(--va-muted);
+  font-size: 0.82rem;
+}
+
+.va-table .va-cell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Badges */
+.va-score {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.va-score--excellent {
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.va-score--good {
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.va-score--poor {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.va-score--neutral {
+  color: var(--va-muted);
+  background: var(--va-surface-2);
+  border: 1px solid var(--va-border);
+}
+
+.va-status {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.va-status--active {
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.va-status--pending {
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.va-status--inactive {
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+/* Empty */
+.va-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.va-empty-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--card-accent, var(--va-muted));
+  background: color-mix(in srgb, var(--card-accent, #64748b) 12%, var(--va-surface));
+  border: 1px solid var(--va-border);
+}
+
+.va-empty h3 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  color: var(--va-text);
+}
+
+.va-empty p {
+  margin: 0 0 16px;
+  color: var(--va-muted);
+  font-size: 0.9rem;
+}
+
+/* Progress bars (analytics) */
+.va-bar-track {
+  height: 8px;
+  background: var(--va-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.va-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.va-bar-fill--excellent {
+  background: #10b981;
+}
+
+.va-bar-fill--good {
+  background: #f59e0b;
+}
+
+.va-bar-fill--poor {
+  background: #ef4444;
+}
+
+.va-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.va-analytics-card {
+  padding: 16px;
+  border-radius: var(--va-radius);
+  border: 1px solid var(--va-border);
+  background: var(--va-surface);
+}
+
+.va-analytics-card h3 {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.va-analytics-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--va-muted);
+}
+
+.va-analytics-meta strong {
+  color: var(--va-text);
+}
+
+/* Section divider in assign */
+.va-section-label {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--va-text);
+}
+
+/* Dark mode */
+[data-theme='dark'] .va-page {
+  --va-surface: #1a1a1a;
+  --va-surface-2: #222222;
+  --va-border: #3f3f46;
+  --va-text: #f4f4f5;
+  --va-muted: #a1a1aa;
+  --va-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .va-score--excellent {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+[data-theme='dark'] .va-score--good {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+[data-theme='dark'] .va-score--poor {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+[data-theme='dark'] .va-status--active {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme='dark'] .va-status--pending {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme='dark'] .va-status--inactive {
+  color: #a1a1aa;
+  background: #27272a;
+  border-color: #3f3f46;
+}
+
+[data-theme='dark'] .va-btn--danger {
+  background: #27272a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+[data-theme='dark'] .va-btn--danger:hover:not(:disabled) {
+  background: rgba(127, 29, 29, 0.35);
+}
+
+[data-theme='dark'] .va-btn--secondary {
+  background: var(--va-surface-2);
+  color: var(--va-text);
+  border-color: var(--va-border);
+}
+
+[data-theme='dark'] .va-btn--secondary:hover:not(:disabled) {
+  background: #2f2f2f;
+  color: var(--va-text);
+}
+
+[data-theme='dark'] .va-btn--ghost {
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 14%, var(--va-surface));
+  color: var(--card-accent, var(--va-accent));
+  border-color: color-mix(in srgb, var(--card-accent, var(--va-accent)) 40%, transparent);
+}
+
+[data-theme='dark'] .va-btn--ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 22%, var(--va-surface));
+  color: var(--card-accent, var(--va-accent));
+}
+
+[data-theme='dark'] .va-search input,
+[data-theme='dark'] .va-select {
+  background: #1a1a1a;
+  color: #f4f4f5;
+}
+
+[data-theme='dark'] .va-assign-toolbar {
+  background: color-mix(in srgb, #1a1a1a 94%, transparent);
+}
+
+[data-theme='dark'] .va-assign-mode-tabs {
+  background: #222222;
+}
+
+[data-theme='dark'] .va-assign-mode-tab.active {
+  background: #1a1a1a;
+}
+
+[data-theme='dark'] .va-classroom-card {
+  background: #1a1a1a;
+}
+
+[data-theme='dark'] .va-classroom-card.selected {
+  background: color-mix(in srgb, var(--card-accent, var(--va-accent)) 14%, #1a1a1a);
+}
+
+[data-theme='dark'] .va-bar-track {
+  background: #3f3f46;
+}
+
+@media (max-width: 640px) {
+  .va-footer-actions .va-btn {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .va-student-grid {
+    max-height: none;
+  }
+}

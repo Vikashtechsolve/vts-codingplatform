@@ -1,15 +1,182 @@
-.interview-result-details.vendor-result-student,
-.interview-result-details .vendor-result-student {
-  margin-top: 8px;
-  font-size: 0.95em;
-  color: var(--text-secondary);
+/* Interview result detail — vendor assessment theme */
+
+.interview-result-details {
+  --va-pass: #16a34a;
+  --va-warn: #ca8a04;
 }
 
-.interview-result-details .answer-card {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-color);
+.ird-skills-panel,
+.ird-summary-panel,
+.ird-resources-panel,
+.ird-answers-panel {
+  margin-bottom: 16px;
 }
 
-.interview-result-details .answer-card:last-child {
-  border-bottom: none;
+.ird-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ird-skill-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ird-skill-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 40px;
+  align-items: center;
+  gap: 12px;
+}
+
+.ird-skill-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--va-muted, var(--text-secondary));
+}
+
+.ird-skill-bar-wrap {
+  height: 8px;
+  background: var(--va-border, var(--border-color));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ird-skill-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--card-accent, #7c3aed) 80%, #6366f1),
+    var(--card-accent, #7c3aed)
+  );
+  transition: width 0.5s ease;
+}
+
+.ird-skill-val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--va-text, var(--text-primary));
+  text-align: right;
+}
+
+.ird-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.65;
+  color: var(--va-text, var(--text-primary));
+}
+
+.ird-list li {
+  margin-bottom: 6px;
+}
+
+.ird-muted {
+  color: var(--va-muted, var(--text-secondary));
+  list-style: none;
+  margin-left: -1.25rem;
+}
+
+.ird-summary-text {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--va-text, var(--text-primary));
+}
+
+.ird-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ird-answer-card {
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--va-border, var(--border-color));
+  background: var(--va-surface-2, var(--bg-secondary));
+}
+
+.ird-answer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ird-answer-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--va-text, var(--text-primary));
+}
+
+.ird-q-text {
+  margin: 0 0 10px;
+  font-weight: 600;
+  color: var(--va-text, var(--text-primary));
+  line-height: 1.5;
+}
+
+.ird-transcript {
+  margin: 0 0 10px;
+  line-height: 1.6;
+  color: var(--va-text, var(--text-primary));
+}
+
+.ird-transcript strong {
+  color: var(--va-muted, var(--text-secondary));
+}
+
+.ird-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--va-muted, var(--text-secondary));
+  margin-bottom: 8px;
+}
+
+.ird-feedback {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card-accent, #7c3aed) 6%, var(--va-surface, var(--bg-primary)));
+  border-left: 3px solid var(--card-accent, #7c3aed);
+  line-height: 1.6;
+  color: var(--va-text, var(--text-primary));
+}
+
+@media (max-width: 640px) {
+  .ird-skill-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .ird-skill-val {
+    text-align: left;
+  }
+}
+
+/* Dark mode */
+[data-theme='dark'] .interview-result-details {
+  --va-pass: #6ee7b7;
+  --va-warn: #fcd34d;
+}
+
+[data-theme='dark'] .ird-answer-card {
+  background: #222222;
+  border-color: #3f3f46;
+}
+
+[data-theme='dark'] .ird-feedback {
+  background: color-mix(in srgb, var(--card-accent, #7c3aed) 12%, #1a1a1a);
+  border-left-color: var(--card-accent, #a78bfa);
+}
+
+[data-theme='dark'] .ird-skill-bar-wrap {
+  background: #3f3f46;
 }

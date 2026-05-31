@@ -164,7 +164,7 @@ const AssignmentDetails = () => {
           </button>
           <button
             className="action-btn secondary"
-            onClick={() => navigate('/vendor-admin/assignments')}
+            onClick={() => navigate('/vendor-admin/tests?type=project')}
           >
             Back to List
           </button>

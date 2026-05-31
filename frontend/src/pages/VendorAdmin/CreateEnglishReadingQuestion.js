@@ -2,7 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
-import Modal from '../../components/Modal';
+import RichTextEditor from '../../components/RichTextEditor';
+import { stripHtml } from '../../components/RichTextDisplay';
+import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
+import TagInput from '../../components/TagInput';
 import './CreateEnglishQuestion.css';
 
 const GENRES = [
@@ -39,21 +43,24 @@ const CreateEnglishReadingQuestion = () => {
   const [passage, setPassage] = useState({ title: '', content: '', source: '', genre: 'non_fiction' });
   const [questions, setQuestions] = useState([emptySubQuestion()]);
   const [difficulty, setDifficulty] = useState('medium');
-  const [loading, setLoading] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const fetchQuestion = useCallback(async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const res = await axiosInstance.get(`/questions/english/reading/${id}`);
       const q = res.data;
       setPassage(q.passage || { title: '', content: '', source: '', genre: 'non_fiction' });
       setQuestions(q.questions?.length ? q.questions : [emptySubQuestion()]);
       setDifficulty(q.difficulty || 'medium');
+      setTags(q.tags || []);
     } catch (error) {
       showModal('Error', 'Failed to load question', 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   }, [id]);
 
@@ -65,6 +72,7 @@ const CreateEnglishReadingQuestion = () => {
   const closeModal = () => setModal({ isOpen: false, title: '', message: '', type: 'info' });
 
   const handlePassageChange = (field, value) => setPassage({ ...passage, [field]: value });
+  const passageWordCount = stripHtml(passage.content).split(/\s+/).filter(Boolean).length;
 
   const handleQuestionChange = (index, field, value) => {
     const newQ = [...questions];
@@ -100,7 +108,9 @@ const CreateEnglishReadingQuestion = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!passage.title.trim() || !passage.content.trim()) return showModal('Error', 'Passage title and content are required', 'error');
+    if (!passage.title.trim() || isRichTextEmpty(passage.content)) {
+      return showModal('Error', 'Passage title and content are required', 'error');
+    }
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
@@ -115,9 +125,9 @@ const CreateEnglishReadingQuestion = () => {
       }
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
-      const data = { passage, questions, difficulty };
+      const data = { passage, questions, difficulty, tags };
       if (isEditMode) {
         await axiosInstance.put(`/questions/english/reading/${id}`, data);
         showModal('Success', 'Reading passage updated!', 'success');
@@ -129,22 +139,23 @@ const CreateEnglishReadingQuestion = () => {
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="container create-english-question">
-      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit' : 'Create'} Reading Comprehension</h1>
-        <button onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Back</button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <EnglishQuestionFormShell
+      subtype="Reading"
+      title={isEditMode ? 'Edit reading comprehension' : 'Create reading comprehension'}
+      subtitle="Passage with MCQ, short answer, true/false, and inference questions."
+      pageLoading={pageLoading}
+      modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
+      formId="english-reading-form"
+      onCancel={() => navigate('/vendor-admin/english-questions')}
+      saving={saving}
+      isEditMode={isEditMode}
+    >
+      <form id="english-reading-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
           <h2 className="section-title">Passage</h2>
           <div className="form-row">
@@ -159,10 +170,16 @@ const CreateEnglishReadingQuestion = () => {
               </select>
             </div>
           </div>
-          <div className="form-group full-width">
-            <label>Passage Content *</label>
-            <textarea value={passage.content} onChange={(e) => handlePassageChange('content', e.target.value)} rows="12" placeholder="Paste or type the passage here..." className="form-textarea" required />
-            <div className="word-count">Words: {passage.content.split(/\s+/).filter(Boolean).length}</div>
+          <div className="vqf-rich-field">
+            <label>Passage content *</label>
+            <RichTextEditor
+              variant="full"
+              value={passage.content}
+              onChange={(html) => handlePassageChange('content', html)}
+              placeholder="Paste or type the reading passage…"
+              minHeight={240}
+            />
+            <div className="word-count">Words: {passageWordCount}</div>
           </div>
           <div className="form-row">
             <div className="form-group">
@@ -177,6 +194,7 @@ const CreateEnglishReadingQuestion = () => {
                 <option value="hard">Hard</option>
               </select>
             </div>
+            <TagInput label="Tags" value={tags} onChange={setTags} />
           </div>
         </div>
 
@@ -238,12 +256,8 @@ const CreateEnglishReadingQuestion = () => {
           ))}
         </div>
 
-        <div className="form-actions">
-          <button type="button" onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving...' : isEditMode ? 'Update' : 'Create'}</button>
-        </div>
       </form>
-    </div>
+    </EnglishQuestionFormShell>
   );
 };
 

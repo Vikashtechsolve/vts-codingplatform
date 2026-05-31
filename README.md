@@ -50,4 +50,3 @@ coding-platform/
 Super Admin:
 - Email: admin@platform.com
 - Password: (set in backend/.env)
-

@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
-import Modal from '../../components/Modal';
+import RichTextEditor from '../../components/RichTextEditor';
+import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
+import TagInput from '../../components/TagInput';
 import './CreateEnglishQuestion.css';
 
 const WRITING_TYPES = [
@@ -49,14 +52,16 @@ const CreateEnglishEssayQuestion = () => {
       relevance: 0.15
     },
     difficulty: 'medium',
-    points: 20
+    points: 20,
+    tags: []
   });
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const fetchQuestion = useCallback(async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const res = await axiosInstance.get(`/questions/english/essay/${id}`);
       const q = res.data;
       setFormData({
@@ -69,12 +74,13 @@ const CreateEnglishEssayQuestion = () => {
         expectedFormat: q.expectedFormat || '',
         evaluationWeights: q.evaluationWeights || { grammar: 0.20, vocabulary: 0.15, coherence: 0.20, structure: 0.15, tone: 0.15, relevance: 0.15 },
         difficulty: q.difficulty || 'medium',
-        points: q.points || 20
+        points: q.points || 20,
+        tags: q.tags || []
       });
     } catch (error) {
       showModal('Error', 'Failed to load question', 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   }, [id]);
 
@@ -97,9 +103,9 @@ const CreateEnglishEssayQuestion = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.prompt.trim()) return showModal('Error', 'Prompt is required', 'error');
+    if (isRichTextEmpty(formData.prompt)) return showModal('Error', 'Prompt is required', 'error');
 
-    setLoading(true);
+    setSaving(true);
     try {
       const data = { ...formData, timeLimit: formData.timeLimit ? parseInt(formData.timeLimit) : null };
       if (isEditMode) {
@@ -113,24 +119,25 @@ const CreateEnglishEssayQuestion = () => {
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const isEmailLetter = ['email_formal', 'email_informal', 'letter_formal', 'letter_informal', 'report', 'notice'].includes(formData.writingType);
 
   return (
-    <div className="container create-english-question">
-      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit' : 'Create'} {isEmailLetter ? 'Email / Letter' : 'Essay'} Question</h1>
-        <button onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Back</button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <EnglishQuestionFormShell
+      subtype={isEmailLetter ? 'Essay / email' : 'Essay'}
+      title={isEditMode ? `Edit ${isEmailLetter ? 'writing' : 'essay'} question` : `Create ${isEmailLetter ? 'writing' : 'essay'} question`}
+      subtitle="Essays, emails, letters, reports, and notices with AI evaluation weights."
+      pageLoading={pageLoading}
+      modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
+      formId="english-essay-form"
+      onCancel={() => navigate('/vendor-admin/english-questions')}
+      saving={saving}
+      isEditMode={isEditMode}
+    >
+      <form id="english-essay-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
           <h2 className="section-title">Writing Prompt</h2>
           <div className="form-row">
@@ -149,13 +156,25 @@ const CreateEnglishEssayQuestion = () => {
               </select>
             </div>
           </div>
-          <div className="form-group full-width">
-            <label>Prompt / Topic *</label>
-            <textarea name="prompt" value={formData.prompt} onChange={handleChange} rows="4" placeholder="e.g., Write an essay on the impact of social media on youth..." className="form-textarea" required />
+          <div className="vqf-rich-field">
+            <label>Prompt / topic *</label>
+            <RichTextEditor
+              variant="full"
+              value={formData.prompt}
+              onChange={(html) => setFormData((prev) => ({ ...prev, prompt: html }))}
+              placeholder="e.g., Write an essay on the impact of social media on youth…"
+              minHeight={160}
+            />
           </div>
-          <div className="form-group full-width">
-            <label>Instructions (Optional)</label>
-            <textarea name="instructions" value={formData.instructions} onChange={handleChange} rows="3" placeholder="Additional instructions for the student..." className="form-textarea" />
+          <div className="vqf-rich-field">
+            <label>Instructions (optional)</label>
+            <RichTextEditor
+              variant="standard"
+              value={formData.instructions}
+              onChange={(html) => setFormData((prev) => ({ ...prev, instructions: html }))}
+              placeholder="Additional instructions for the student…"
+              minHeight={100}
+            />
           </div>
         </div>
 
@@ -178,6 +197,11 @@ const CreateEnglishEssayQuestion = () => {
               <label>Points</label>
               <input type="number" name="points" value={formData.points} onChange={handleChange} min="1" className="form-input" />
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
           </div>
         </div>
 
@@ -210,12 +234,8 @@ const CreateEnglishEssayQuestion = () => {
           </div>
         </div>
 
-        <div className="form-actions">
-          <button type="button" onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving...' : isEditMode ? 'Update' : 'Create Question'}</button>
-        </div>
       </form>
-    </div>
+    </EnglishQuestionFormShell>
   );
 };
 

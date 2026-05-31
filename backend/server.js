@@ -258,6 +258,7 @@ app.use('/api/super-admin/interview-questions', require('./routes/superAdminInte
 // Register classrooms route BEFORE vendor-admin to ensure proper matching
 app.use('/api/vendor-admin/classrooms', require('./routes/classrooms'));
 app.use('/api/vendor-admin', require('./routes/vendorAdmin'));
+app.use('/api/question-tags', require('./routes/questionTags'));
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/questions/english', require('./routes/englishQuestions'));
 app.use('/api/interview-questions', require('./routes/interviewQuestions'));

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
+import TagInput from '../../components/TagInput';
 import './CreateInterviewQuestion.css';
 
 const defaultRubric = { title: '', description: '', weight: 1 };
@@ -22,7 +23,8 @@ const CreateInterviewQuestion = () => {
     expectedAnswer: '',
     rubrics: [defaultRubric],
     followUpHints: [''],
-    points: 10
+    points: 10,
+    tags: []
   });
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
@@ -47,7 +49,8 @@ const CreateInterviewQuestion = () => {
         expectedAnswer: q.expectedAnswer || '',
         rubrics: q.rubrics?.length ? q.rubrics : [defaultRubric],
         followUpHints: q.followUpHints?.length ? q.followUpHints : [''],
-        points: q.points || 10
+        points: q.points || 10,
+        tags: q.tags || []
       });
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Failed to load question', 'error');
@@ -158,6 +161,11 @@ const CreateInterviewQuestion = () => {
                 <option value="advanced">Advanced</option>
               </select>
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
           </div>
         </div>
 

@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { FiPlus, FiDatabase, FiEdit2, FiTrash2, FiLayers } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
+import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import './DatasetTemplateList.css';
 
 const DatasetTemplateList = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -15,62 +18,121 @@ const DatasetTemplateList = () => {
   const fetchTemplates = async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await axiosInstance.get('/dataset-templates');
       setTemplates(res.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load templates');
+      setError(err.response?.data?.message || 'Failed to load dataset templates.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete dataset "${name}"? This will fail if it is used by any test.`)) return;
+    if (!window.confirm(`Delete dataset "${name}"? This will fail if it is used by any SQL test.`)) {
+      return;
+    }
     try {
+      setDeletingId(id);
       await axiosInstance.delete(`/dataset-templates/${id}`);
-      setTemplates(prev => prev.filter(t => t._id !== id));
+      setTemplates((prev) => prev.filter((t) => t._id !== id));
     } catch (err) {
       alert(err.response?.data?.message || 'Delete failed');
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  if (loading) return <div className="container vendor-dashboard"><div className="loading">Loading...</div></div>;
-  if (error) return <div className="container vendor-dashboard"><div className="error-message">{error}</div></div>;
+  const domains = new Set(templates.map((t) => t.domain).filter(Boolean));
 
   return (
-    <div className="container vendor-dashboard dataset-template-list">
-      <div className="page-header-row">
-        <h1 className="page-title">Dataset Templates</h1>
-        <Link to="/vendor-admin/dataset-templates/create" className="btn btn-primary">
-          Create Dataset Template
+    <VendorHubPage
+      className="vh-dataset-page"
+      loading={loading}
+      backTo="/vendor-admin/tests?type=sql"
+      backLabel="Back to SQL tests"
+      eyebrow="Practical tools"
+      title="Dataset templates"
+      subtitle="Define schemas and sample data for SQL tests. Each SQL assessment uses one template as its database."
+      accent="#ca8a04"
+      actions={
+        <Link to="/vendor-admin/dataset-templates/create" className="vh-btn vh-btn--primary">
+          <FiPlus /> Create template
         </Link>
-      </div>
-      <p className="page-description">
-        Create and manage database templates for SQL tests. Each template defines schema and sample data; tests use one template per test.
-      </p>
-      {templates.length === 0 ? (
-        <div className="empty-state">
-          <p>No dataset templates yet.</p>
-          <Link to="/vendor-admin/dataset-templates/create" className="btn btn-primary">Create your first template</Link>
-        </div>
-      ) : (
-        <div className="template-grid">
-          {templates.map(t => (
-            <div key={t._id} className="template-card">
-              <div className="template-card-header">
-                <h3>{t.name}</h3>
-                <span className="domain-badge">{t.domain}</span>
-              </div>
-              {t.description && <p className="template-description">{t.description}</p>}
-              <div className="template-actions">
-                <Link to={`/vendor-admin/dataset-templates/${t._id}/edit`} className="btn btn-secondary btn-sm">Edit</Link>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDelete(t._id, t.name)}>Delete</button>
-              </div>
-            </div>
-          ))}
+      }
+    >
+      {error && (
+        <div className="vh-panel vh-dataset-error">
+          <p>{error}</p>
+          <button type="button" className="vh-btn vh-btn--secondary" onClick={fetchTemplates}>
+            Try again
+          </button>
         </div>
       )}
-    </div>
+
+      {!error && (
+        <>
+          <div className="vh-stats">
+            <div className="vh-stat vh-stat--accent">
+              <span className="vh-stat-label">Templates</span>
+              <span className="vh-stat-value">{templates.length}</span>
+            </div>
+            <div className="vh-stat">
+              <span className="vh-stat-label">Domains</span>
+              <span className="vh-stat-value">{domains.size}</span>
+            </div>
+          </div>
+
+          {templates.length === 0 ? (
+            <div className="vh-empty">
+              <FiDatabase />
+              <h3>No dataset templates yet</h3>
+              <p>Create a template with tables and seed data before building SQL tests.</p>
+              <Link to="/vendor-admin/dataset-templates/create" className="vh-btn vh-btn--primary">
+                <FiPlus /> Create your first template
+              </Link>
+            </div>
+          ) : (
+            <div className="vh-dataset-grid">
+              {templates.map((template) => (
+                <article key={template._id} className="vh-dataset-card">
+                  <div className="vh-dataset-card-top">
+                    <div className="vh-dataset-card-icon">
+                      <FiLayers />
+                    </div>
+                    <div>
+                      <h3>{template.name}</h3>
+                      {template.domain && (
+                        <span className="vh-badge vh-badge--global">{template.domain}</span>
+                      )}
+                    </div>
+                  </div>
+                  {template.description && (
+                    <p className="vh-dataset-card-desc">{template.description}</p>
+                  )}
+                  <div className="vh-dataset-card-actions">
+                    <Link
+                      to={`/vendor-admin/dataset-templates/${template._id}/edit`}
+                      className="vh-btn vh-btn--secondary vh-btn--sm"
+                    >
+                      <FiEdit2 /> Edit
+                    </Link>
+                    <button
+                      type="button"
+                      className="vh-btn vh-btn--danger vh-btn--sm"
+                      disabled={deletingId === template._id}
+                      onClick={() => handleDelete(template._id, template.name)}
+                    >
+                      <FiTrash2 /> {deletingId === template._id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </VendorHubPage>
   );
 };
 

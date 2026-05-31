@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
-import './VendorAdminCommon.css';
-import './AssignTest.css';
+import { useVendorPanel } from '../../context/VendorPanelContext';
+import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
+import VendorAssignStudents from '../../components/VendorAdmin/VendorAssignStudents';
 
 const AssignSystemDesign = () => {
   const { id: problemId } = useParams();
   const navigate = useNavigate();
+  const { refreshStats } = useVendorPanel();
   const [problem, setProblem] = useState(null);
   const [students, setStudents] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [selectedClassroomId, setSelectedClassroomId] = useState('');
+  const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -20,7 +24,7 @@ const AssignSystemDesign = () => {
       const [problemRes, studentsRes, classroomsRes] = await Promise.all([
         axiosInstance.get(`/system-design-problems/${problemId}`),
         axiosInstance.get('/vendor-admin/students'),
-        axiosInstance.get('/vendor-admin/classrooms').catch(() => ({ data: [] }))
+        axiosInstance.get('/vendor-admin/classrooms').catch(() => ({ data: [] })),
       ]);
       if (problemRes.data?.success) setProblem(problemRes.data.problem);
       setStudents(studentsRes.data || []);
@@ -33,148 +37,107 @@ const AssignSystemDesign = () => {
     }
   }, [problemId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleToggleStudent = (studentId) => {
-    setSelectedClassroomId('');
-    setSelectedStudents(prev =>
-      prev.includes(studentId)
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
+    setSelectedClassroomIds([]);
+    setSelectedStudents((prev) =>
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
     );
   };
 
-  const handleClassroomChange = (e) => {
-    const classroomId = e.target.value;
-    setSelectedClassroomId(classroomId);
-    if (classroomId) {
-      setSelectedStudents([]);
-    }
+  const handleToggleClassroom = (classroomId) => {
+    setSelectedStudents([]);
+    setSelectedClassroomIds((prev) =>
+      prev.includes(classroomId) ? prev.filter((id) => id !== classroomId) : [...prev, classroomId]
+    );
   };
+
+  const handleClearClassrooms = () => setSelectedClassroomIds([]);
 
   const handleAssign = async () => {
     const hasStudents = selectedStudents.length > 0;
-    const hasClassroom = !!selectedClassroomId;
-
-    if (!hasStudents && !hasClassroom) {
-      alert('Please select at least one student or a classroom');
+    const hasClassrooms = selectedClassroomIds.length > 0;
+    if (!hasStudents && !hasClassrooms) {
+      alert('Select one or more classrooms or at least one student');
       return;
     }
-
+    setAssigning(true);
     try {
-      const payload = {
+      const { data } = await axiosInstance.post(`/system-design-problems/${problemId}/assign`, {
         studentIds: hasStudents ? selectedStudents : [],
-        classroomIds: hasClassroom ? [selectedClassroomId] : []
-      };
-
-      const { data } = await axiosInstance.post(`/system-design-problems/${problemId}/assign`, payload);
-
+        classroomIds: hasClassrooms ? selectedClassroomIds : [],
+      });
       if (data.success) {
-        alert(data.message);
-        navigate('/vendor-admin/tests?type=system');
+        await refreshStats({ silent: true });
+        navigate(`/vendor-admin/system-designs/${problemId}/submissions`);
       } else {
         alert(data.message || 'Failed to assign');
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to assign');
+    } finally {
+      setAssigning(false);
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  const accent = '#ea580c';
 
-  if (!problem) {
+  if (!loading && !problem) {
     return (
-      <div className="container">
-        <p>Problem not found.</p>
-        <button onClick={() => navigate('/vendor-admin/tests?type=system')} className="btn btn-secondary">
-          Back
-        </button>
-      </div>
+      <VendorAssessPage
+        backTo="/vendor-admin/tests?type=system"
+        backLabel="Back"
+        title="Problem not found"
+        accent={accent}
+      >
+        <Link to="/vendor-admin/tests?type=system" className="va-btn va-btn--secondary">
+          Return to system design
+        </Link>
+      </VendorAssessPage>
     );
   }
 
-  const hasSelection = selectedStudents.length > 0 || !!selectedClassroomId;
-
   return (
-    <div className="container assign-test-page">
-      <h1 className="page-title">Assign: {problem.title}</h1>
-
-      {hasSelection && (
-        <div className="selected-count">
-          {selectedClassroomId
-            ? 'Classroom selected'
-            : `${selectedStudents.length} student${selectedStudents.length !== 1 ? 's' : ''} selected`}
-        </div>
-      )}
-
-      <div className="assign-card-modern">
-        <h2>Assign by Classroom</h2>
-        <div style={{ marginBottom: 24 }}>
-          <select
-            value={selectedClassroomId}
-            onChange={handleClassroomChange}
-            style={{
-              padding: '10px 16px',
-              borderRadius: 8,
-              minWidth: 250,
-              background: 'var(--input-bg)',
-              color: 'var(--text-primary)',
-              border: '2px solid var(--border-color)'
-            }}
-          >
-            <option value="">-- Select classroom (optional) --</option>
-            {classrooms.map(c => (
-              <option key={c._id} value={c._id}>{c.name} ({c.students?.length || 0} students)</option>
-            ))}
-          </select>
-        </div>
-
-        <h2>Or Select Students Individually</h2>
-        <div className="table-container">
-          <table className="assign-table-modern">
-            <thead>
-              <tr>
-                <th>Select</th>
-                <th>Name</th>
-                <th>Email</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map(student => (
-                <tr key={student._id}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      className="checkbox-modern"
-                      checked={selectedStudents.includes(student._id)}
-                      onChange={() => handleToggleStudent(student._id)}
-                      disabled={!!selectedClassroomId}
-                    />
-                  </td>
-                  <td><strong>{student.name}</strong></td>
-                  <td>{student.email}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="action-buttons-assign">
-          <button
-            onClick={handleAssign}
-            className="btn btn-primary"
-            disabled={!hasSelection}
-          >
-            Assign to {selectedClassroomId ? 'Classroom' : `Selected Students (${selectedStudents.length})`}
-          </button>
-          <button onClick={() => navigate('/vendor-admin/tests?type=system')} className="btn btn-secondary">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
+    <VendorAssessPage
+      loading={loading}
+      backTo="/vendor-admin/tests?type=system"
+      backLabel="Back to system design"
+      eyebrow="System design"
+      title={problem ? `Assign: ${problem.title}` : 'Assign problem'}
+      subtitle={
+        problem
+          ? `${problem.category?.replace(/_/g, ' ')} · ${problem.difficulty} · ${problem.duration} min`
+          : 'Select students or a classroom for this architecture assessment.'
+      }
+      accent={accent}
+    >
+      <VendorAssignStudents
+        students={students}
+        classrooms={classrooms}
+        selectedStudents={selectedStudents}
+        onToggleStudent={handleToggleStudent}
+        selectedClassroomIds={selectedClassroomIds}
+        onToggleClassroom={handleToggleClassroom}
+        onClearClassrooms={handleClearClassrooms}
+        onAssign={handleAssign}
+        onCancelTo="/vendor-admin/tests?type=system"
+        assignLabel={
+          assigning
+            ? 'Assigning…'
+            : selectedClassroomIds.length > 0
+              ? `Assign to ${selectedClassroomIds.length} classroom${selectedClassroomIds.length !== 1 ? 's' : ''}`
+              : selectedStudents.length > 0
+                ? `Assign to ${selectedStudents.length} student${selectedStudents.length !== 1 ? 's' : ''}`
+                : 'Assign problem'
+        }
+        assigning={assigning}
+        accent={accent}
+        assignEntityLabel="system design problem"
+      />
+    </VendorAssessPage>
   );
 };
 

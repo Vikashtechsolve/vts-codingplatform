@@ -13,6 +13,7 @@ import { useRegisterExamLock } from '../../hooks/useRegisterExamLock';
 import { useExamLock } from '../../context/ExamLockContext';
 import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
 import ExamSecurityOverlay from '../../components/ExamSecurityOverlay';
+import RichTextDisplay from '../../components/RichTextDisplay';
 import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import { parseSchemaSql } from '../../utils/schemaParser';
@@ -1522,7 +1523,7 @@ const TestTaking = () => {
                 <div className="question-panel-scroll">
                 <div className="question-description">
                   <h4>{questionData.title}</h4>
-                  <div className="description-content" dangerouslySetInnerHTML={{ __html: questionData.description.replace(/\n/g, '<br />') }} />
+                  <RichTextDisplay content={questionData.description} className="description-content" />
                   
                   {questionData.constraints && (
                     <div className="constraints-section">

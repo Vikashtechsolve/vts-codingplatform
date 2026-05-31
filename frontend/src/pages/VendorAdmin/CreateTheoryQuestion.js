@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
-import './VendorAdminCommon.css';
+import RichTextEditor from '../../components/RichTextEditor';
+import VendorQuestionFormPage from '../../components/VendorAdmin/VendorQuestionFormPage';
+import TagInput from '../../components/TagInput';
+import { normalizeTags } from '../../utils/tagUtils';
+import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
 import './CreateAptitudeQuestion.css';
 
 const defaultConfig = {
@@ -21,7 +26,7 @@ const CreateTheoryQuestion = () => {
   const [topics, setTopics] = useState([]);
   const [newSubject, setNewSubject] = useState('');
   const [newTopic, setNewTopic] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,7 +40,7 @@ const CreateTheoryQuestion = () => {
     referenceAnswer: '',
     keywords: '',
     evaluationRubric: '',
-    tags: '',
+    tags: [],
     evaluationConfig: { ...defaultConfig }
   });
 
@@ -78,7 +83,7 @@ const CreateTheoryQuestion = () => {
 
   const fetchQuestion = async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const endpoint = isGlobal ? `/super-admin/global-questions/theory/${id}` : `/questions/theory/${id}`;
       const response = await axiosInstance.get(endpoint);
       const data = response.data;
@@ -92,7 +97,7 @@ const CreateTheoryQuestion = () => {
         referenceAnswer: data.referenceAnswer || '',
         keywords: (data.keywords || []).join(', '),
         evaluationRubric: data.evaluationRubric || '',
-        tags: (data.tags || []).join(', '),
+        tags: normalizeTags(data.tags || []),
         evaluationConfig: {
           similarityWeight: data.evaluationConfig?.similarityWeight ?? 0.5,
           conceptWeight: data.evaluationConfig?.conceptWeight ?? 0.3,
@@ -103,9 +108,12 @@ const CreateTheoryQuestion = () => {
     } catch (err) {
       setError('Failed to load question');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   };
+
+  const meta = QUESTION_FORM_META.theory;
+  const backTo = isGlobal ? '/super-admin/global-questions' : meta.back;
 
   const handleChange = (e) => {
     setFormData(prev => ({
@@ -154,6 +162,18 @@ const CreateTheoryQuestion = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (isRichTextEmpty(formData.questionText)) {
+      setError('Question text is required');
+      return;
+    }
+    if (isRichTextEmpty(formData.referenceAnswer)) {
+      setError('Reference answer is required');
+      return;
+    }
+    if (!formData.subjectId) {
+      setError('Subject is required');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -167,7 +187,7 @@ const CreateTheoryQuestion = () => {
         keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
         evaluationRubric: formData.evaluationRubric,
         evaluationConfig: formData.evaluationConfig,
-        tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean)
+        tags: normalizeTags(formData.tags)
       };
       const endpoint = isGlobal ? '/super-admin/global-questions/theory' : '/questions/theory';
       if (id) {
@@ -183,80 +203,87 @@ const CreateTheoryQuestion = () => {
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  const formFooter = (
+    <div className="form-actions">
+      <button type="button" className="btn btn-secondary" onClick={() => navigate(backTo)}>Cancel</button>
+      <button type="submit" form="theory-question-form" className="btn btn-primary" disabled={saving}>
+        {saving ? 'Saving…' : id ? 'Update question' : 'Create question'}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="container">
-      <div className="page-header">
-        <h1 className="page-title">{id ? 'Edit' : 'Create'} Theory Question</h1>
-        <Link to={isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions'} className="btn btn-secondary">
-          Back to Questions
-        </Link>
-      </div>
-
-      {error && (
-        <div className="error" style={{ marginBottom: '20px' }}>
-          {error}
-        </div>
-      )}
-
-      <div className="card">
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Question Text *</label>
-            <textarea
-              name="questionText"
+    <VendorQuestionFormPage
+      className="create-theory-question"
+      loading={pageLoading}
+      backTo={backTo}
+      backLabel="Back to questions"
+      eyebrow={meta.label}
+      title={id ? meta.editTitle : meta.createTitle}
+      subtitle={meta.subtitle}
+      accent={meta.accent}
+      isGlobal={isGlobal}
+      error={error}
+      footer={formFooter}
+    >
+      <form id="theory-question-form" onSubmit={handleSubmit} className="question-form">
+        <div className="form-section">
+          <h2 className="section-title">Question</h2>
+          <div className="vqf-rich-field">
+            <label>Question text *</label>
+            <RichTextEditor
+              variant="full"
               value={formData.questionText}
-              onChange={handleChange}
-              rows="4"
-              required
-              placeholder="Describe the question to be evaluated..."
+              onChange={(html) => setFormData((prev) => ({ ...prev, questionText: html }))}
+              placeholder="Describe what the student should answer…"
+              minHeight={160}
             />
           </div>
+        </div>
 
+        <div className="form-section">
+          <h2 className="section-title">Classification</h2>
           <div className="form-row">
             <div className="form-group">
               <label>Subject *</label>
-              <select name="subjectId" value={formData.subjectId} onChange={handleChange} required>
-                <option value="">Select Subject</option>
+              <select name="subjectId" value={formData.subjectId} onChange={handleChange} className="form-select" required>
+                <option value="">Select subject</option>
                 {subjects.map(subject => (
                   <option key={subject._id} value={subject._id}>{subject.name}</option>
                 ))}
               </select>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+              <div className="vqf-inline-add">
                 <input
                   type="text"
+                  className="form-input"
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
-                  placeholder="Add new subject"
+                  placeholder="New subject name"
                 />
-                <button type="button" className="btn btn-secondary" onClick={handleCreateSubject}>
-                  Add
-                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleCreateSubject}>Add</button>
               </div>
             </div>
 
             <div className="form-group">
               <label>Topic</label>
-              <select name="topicId" value={formData.topicId} onChange={handleChange}>
-                <option value="">Select Topic</option>
+              <select name="topicId" value={formData.topicId} onChange={handleChange} className="form-select">
+                <option value="">Select topic</option>
                 {topics.map(topic => (
                   <option key={topic._id} value={topic._id}>{topic.name}</option>
                 ))}
               </select>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+              <div className="vqf-inline-add">
                 <input
                   type="text"
+                  className="form-input"
                   value={newTopic}
                   onChange={(e) => setNewTopic(e.target.value)}
-                  placeholder="Add new topic"
+                  placeholder="New topic name"
                   disabled={!formData.subjectId}
                 />
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary btn-sm"
                   onClick={handleCreateTopic}
                   disabled={!formData.subjectId}
                 >
@@ -269,121 +296,67 @@ const CreateTheoryQuestion = () => {
           <div className="form-row">
             <div className="form-group">
               <label>Difficulty</label>
-              <select name="difficulty" value={formData.difficulty} onChange={handleChange}>
+              <select name="difficulty" value={formData.difficulty} onChange={handleChange} className="form-select">
                 <option value="easy">Easy</option>
                 <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
               </select>
             </div>
             <div className="form-group">
-              <label>Max Marks</label>
-              <input
-                type="number"
-                name="maxMarks"
-                min="1"
-                value={formData.maxMarks}
-                onChange={handleChange}
-              />
+              <label>Max marks</label>
+              <input type="number" name="maxMarks" min="1" className="form-input" value={formData.maxMarks} onChange={handleChange} />
             </div>
             <div className="form-group">
-              <label>Expected Answer Length (words)</label>
-              <input
-                type="number"
-                name="expectedAnswerLength"
-                min="50"
-                value={formData.expectedAnswerLength}
-                onChange={handleChange}
-              />
+              <label>Expected answer length (words)</label>
+              <input type="number" name="expectedAnswerLength" min="50" className="form-input" value={formData.expectedAnswerLength} onChange={handleChange} />
             </div>
           </div>
+        </div>
 
-          <div className="form-group">
-            <label>Reference Answer *</label>
-            <textarea
-              name="referenceAnswer"
+        <div className="form-section">
+          <h2 className="section-title">Answer & evaluation</h2>
+          <div className="vqf-rich-field">
+            <label>Reference answer *</label>
+            <RichTextEditor
+              variant="full"
               value={formData.referenceAnswer}
-              onChange={handleChange}
-              rows="6"
-              required
-              placeholder="Provide the ideal/reference answer"
+              onChange={(html) => setFormData((prev) => ({ ...prev, referenceAnswer: html }))}
+              placeholder="Ideal answer used for AI scoring…"
+              minHeight={200}
             />
           </div>
-
           <div className="form-group">
             <label>Keywords (comma-separated)</label>
-            <input
-              type="text"
-              name="keywords"
-              value={formData.keywords}
-              onChange={handleChange}
-              placeholder="e.g., deadlock, mutual exclusion, hold and wait"
-            />
+            <input type="text" name="keywords" className="form-input" value={formData.keywords} onChange={handleChange} placeholder="e.g., deadlock, mutual exclusion" />
           </div>
-
           <div className="form-group">
-            <label>Evaluation Rubric (optional)</label>
-            <textarea
-              name="evaluationRubric"
-              value={formData.evaluationRubric}
-              onChange={handleChange}
-              rows="4"
-              placeholder="Provide detailed rubric or expectations"
-            />
+            <label>Evaluation rubric (optional)</label>
+            <textarea name="evaluationRubric" className="form-textarea" value={formData.evaluationRubric} onChange={handleChange} rows="4" placeholder="Detailed rubric or expectations" />
           </div>
+          <TagInput
+            label="Tags"
+            value={formData.tags}
+            onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+          />
 
-          <div className="form-group">
-            <label>Tags (comma-separated)</label>
-            <input
-              type="text"
-              name="tags"
-              value={formData.tags}
-              onChange={handleChange}
-              placeholder="OS, scheduling, theory"
-            />
-          </div>
-
-          <div className="card" style={{ marginTop: '20px' }}>
-            <h3 style={{ marginBottom: '15px' }}>Evaluation Rules</h3>
+          <div className="vqf-nested-card">
+            <h3>Evaluation rules</h3>
             <div className="form-row">
               <div className="form-group">
-                <label>Similarity Weight</label>
-                <input
-                  type="number"
-                  name="similarityWeight"
-                  step="0.05"
-                  min="0"
-                  max="1"
-                  value={formData.evaluationConfig.similarityWeight}
-                  onChange={handleConfigChange}
-                />
+                <label>Similarity weight</label>
+                <input type="number" name="similarityWeight" className="form-input" step="0.05" min="0" max="1" value={formData.evaluationConfig.similarityWeight} onChange={handleConfigChange} />
               </div>
               <div className="form-group">
-                <label>Concept Coverage Weight</label>
-                <input
-                  type="number"
-                  name="conceptWeight"
-                  step="0.05"
-                  min="0"
-                  max="1"
-                  value={formData.evaluationConfig.conceptWeight}
-                  onChange={handleConfigChange}
-                />
+                <label>Concept coverage weight</label>
+                <input type="number" name="conceptWeight" className="form-input" step="0.05" min="0" max="1" value={formData.evaluationConfig.conceptWeight} onChange={handleConfigChange} />
               </div>
               <div className="form-group">
-                <label>Depth Weight</label>
-                <input
-                  type="number"
-                  name="depthWeight"
-                  step="0.05"
-                  min="0"
-                  max="1"
-                  value={formData.evaluationConfig.depthWeight}
-                  onChange={handleConfigChange}
-                />
+                <label>Depth weight</label>
+                <input type="number" name="depthWeight" className="form-input" step="0.05" min="0" max="1" value={formData.evaluationConfig.depthWeight} onChange={handleConfigChange} />
               </div>
               <div className="form-group">
                 <label>Strictness</label>
-                <select name="strictness" value={formData.evaluationConfig.strictness} onChange={handleConfigChange}>
+                <select name="strictness" className="form-select" value={formData.evaluationConfig.strictness} onChange={handleConfigChange}>
                   <option value="lenient">Lenient</option>
                   <option value="moderate">Moderate</option>
                   <option value="strict">Strict</option>
@@ -391,18 +364,9 @@ const CreateTheoryQuestion = () => {
               </div>
             </div>
           </div>
-
-          <div className="form-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Saving...' : (id ? 'Update Question' : 'Create Question')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </form>
+    </VendorQuestionFormPage>
   );
 };
 

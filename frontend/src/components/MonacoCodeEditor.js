@@ -68,9 +68,12 @@ const MonacoCodeEditor = ({
     monaco.editor.setTheme(themeName);
   }, [themeName]);
 
+  const containerHeight = typeof height === 'number' ? `${height}px` : height;
+
   return (
     <div
       className={`monaco-code-editor-root ${isDark ? 'monaco-code-editor-root--dark' : 'monaco-code-editor-root--light'} ${className}`.trim()}
+      style={{ height: containerHeight }}
     >
       <Editor
         key={editorKey}

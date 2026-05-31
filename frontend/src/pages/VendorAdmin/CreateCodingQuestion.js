@@ -1,11 +1,157 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import { CODE_REQUEST_TIMEOUT_EXECUTE_MS } from '../../config/codeExecution';
 import Modal from '../../components/Modal';
-import MonacoCodeEditor from '../../components/MonacoCodeEditor';
+import RichTextEditor from '../../components/RichTextEditor';
+import RichTextDisplay from '../../components/RichTextDisplay';
+import VendorQuestionFormPage from '../../components/VendorAdmin/VendorQuestionFormPage';
+import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
+import TagInput from '../../components/TagInput';
+import CodingQuestionCodeWorkspace from '../../components/VendorAdmin/CodingQuestionCodeWorkspace';
 import './CreateCodingQuestion.css';
+
+const CODE_LANGS = ['java', 'cpp', 'c', 'python', 'javascript', 'js', 'node', 'nodejs'];
+
+const normalizeLangKey = (rawKey = '') => {
+  const key = String(rawKey).trim().toLowerCase();
+  if (!key) return null;
+  if (key === 'java') return 'java';
+  if (['cpp', 'c++', 'cxx', 'cplusplus'].includes(key)) return 'cpp';
+  if (key === 'c') return 'c';
+  if (['python', 'python3', 'py'].includes(key)) return 'python';
+  if (['javascript', 'js', 'node', 'nodejs'].includes(key)) return 'javascript';
+  return key || null;
+};
+
+/**
+ * Handles legacy code shapes: string, array[{language,code}], or object aliases.
+ */
+const normalizeCodeMap = (raw, allowedLanguages = []) => {
+  const base = { java: '', cpp: '', c: '', python: '', javascript: '' };
+  const preferred = allowedLanguages.find((l) => CODE_LANGS.includes(l)) || 'python';
+
+  if (!raw) return base;
+
+  if (typeof raw === 'string') {
+    base[preferred] = raw;
+    return base;
+  }
+
+  if (Array.isArray(raw)) {
+    raw.forEach((entry) => {
+      if (!entry) return;
+      const lang = normalizeLangKey(entry.language || entry.lang || entry.key);
+      const code = entry.code || entry.solution || entry.value || '';
+      if (lang && typeof code === 'string') base[lang] = code;
+    });
+    return base;
+  }
+
+  if (typeof raw === 'object') {
+    // Legacy shape: { language: 'python', code: '...' }
+    const singleLang = normalizeLangKey(raw.language || raw.lang || raw.key);
+    const singleCode = raw.code || raw.solution || raw.value;
+    if (singleLang && typeof singleCode === 'string') {
+      base[singleLang] = singleCode;
+      return base;
+    }
+
+    Object.entries(raw).forEach(([k, v]) => {
+      const lang = normalizeLangKey(k);
+      if (!lang || ['language', 'lang', 'key', 'code', 'value', 'solution'].includes(lang)) return;
+      if (typeof v === 'string') {
+        base[lang] = v;
+      } else if (v && typeof v === 'object') {
+        const nested = v.code || v.solution || v.value;
+        if (typeof nested === 'string') base[lang] = nested;
+      }
+    });
+  }
+
+  return base;
+};
+
+const mergeSolutionSources = (question, allowedLanguages = []) => {
+  const merged = { java: '', cpp: '', c: '', python: '', javascript: '' };
+  const sourceKeys = [
+    'solution',
+    'solutions',
+    'solutionCode',
+    'referenceSolution',
+    'answerCode',
+    'testCode',
+    'codeSolution',
+    'privateSolution',
+    'editorSolution',
+  ];
+
+  const assign = (lang, code) => {
+    if (!lang || typeof code !== 'string') return;
+    const normalized = normalizeLangKey(lang);
+    if (!normalized || !code.trim()) return;
+    merged[normalized] = code;
+  };
+
+  const extract = (raw, preferredLang) => {
+    if (!raw) return;
+
+    if (typeof raw === 'string') {
+      assign(preferredLang || allowedLanguages[0] || 'python', raw);
+      return;
+    }
+
+    if (Array.isArray(raw)) {
+      raw.forEach((item) => extract(item, preferredLang));
+      return;
+    }
+
+    if (typeof raw !== 'object') return;
+
+    const explicitLang = raw.language || raw.lang || raw.key;
+    const explicitCode = raw.code || raw.solution || raw.value || raw.source || raw.answer;
+    if (typeof explicitCode === 'string') {
+      assign(explicitLang || preferredLang, explicitCode);
+    }
+
+    Object.entries(raw).forEach(([k, v]) => {
+      const langFromKey = normalizeLangKey(k);
+      if (langFromKey && typeof v === 'string') {
+        assign(langFromKey, v);
+        return;
+      }
+      if (langFromKey && v && typeof v === 'object') {
+        const nestedCode = v.code || v.solution || v.value || v.source || v.answer;
+        if (typeof nestedCode === 'string') {
+          assign(langFromKey, nestedCode);
+          return;
+        }
+      }
+      if (v && typeof v === 'object') {
+        extract(v, langFromKey || preferredLang);
+      }
+    });
+  };
+
+  sourceKeys.forEach((key) => extract(question?.[key], allowedLanguages[0] || 'python'));
+  return mergeCodeMaps(merged);
+};
+
+const mergeCodeMaps = (...maps) => {
+  const merged = { java: '', cpp: '', c: '', python: '', javascript: '' };
+  maps.forEach((m) => {
+    if (!m || typeof m !== 'object') return;
+    Object.keys(merged).forEach((lang) => {
+      const value = m[lang];
+      if (typeof value === 'string' && value.trim()) {
+        merged[lang] = value;
+      }
+    });
+  });
+  return merged;
+};
 
 const CreateCodingQuestion = () => {
   const { id } = useParams();
@@ -20,17 +166,24 @@ const CreateCodingQuestion = () => {
     difficulty: 'medium',
     allowedLanguages: [],
     testCases: [{ input: '', expectedOutput: '', isHidden: false, points: 10 }],
-    starterCode: { java: '', cpp: '', c: '', python: '' },
-    constraints: ''
+    starterCode: { java: '', cpp: '', c: '', python: '', javascript: '' },
+    constraints: '',
+    tags: []
   });
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [selectedLanguage, setSelectedLanguage] = useState('python');
-  const [testCode, setTestCode] = useState({ java: '', cpp: '', c: '', python: '' });
+  const [testCode, setTestCode] = useState({ java: '', cpp: '', c: '', python: '', javascript: '' });
   const [testResults, setTestResults] = useState({}); // Store results for each test case
   const [isTestingAll, setIsTestingAll] = useState(false);
   const [, setTestingIndex] = useState(null);
   const navigate = useNavigate();
+  const languageOptions = useMemo(() => {
+    const base = ['python', 'java', 'cpp', 'c'];
+    const legacy = (formData.allowedLanguages || []).filter((l) => !base.includes(l));
+    return [...base, ...legacy];
+  }, [formData.allowedLanguages]);
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -41,35 +194,51 @@ const CreateCodingQuestion = () => {
 
   const fetchQuestion = async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       console.log('📥 Fetching question for edit:', id);
       const response = await axiosInstance.get(`${apiBase}/coding/${id}`);
       const q = response.data;
       console.log('✅ Question data received:', q);
+      const allowed = q.allowedLanguages || [];
+      const normalizedStarter = normalizeCodeMap(q.starterCode, allowed);
+      const loadedSolution = mergeSolutionSources(q, allowed);
+      const codeLanguages = [
+        ...Object.keys(normalizedStarter).filter((k) => String(normalizedStarter[k] || '').trim()),
+        ...Object.keys(loadedSolution).filter((k) => String(loadedSolution[k] || '').trim()),
+      ];
+      const mergedAllowed = Array.from(new Set([...(allowed || []), ...codeLanguages]));
       
       setFormData({
         title: q.title || '',
         description: q.description || '',
         difficulty: q.difficulty || 'medium',
-        allowedLanguages: q.allowedLanguages || [],
+        allowedLanguages: mergedAllowed,
         testCases: q.testCases && q.testCases.length > 0 ? q.testCases : [{ input: '', expectedOutput: '', isHidden: false, points: 10 }],
-        starterCode: q.starterCode || { java: '', cpp: '', c: '', python: '' },
-        constraints: q.constraints || ''
+        starterCode: normalizedStarter,
+        constraints: q.constraints || '',
+        tags: q.tags || []
       });
-      
-      setTestCode(q.solution || { java: '', cpp: '', c: '', python: '' });
-      
-      // Set selected language if available
-      if (q.allowedLanguages && q.allowedLanguages.length > 0) {
-        setSelectedLanguage(q.allowedLanguages[0]);
+
+      setTestCode(loadedSolution);
+
+      // Prefer a language that already has code to avoid blank editor in edit mode
+      const langs = Array.isArray(mergedAllowed) ? mergedAllowed : [];
+      const withStarter = langs.find((lang) => String(normalizedStarter?.[lang] || '').trim());
+      const withSolution = langs.find((lang) => String(loadedSolution?.[lang] || '').trim());
+      if (withSolution || withStarter || langs.length > 0) {
+        // Prefer opening the language that has saved solution to avoid false "blank solution" impression.
+        setSelectedLanguage(withSolution || withStarter || langs[0]);
       }
     } catch (error) {
       console.error('❌ Error fetching question:', error);
       showModal('Error', `Failed to load question data: ${error.response?.data?.message || error.message}`, 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   };
+
+  const meta = QUESTION_FORM_META.coding;
+  const backTo = isGlobal ? '/super-admin/global-questions' : meta.back;
 
   const showModal = (title, message, type = 'info') => {
     setModal({ isOpen: true, title, message, type });
@@ -87,13 +256,23 @@ const CreateCodingQuestion = () => {
   };
 
   const handleLanguageToggle = (lang) => {
-    setFormData({
-      ...formData,
-      allowedLanguages: formData.allowedLanguages.includes(lang)
-        ? formData.allowedLanguages.filter(l => l !== lang)
-        : [...formData.allowedLanguages, lang]
-    });
+    const next = formData.allowedLanguages.includes(lang)
+      ? formData.allowedLanguages.filter((l) => l !== lang)
+      : [...formData.allowedLanguages, lang];
+    setFormData({ ...formData, allowedLanguages: next });
+    if (!next.includes(selectedLanguage) && next.length > 0) {
+      setSelectedLanguage(next[0]);
+    }
   };
+
+  useEffect(() => {
+    if (
+      formData.allowedLanguages.length > 0 &&
+      !formData.allowedLanguages.includes(selectedLanguage)
+    ) {
+      setSelectedLanguage(formData.allowedLanguages[0]);
+    }
+  }, [formData.allowedLanguages, selectedLanguage]);
 
   const handleAddTestCase = () => {
     setFormData({
@@ -132,15 +311,17 @@ const CreateCodingQuestion = () => {
       ...formData,
       starterCode: { ...formData.starterCode, [lang]: value }
     });
-    // Also update test code if it matches starter code
-    if (testCode[lang] === formData.starterCode[lang] || !testCode[lang]) {
-      setTestCode({ ...testCode, [lang]: value });
-    }
   };
 
   const handleTestCodeChange = (lang, value) => {
     setTestCode({ ...testCode, [lang]: value });
     // Clear all test results when code changes
+    setTestResults({});
+  };
+
+  const handleCopyStarterToSolution = (lang) => {
+    const starter = formData.starterCode?.[lang] || '';
+    setTestCode((prev) => ({ ...prev, [lang]: starter }));
     setTestResults({});
   };
 
@@ -335,7 +516,7 @@ const CreateCodingQuestion = () => {
       return;
     }
     
-    if (!formData.description.trim()) {
+    if (isRichTextEmpty(formData.description)) {
       showModal('Validation Error', 'Description is required', 'error');
       return;
     }
@@ -357,17 +538,22 @@ const CreateCodingQuestion = () => {
       return;
     }
     
-    setLoading(true);
+    const payload = {
+      ...formData,
+      solution: testCode,
+    };
+
+    setSaving(true);
 
     try {
       if (isEditMode) {
         console.log('📤 Updating coding question...');
-        await axiosInstance.put(`${apiBase}/coding/${id}`, formData);
+        await axiosInstance.put(`${apiBase}/coding/${id}`, payload);
         console.log('✅ Question updated');
         showModal('Success', 'Question updated successfully!', 'success');
       } else {
         console.log('📤 Creating coding question...');
-        const response = await axiosInstance.post(`${apiBase}/coding`, formData);
+        const response = await axiosInstance.post(`${apiBase}/coding`, payload);
         console.log('✅ Question created:', response.data);
         showModal('Success', 'Question created successfully!', 'success');
       }
@@ -381,35 +567,48 @@ const CreateCodingQuestion = () => {
                        `Error ${isEditMode ? 'updating' : 'creating'} question. Please try again.`;
       showModal('Error', errorMsg, 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
+  const modalEl = (
+    <Modal
+      isOpen={modal.isOpen}
+      onClose={closeModal}
+      title={modal.title}
+      type={modal.type}
+      showFooter={typeof modal.message === 'string'}
+    >
+      {modal.message}
+    </Modal>
+  );
+
+  const formFooter = (
+    <div className="form-actions">
+      <button type="button" onClick={() => navigate(backTo)} className="btn btn-secondary">
+        Cancel
+      </button>
+      <button type="submit" form="coding-question-form" className="btn btn-primary" disabled={saving}>
+        {saving ? 'Saving…' : isEditMode ? 'Update question' : 'Create question'}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="container create-coding-question">
-      <Modal 
-        isOpen={modal.isOpen} 
-        onClose={closeModal}
-        title={modal.title}
-        type={modal.type}
-        showFooter={typeof modal.message === 'string'}
-      >
-        {modal.message}
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">
-          {isEditMode ? 'Edit' : 'Create'} {isGlobal ? 'Global ' : ''}Coding Question
-        </h1>
-        <button 
-          onClick={() => navigate(isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions')} 
-          className="btn btn-secondary"
-        >
-          Back to Questions
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <VendorQuestionFormPage
+      className="create-coding-question"
+      loading={pageLoading}
+      backTo={backTo}
+      backLabel="Back to questions"
+      eyebrow={meta.label}
+      title={isEditMode ? meta.editTitle : meta.createTitle}
+      subtitle={meta.subtitle}
+      accent={meta.accent}
+      isGlobal={isGlobal}
+      modal={modalEl}
+      footer={formFooter}
+    >
+      <form id="coding-question-form" onSubmit={handleSubmit} className="question-form">
         {/* Basic Information Section */}
         <div className="form-section">
           <h2 className="section-title">Basic Information</h2>
@@ -436,17 +635,21 @@ const CreateCodingQuestion = () => {
             </div>
           </div>
 
-          <div className="form-group">
+          <div className="vqf-rich-field">
             <label>Description *</label>
-            <textarea
-              name="description"
+            <RichTextEditor
+              variant="full"
               value={formData.description}
-              onChange={handleChange}
-              required
-              rows="8"
-              placeholder="Describe the problem statement, input/output format..."
-              className="form-textarea"
+              onChange={(html) => setFormData((prev) => ({ ...prev, description: html }))}
+              placeholder="Problem statement, examples, input/output format — use headings, lists, code blocks, links, and images (URL)."
+              minHeight={220}
             />
+            {!isRichTextEmpty(formData.description) && (
+              <div className="vqf-rich-preview">
+                <p className="vqf-rich-preview-label">Preview</p>
+                <RichTextDisplay content={formData.description} />
+              </div>
+            )}
           </div>
 
           <div className="form-group">
@@ -460,30 +663,48 @@ const CreateCodingQuestion = () => {
               className="form-textarea"
             />
           </div>
+        </div>
 
-          <div className="form-group">
-            <label>Allowed Languages *</label>
-            <div className="language-checkboxes">
-              {['java', 'cpp', 'c', 'python'].map(lang => (
-                <label key={lang} className="language-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={formData.allowedLanguages.includes(lang)}
-                    onChange={() => handleLanguageToggle(lang)}
-                  />
-                  <span className="language-label">{lang.toUpperCase()}</span>
-                </label>
+        <div className="form-section cq-section">
+          <h2 className="section-title">Tags &amp; languages</h2>
+          <p className="section-description">
+            Add searchable tags and choose which languages students can use.
+          </p>
+          <TagInput
+            label="Tags"
+            hint="Type a tag name — matching tags from your library appear as you type. Press Enter or click a suggestion to add."
+            value={formData.tags}
+            onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+          />
+          <div className="form-group cq-lang-picker">
+            <label>Allowed languages *</label>
+            <div className="cq-lang-pills">
+              {languageOptions.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`cq-lang-pill ${formData.allowedLanguages.includes(id) ? 'active' : ''}`}
+                  onClick={() => handleLanguageToggle(id)}
+                  aria-pressed={formData.allowedLanguages.includes(id)}
+                >
+                  {id === 'cpp' ? 'C++' : id === 'javascript' ? 'JavaScript' : id.toUpperCase()}
+                </button>
               ))}
             </div>
           </div>
         </div>
 
         {/* Test Cases Section */}
-        <div className="form-section">
+        <div className="form-section cq-section">
           <div className="section-header">
-            <h2 className="section-title">Test Cases</h2>
+            <div>
+              <h2 className="section-title">Test cases</h2>
+              <p className="section-description cq-section-desc-inline">
+                Define inputs and expected outputs. Use monospace fields for precise formatting.
+              </p>
+            </div>
             <button type="button" onClick={handleAddTestCase} className="btn btn-secondary btn-sm">
-              + Add Test Case
+              + Add test case
             </button>
           </div>
 
@@ -520,7 +741,8 @@ const CreateCodingQuestion = () => {
                         required
                         rows="4"
                         placeholder="Enter test input..."
-                        className="form-textarea"
+                        className="form-textarea cq-io-textarea"
+                        spellCheck={false}
                       />
                     </div>
                     <div className="form-group">
@@ -531,7 +753,8 @@ const CreateCodingQuestion = () => {
                         required
                         rows="4"
                         placeholder="Enter expected output..."
-                        className="form-textarea"
+                        className="form-textarea cq-io-textarea"
+                        spellCheck={false}
                       />
                     </div>
                   </div>
@@ -575,109 +798,28 @@ const CreateCodingQuestion = () => {
           </div>
         </div>
 
-        {/* Test Your Code Section */}
-        <div className="form-section test-code-section">
-          <h2 className="section-title">Test Your Test Cases</h2>
+        <div className="form-section cq-section cq-code-section">
+          <h2 className="section-title">Code templates</h2>
           <p className="section-description">
-            Write code and test it against all test cases to verify they work correctly in the selected language.
+            Write starter and private solution code side-by-side for the selected language.
           </p>
-
-          <div className="test-code-container">
-            <div className="form-group">
-              <label>Select Language for Testing</label>
-              <select 
-                value={selectedLanguage} 
-                onChange={(e) => {
-                  setSelectedLanguage(e.target.value);
-                  if (!testCode[e.target.value] && formData.starterCode[e.target.value]) {
-                    setTestCode({ ...testCode, [e.target.value]: formData.starterCode[e.target.value] });
-                  }
-                }}
-                className="form-select"
-                disabled={formData.allowedLanguages.length === 0}
-              >
-                {formData.allowedLanguages.length > 0 ? (
-                  formData.allowedLanguages.map(lang => (
-                    <option key={lang} value={lang}>{lang.toUpperCase()}</option>
-                  ))
-                ) : (
-                  <option value="python">Select languages first</option>
-                )}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Test Code</label>
-              <div className="code-editor-wrapper">
-                <MonacoCodeEditor
-                  height="300px"
-                  editorKey={`test-${selectedLanguage}`}
-                  language={selectedLanguage}
-                  value={testCode[selectedLanguage] || formData.starterCode[selectedLanguage] || ''}
-                  onChange={(value) => handleTestCodeChange(selectedLanguage, value || '')}
-                />
-              </div>
-            </div>
-
-            <div className="test-actions">
-              <button 
-                type="button" 
-                onClick={handleTestAllTestCases} 
-                className="btn btn-primary"
-                disabled={isTestingAll || formData.allowedLanguages.length === 0}
-              >
-                {isTestingAll ? 'Testing All...' : '▶ Test All Test Cases'}
-              </button>
-            </div>
-          </div>
+          <CodingQuestionCodeWorkspace
+            allowedLanguages={formData.allowedLanguages}
+            activeLang={selectedLanguage}
+            onActiveLangChange={setSelectedLanguage}
+            starterCode={formData.starterCode}
+            testCode={testCode}
+            onStarterChange={handleStarterCodeChange}
+            onTestCodeChange={handleTestCodeChange}
+            onCopyStarterToSolution={handleCopyStarterToSolution}
+            onRunAllTests={handleTestAllTestCases}
+            isTestingAll={isTestingAll}
+            canRunTests={formData.allowedLanguages.length > 0 && formData.testCases.length > 0}
+          />
         </div>
 
-        {/* Starter Code Section */}
-        <div className="form-section">
-          <h2 className="section-title">Starter Code</h2>
-          <p className="section-description">
-            Provide starter code templates for each allowed language.
-          </p>
-
-          <div className="starter-code-container">
-            {formData.allowedLanguages.length === 0 ? (
-              <div className="empty-state">
-                <p>Please select at least one allowed language to add starter code.</p>
-              </div>
-            ) : (
-              formData.allowedLanguages.map(lang => (
-                <div key={lang} className="starter-code-item">
-                  <label className="starter-code-label">{lang.toUpperCase()}</label>
-                  <div className="code-editor-wrapper">
-                    <MonacoCodeEditor
-                      height="200px"
-                      editorKey={`starter-${lang}`}
-                      language={lang}
-                      value={formData.starterCode[lang]}
-                      onChange={(value) => handleStarterCodeChange(lang, value || '')}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <div className="form-actions">
-          <button 
-            type="button" 
-            onClick={() => navigate(isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions')} 
-            className="btn btn-secondary"
-          >
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Creating...' : 'Create Question'}
-          </button>
-        </div>
       </form>
-    </div>
+    </VendorQuestionFormPage>
   );
 };
 

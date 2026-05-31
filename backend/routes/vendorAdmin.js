@@ -12,8 +12,12 @@ const Result = require('../models/Result');
 const Interview = require('../models/Interview');
 const Assignment = require('../models/Assignment');
 const SystemDesignProblem = require('../models/SystemDesignProblem');
+const Classroom = require('../models/Classroom');
+const DatasetTemplate = require('../models/DatasetTemplate');
 const CodingQuestion = require('../models/CodingQuestion');
 const MCQQuestion = require('../models/MCQQuestion');
+const AptitudeQuestion = require('../models/AptitudeQuestion');
+const TheoryQuestion = require('../models/TheoryQuestion');
 const {
   buildReportData,
   generateExcelBuffer,
@@ -166,18 +170,83 @@ router.delete('/vendor/logo', async (req, res) => {
 router.get('/dashboard/stats', async (req, res) => {
   try {
     console.log('📊 Fetching dashboard stats for vendor:', req.vendorId);
-    const totalTests = await Test.countDocuments({ vendorId: req.vendorId });
-    const totalStudents = await User.countDocuments({ vendorId: req.vendorId, role: 'student' });
-    const totalResults = await Result.countDocuments({ vendorId: req.vendorId });
-    const completedResults = await Result.countDocuments({ vendorId: req.vendorId, status: 'completed' });
+    const vendorId = req.vendorId;
+    const [
+      testDocs,
+      totalStudents,
+      totalResults,
+      completedResults,
+      totalClassrooms,
+      totalInterviews,
+      totalAssignments,
+      totalSystemDesigns,
+      totalDatasetTemplates,
+      codingQuestions,
+      mcqQuestions,
+      aptitudeQuestions,
+      theoryQuestions,
+    ] = await Promise.all([
+      Test.find({ vendorId }).select('type').lean(),
+      User.countDocuments({ vendorId, role: 'student' }),
+      Result.countDocuments({ vendorId }),
+      Result.countDocuments({ vendorId, status: 'completed' }),
+      Classroom.countDocuments({ vendorId }),
+      Interview.countDocuments({ vendorId }),
+      Assignment.countDocuments({ vendorId }),
+      SystemDesignProblem.countDocuments({ vendorId }),
+      DatasetTemplate.countDocuments({ vendorId }),
+      CodingQuestion.countDocuments({ vendorId }),
+      MCQQuestion.countDocuments({ vendorId }),
+      AptitudeQuestion.countDocuments({ vendorId }),
+      TheoryQuestion.countDocuments({ vendorId }),
+    ]);
 
-    console.log(`✅ Stats: Tests: ${totalTests}, Students: ${totalStudents}, Results: ${totalResults}`);
+    const testsByType = {};
+    for (const doc of testDocs) {
+      const type = doc.type || 'other';
+      testsByType[type] = (testsByType[type] || 0) + 1;
+    }
+
+    const totalTests = testDocs.length;
+    // Sidebar counts — same rules as vendor TestList filters
+    const sectionCounts = {
+      coding: testsByType.coding || 0,
+      aptitude: testsByType.aptitude || 0,
+      mcq: testsByType.mcq || 0,
+      english: testsByType.english || 0,
+      theory: testsByType.theory || 0,
+      mixed: testsByType.mixed || 0,
+      tools: testsByType.sql || 0,
+      project: totalAssignments,
+      interview: totalInterviews,
+      system: totalSystemDesigns,
+      company: 0,
+    };
+
+    const totalAssessments =
+      totalTests + totalInterviews + totalAssignments + totalSystemDesigns;
+
+    console.log(`✅ Stats: Tests: ${totalTests}, Assessments: ${totalAssessments}, Students: ${totalStudents}`);
 
     res.json({
       totalTests,
       totalStudents,
       totalResults,
-      completedResults
+      completedResults,
+      totalClassrooms,
+      totalInterviews,
+      totalAssignments,
+      totalSystemDesigns,
+      totalDatasetTemplates,
+      totalAssessments,
+      testsByType,
+      sectionCounts,
+      questions: {
+        coding: codingQuestions,
+        mcq: mcqQuestions,
+        aptitude: aptitudeQuestions,
+        theory: theoryQuestions,
+      },
     });
   } catch (error) {
     console.error('❌ Error fetching dashboard stats:', error);
@@ -360,181 +429,65 @@ router.get('/tests/:testId/results', async (req, res) => {
   }
 });
 
-// Get analytics
+const {
+  getAnalyticsOverview,
+  getAnalyticsTests,
+  getClassroomAnalytics,
+} = require('../utils/analytics/vendorAnalytics');
+
+// Lightweight overview — fast initial load
+router.get('/analytics/overview', async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(7, parseInt(req.query.days, 10) || 30));
+    const overview = await getAnalyticsOverview(req.vendorId, { days });
+    res.json(overview);
+  } catch (error) {
+    console.error('❌ Error fetching analytics overview:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Paginated test performance
+router.get('/analytics/tests', async (req, res) => {
+  try {
+    const data = await getAnalyticsTests(req.vendorId, {
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search || '',
+      sort: req.query.sort || 'submissions',
+    });
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error fetching analytics tests:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Classroom drill-down with paginated students
+router.get('/analytics/classrooms/:classroomId', async (req, res) => {
+  try {
+    const data = await getClassroomAnalytics(req.vendorId, req.params.classroomId, {
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search || '',
+    });
+    if (!data) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error fetching classroom analytics:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Backward-compatible alias — returns overview only (no heavy student payloads)
 router.get('/analytics', async (req, res) => {
   try {
-    const Classroom = require('../models/Classroom');
-    const results = await Result.find({ vendorId: req.vendorId, status: 'completed' });
-    const allResults = await Result.find({ vendorId: req.vendorId });
-    
-    // Get all classrooms
-    const classrooms = await Classroom.find({ vendorId: req.vendorId, isActive: true })
-      .populate('students', 'name email');
-    
-    // Get all students
-    const allStudents = await User.find({ vendorId: req.vendorId, role: 'student' })
-      .select('name email enrolledTests');
-    
-    // Calculate classroom-wise analytics
-    console.log(`📊 Processing ${classrooms.length} classrooms for analytics`);
-    const classroomAnalytics = await Promise.all(classrooms.map(async (classroom) => {
-      // Handle both populated and non-populated students
-      // Filter out null/undefined students (from populate match)
-      const validStudents = (classroom.students || []).filter(s => s !== null && s !== undefined);
-      const classroomStudentIds = validStudents.map(s => {
-        if (typeof s === 'object' && s._id) {
-          return s._id.toString();
-        }
-        return s.toString();
-      });
-      console.log(`   Classroom "${classroom.name}": ${classroomStudentIds.length} students (${validStudents.length} valid)`);
-      
-      // Get students in this classroom
-      const classroomStudents = allStudents.filter(s => 
-        classroomStudentIds.includes(s._id.toString())
-      );
-      
-      // Get results for students in this classroom
-      const classroomResults = results.filter(r => 
-        classroomStudentIds.includes(r.studentId.toString())
-      );
-      
-      // Get all attempts (including incomplete)
-      const allAttempts = allResults.filter(r => 
-        classroomStudentIds.includes(r.studentId.toString())
-      );
-      
-      // Calculate metrics
-      const totalStudents = classroomStudents.length;
-      const attemptedCount = allAttempts.length > 0 ? new Set(allAttempts.map(r => r.studentId.toString())).size : 0;
-      const completedCount = classroomResults.length > 0 ? new Set(classroomResults.map(r => r.studentId.toString())).size : 0;
-      const averageScore = classroomResults.length > 0
-        ? classroomResults.reduce((sum, r) => sum + (r.percentage || 0), 0) / classroomResults.length
-        : 0;
-      
-      // Get test-wise performance for this classroom
-      const testPerformance = [];
-      const tests = await Test.find({ vendorId: req.vendorId });
-      for (const test of tests) {
-        const testResults = classroomResults.filter(r => 
-          r.testId.toString() === test._id.toString()
-        );
-        if (testResults.length > 0) {
-          testPerformance.push({
-            testId: test._id,
-            testTitle: test.title,
-            submissions: testResults.length,
-            averageScore: testResults.reduce((sum, r) => sum + r.percentage, 0) / testResults.length
-          });
-        }
-      }
-      
-      // Get student-wise details
-      const studentDetails = await Promise.all(classroomStudents.map(async (student) => {
-        const studentResults = classroomResults.filter(r => 
-          r.studentId.toString() === student._id.toString()
-        );
-        const studentAttempts = allAttempts.filter(r => 
-          r.studentId.toString() === student._id.toString()
-        );
-        
-        // Get test titles for student results
-        const testScores = await Promise.all(studentResults.map(async (r) => {
-          const test = await Test.findById(r.testId).select('title');
-          return {
-            testId: r.testId,
-            testTitle: test ? test.title : 'Unknown Test',
-            score: r.percentage,
-            submittedAt: r.submittedAt
-          };
-        }));
-        
-        return {
-          studentId: student._id,
-          name: student.name,
-          email: student.email,
-          totalAttempts: studentAttempts.length,
-          completedTests: studentResults.length,
-          averageScore: studentResults.length > 0
-            ? studentResults.reduce((sum, r) => sum + r.percentage, 0) / studentResults.length
-            : 0,
-          testScores
-        };
-      }));
-      
-      return {
-        classroomId: classroom._id,
-        classroomName: classroom.name,
-        description: classroom.description,
-        totalStudents,
-        attemptedCount,
-        completedCount,
-        notAttemptedCount: totalStudents - attemptedCount,
-        averageScore: Math.round(averageScore * 100) / 100,
-        completionRate: totalStudents > 0 ? Math.round((completedCount / totalStudents) * 100) : 0,
-        attemptRate: totalStudents > 0 ? Math.round((attemptedCount / totalStudents) * 100) : 0,
-        testPerformance,
-        studentDetails
-      };
-    }));
-    
-    // Overall analytics
-    const analytics = {
-      totalTests: await Test.countDocuments({ vendorId: req.vendorId }),
-      totalStudents: allStudents.length,
-      totalSubmissions: results.length,
-      totalAttempts: allResults.length,
-      averageScore: results.length > 0
-        ? Math.round((results.reduce((sum, r) => sum + r.percentage, 0) / results.length) * 100) / 100
-        : 0,
-      testPerformance: [],
-      classroomAnalytics,
-      // Additional metrics
-      completionRate: allStudents.length > 0
-        ? Math.round((new Set(results.map(r => r.studentId.toString())).size / allStudents.length) * 100)
-        : 0,
-      // Performance by difficulty
-      difficultyPerformance: {
-        easy: { count: 0, avgScore: 0 },
-        medium: { count: 0, avgScore: 0 },
-        hard: { count: 0, avgScore: 0 }
-      },
-      // Time-based trends (last 7 days)
-      recentSubmissions: []
-    };
-
-    // Get performance per test
-    const tests = await Test.find({ vendorId: req.vendorId });
-    for (const test of tests) {
-      const testResults = await Result.find({ testId: test._id, status: 'completed' });
-      analytics.testPerformance.push({
-        testId: test._id,
-        testTitle: test.title,
-        totalSubmissions: testResults.length,
-        averageScore: testResults.length > 0
-          ? Math.round((testResults.reduce((sum, r) => sum + r.percentage, 0) / testResults.length) * 100) / 100
-          : 0
-      });
-    }
-    
-    // Calculate recent submissions (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const recentResults = results.filter(r => r.submittedAt >= sevenDaysAgo);
-    const dailySubmissions = {};
-    recentResults.forEach(r => {
-      const date = new Date(r.submittedAt).toISOString().split('T')[0];
-      dailySubmissions[date] = (dailySubmissions[date] || 0) + 1;
-    });
-    analytics.recentSubmissions = Object.keys(dailySubmissions)
-      .sort()
-      .map(date => ({ date, count: dailySubmissions[date] }));
-
-    console.log(`✅ Analytics calculated: ${classroomAnalytics.length} classrooms, ${analytics.totalTests} tests, ${analytics.totalStudents} students`);
-    res.json(analytics);
+    const overview = await getAnalyticsOverview(req.vendorId, { days: 30 });
+    res.json(overview);
   } catch (error) {
     console.error('❌ Error fetching analytics:', error);
-    console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

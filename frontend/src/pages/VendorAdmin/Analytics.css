@@ -1,139 +1,614 @@
-.analytics-page {
-  max-width: 1600px;
+.vanalytics-page {
+  --vh-accent: #6366f1;
+  width: 100%;
 }
 
-.charts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-  gap: 25px;
-  margin-bottom: 30px;
+.vanalytics-chart-wrap {
+  width: 100%;
+  min-height: 220px;
 }
 
-.chart-card {
-  min-height: 400px;
+.vanalytics-chart-wrap--pie {
+  min-height: 220px;
 }
 
-.classrooms-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
+[data-theme='dark'] .vanalytics-chart-grid line,
+[data-theme='dark'] .recharts-cartesian-grid-horizontal line,
+[data-theme='dark'] .recharts-cartesian-grid-vertical line {
+  stroke: #3f3f46;
 }
 
-.classroom-card {
-  background-color: var(--bg-primary);
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  padding: 20px;
+.vanalytics-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.vanalytics-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--vh-border);
+  background: var(--vh-surface);
+  color: var(--vh-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.classroom-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  border-color: var(--primary-color);
+.vanalytics-tab:hover {
+  color: var(--vh-text);
 }
 
-.classroom-card-header h3 {
-  margin: 0 0 8px 0;
-  color: var(--text-primary);
-  font-size: 1.3em;
+.vanalytics-tab.is-active {
+  color: var(--vh-accent);
+  border-color: color-mix(in srgb, var(--vh-accent) 40%, var(--vh-border));
+  background: color-mix(in srgb, var(--vh-accent) 10%, var(--vh-surface));
 }
 
-.classroom-description {
-  margin: 0 0 15px 0;
-  color: var(--text-secondary);
-  font-size: 0.9em;
+.vanalytics-stats {
+  margin-bottom: 18px;
 }
 
-.classroom-stats {
+.vanalytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.vanalytics-grid--compact {
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.vanalytics-panel {
+  margin-bottom: 0;
+}
+
+.vanalytics-panel-body--flush {
+  padding: 0;
+}
+
+.vanalytics-range {
+  display: flex;
+  gap: 6px;
+}
+
+.vanalytics-range-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--vh-border);
+  background: var(--vh-surface);
+  color: var(--vh-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.vanalytics-range-btn.is-active {
+  color: var(--vh-accent);
+  border-color: color-mix(in srgb, var(--vh-accent) 40%, var(--vh-border));
+  background: color-mix(in srgb, var(--vh-accent) 10%, var(--vh-surface));
+}
+
+.vanalytics-distribution {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 12px;
+  align-items: center;
+}
+
+.vanalytics-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vanalytics-legend-item {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.82rem;
+  color: var(--vh-muted);
+}
+
+.vanalytics-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.vanalytics-classroom-mini {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 15px;
 }
 
-.classroom-stats .stat-item {
+.vanalytics-classroom-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background-color: var(--bg-secondary);
-  border-radius: 6px;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--vh-border);
+  background: var(--vh-surface-2);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.classroom-stats .stat-label {
-  color: var(--text-secondary);
-  font-size: 0.9em;
+.vanalytics-classroom-row:hover {
+  border-color: color-mix(in srgb, var(--vh-accent) 30%, var(--vh-border));
 }
 
-.classroom-stats .stat-value {
-  color: var(--text-primary);
-  font-weight: 600;
-  font-size: 1em;
-}
-
-.classroom-stats .stat-value.highlight {
-  color: var(--primary-color);
-  font-size: 1.1em;
-}
-
-.classroom-card-footer {
-  padding-top: 15px;
-  border-top: 1px solid var(--border-color);
-}
-
-.student-details-modal {
-  max-width: 100%;
-}
-
-.modal-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-bottom: 20px;
-}
-
-.stat-box {
-  background-color: var(--bg-secondary);
-  padding: 15px;
-  border-radius: 8px;
-  text-align: center;
-  border: 1px solid var(--border-color);
-}
-
-.stat-box .stat-label {
+.vanalytics-classroom-row strong {
   display: block;
-  color: var(--text-secondary);
-  font-size: 0.85em;
+  color: var(--vh-text);
+  font-size: 0.92rem;
+}
+
+.vanalytics-classroom-row span {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: var(--vh-muted);
+}
+
+.vanalytics-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.vanalytics-score--good {
+  color: #059669;
+  background: color-mix(in srgb, #10b981 12%, transparent);
+}
+
+.vanalytics-score--mid {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+}
+
+.vanalytics-score--low {
+  color: #dc2626;
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+}
+
+.vanalytics-score--muted {
+  color: var(--vh-muted);
+  background: var(--vh-surface-2);
+}
+
+.vanalytics-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.vanalytics-toolbar--stack {
+  margin: 16px 0 12px;
+}
+
+.vanalytics-search {
+  min-width: 220px;
+  margin-bottom: 0;
+}
+
+.vanalytics-select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--vh-border);
+  background: var(--vh-surface);
+  color: var(--vh-text);
+  font-size: 0.86rem;
+  font-family: inherit;
+}
+
+.vanalytics-table tbody td {
+  vertical-align: middle;
+}
+
+.vanalytics-student-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vanalytics-student-cell strong {
+  color: var(--vh-text);
+}
+
+.vanalytics-student-cell span {
+  font-size: 0.78rem;
+  color: var(--vh-muted);
+}
+
+.vanalytics-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--vh-border);
+  font-size: 0.82rem;
+  color: var(--vh-muted);
+}
+
+.vanalytics-pagination-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.vanalytics-classrooms-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.vanalytics-classroom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(720px, 72vh);
+  overflow-y: auto;
+}
+
+.vanalytics-classroom-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--vh-border);
+  background: var(--vh-surface-2);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.vanalytics-classroom-card:hover {
+  border-color: color-mix(in srgb, var(--vh-accent) 28%, var(--vh-border));
+}
+
+.vanalytics-classroom-card.is-selected {
+  border-color: color-mix(in srgb, var(--vh-accent) 45%, var(--vh-border));
+  background: color-mix(in srgb, var(--vh-accent) 8%, var(--vh-surface));
+}
+
+.vanalytics-classroom-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.vanalytics-classroom-card-top strong {
+  color: var(--vh-text);
+  font-size: 0.95rem;
+}
+
+.vanalytics-classroom-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.76rem;
+  color: var(--vh-muted);
+}
+
+.vanalytics-classroom-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.vanalytics-classroom-detail-panel {
+  min-height: 520px;
+}
+
+.vanalytics-classroom-head {
+  align-items: flex-start;
+}
+
+.vanalytics-classroom-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vanalytics-classroom-kpis {
+  margin-bottom: 18px;
+}
+
+.vanalytics-classroom-insights {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.vanalytics-classroom-block {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--vh-border);
+  background: var(--vh-surface-2);
+}
+
+.vanalytics-classroom-block--side {
+  display: flex;
+  flex-direction: column;
+}
+
+.vanalytics-classroom-block--attention {
+  margin-bottom: 18px;
+  border-color: color-mix(in srgb, #f59e0b 28%, var(--vh-border));
+  background: color-mix(in srgb, #f59e0b 6%, var(--vh-surface-2));
+}
+
+.vanalytics-classroom-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.vanalytics-classroom-block-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+  color: var(--vh-text);
+}
+
+.vanalytics-classroom-block-head p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--vh-muted);
+  max-width: 520px;
+}
+
+.vanalytics-table--compact td,
+.vanalytics-table--compact th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.vanalytics-test-type {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: var(--vh-muted);
+  text-transform: capitalize;
+}
+
+.vanalytics-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 140px;
+}
+
+.vanalytics-progress-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vh-border) 70%, transparent);
+  overflow: hidden;
+}
+
+.vanalytics-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+}
+
+.vanalytics-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.vanalytics-status--good {
+  color: #059669;
+  background: color-mix(in srgb, #10b981 12%, transparent);
+}
+
+.vanalytics-status--mid {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+}
+
+.vanalytics-status--low {
+  color: #dc2626;
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+}
+
+.vanalytics-last-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--vh-muted);
+}
+
+.vanalytics-attention-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.vanalytics-attention-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, #f59e0b 18%, var(--vh-border));
+  background: var(--vh-surface);
+}
+
+.vanalytics-attention-item strong {
+  color: var(--vh-text);
+  font-size: 0.88rem;
+}
+
+.vanalytics-attention-item span {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--vh-muted);
+}
+
+.vanalytics-attention-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.vanalytics-chart-wrap--classroom {
+  min-height: 180px;
+}
+
+.vanalytics-legend--compact {
+  margin-top: 8px;
+}
+
+.vanalytics-mini-stats {
+  margin-bottom: 16px;
+}
+
+.vanalytics-classroom-tests {
   margin-bottom: 8px;
 }
 
-.stat-box .stat-value-large {
-  display: block;
-  color: var(--primary-color);
-  font-size: 1.8em;
-  font-weight: bold;
+.vanalytics-classroom-tests h3 {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: var(--vh-text);
 }
 
-.status-badge.warning {
-  background-color: rgba(255, 193, 7, 0.1);
-  color: #ffc107;
-  border: 1px solid rgba(255, 193, 7, 0.3);
+.vanalytics-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-@media (max-width: 768px) {
-  .charts-grid {
+.vanalytics-empty,
+.vanalytics-skeleton {
+  text-align: center;
+  padding: 48px 24px;
+  border-radius: var(--vh-radius-lg);
+  border: 1px dashed var(--vh-border);
+  background: var(--vh-surface-2);
+  color: var(--vh-muted);
+}
+
+.vanalytics-empty svg {
+  font-size: 2rem;
+  margin-bottom: 12px;
+  opacity: 0.45;
+}
+
+.vanalytics-empty h3 {
+  margin: 0 0 8px;
+  color: var(--vh-text);
+}
+
+.vanalytics-empty p {
+  margin: 0 auto 16px;
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.vanalytics-empty--compact {
+  padding: 28px 20px;
+}
+
+.vanalytics-empty--panel {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.vanalytics-muted,
+.vanalytics-loading-inline {
+  color: var(--vh-muted);
+  font-size: 0.88rem;
+}
+
+.vanalytics-loading-inline {
+  padding: 8px 0 12px;
+}
+
+.vh-btn--sm {
+  padding: 7px 12px;
+  font-size: 0.8rem;
+}
+
+[data-theme='dark'] .vanalytics-classroom-row,
+[data-theme='dark'] .vanalytics-classroom-card {
+  background: #222;
+}
+
+[data-theme='dark'] .vanalytics-classroom-card.is-selected {
+  background: color-mix(in srgb, var(--vh-accent) 14%, #1a1a1a);
+}
+
+[data-theme='dark'] .vanalytics-tab,
+[data-theme='dark'] .vanalytics-range-btn,
+[data-theme='dark'] .vanalytics-select {
+  background: #1a1a1a;
+}
+
+@media (max-width: 1100px) {
+  .vanalytics-grid,
+  .vanalytics-grid--compact,
+  .vanalytics-classrooms-layout,
+  .vanalytics-classroom-insights {
     grid-template-columns: 1fr;
   }
 
-  .classrooms-grid {
+  .vanalytics-distribution {
     grid-template-columns: 1fr;
-  }
-
-  .modal-stats {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 
+@media (max-width: 720px) {
+  .vanalytics-toolbar {
+    width: 100%;
+  }
+
+  .vanalytics-search,
+  .vanalytics-select {
+    width: 100%;
+  }
+}

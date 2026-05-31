@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
-import Modal from '../../components/Modal';
+import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
+import TagInput from '../../components/TagInput';
 import './CreateEnglishQuestion.css';
 
 const QUESTION_TYPES = [
@@ -32,17 +33,19 @@ const CreateEnglishListeningQuestion = () => {
     audioDuration: '',
     maxReplays: 2,
     questionDelay: 0,
-    difficulty: 'medium'
+    difficulty: 'medium',
+    tags: []
   });
   const [questions, setQuestions] = useState([emptySubQuestion()]);
   const [audioFile, setAudioFile] = useState(null);
   const [audioPreview, setAudioPreview] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const fetchQuestion = useCallback(async () => {
     try {
-      setLoading(true);
+      setPageLoading(true);
       const res = await axiosInstance.get(`/questions/english/listening/${id}`);
       const q = res.data;
       setFormData({
@@ -51,14 +54,15 @@ const CreateEnglishListeningQuestion = () => {
         audioDuration: q.audioDuration || '',
         maxReplays: q.maxReplays ?? 2,
         questionDelay: q.questionDelay ?? 0,
-        difficulty: q.difficulty || 'medium'
+        difficulty: q.difficulty || 'medium',
+        tags: q.tags || []
       });
       setQuestions(q.questions?.length ? q.questions : [emptySubQuestion()]);
       if (q.audioUrl) setAudioPreview(q.audioUrl);
     } catch (error) {
       showModal('Error', 'Failed to load question', 'error');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   }, [id]);
 
@@ -125,7 +129,7 @@ const CreateEnglishListeningQuestion = () => {
       }
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
       const fd = new FormData();
       fd.append('title', formData.title);
@@ -134,6 +138,7 @@ const CreateEnglishListeningQuestion = () => {
       fd.append('maxReplays', formData.maxReplays);
       fd.append('questionDelay', formData.questionDelay);
       fd.append('difficulty', formData.difficulty);
+      fd.append('tags', JSON.stringify(formData.tags || []));
       fd.append('questions', JSON.stringify(questions));
       if (audioFile) fd.append('audio', audioFile);
 
@@ -149,22 +154,23 @@ const CreateEnglishListeningQuestion = () => {
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="container create-english-question">
-      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
-
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit' : 'Create'} Listening Question</h1>
-        <button onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Back</button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="question-form">
+    <EnglishQuestionFormShell
+      subtype="Listening"
+      title={isEditMode ? 'Edit listening question' : 'Create listening question'}
+      subtitle="Audio clip with MCQ and short-answer follow-up questions."
+      pageLoading={pageLoading}
+      modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
+      formId="english-listening-form"
+      onCancel={() => navigate('/vendor-admin/english-questions')}
+      saving={saving}
+      isEditMode={isEditMode}
+    >
+      <form id="english-listening-form" onSubmit={handleSubmit} className="question-form">
         <div className="form-section">
           <h2 className="section-title">Audio Details</h2>
           <div className="form-row">
@@ -180,6 +186,11 @@ const CreateEnglishListeningQuestion = () => {
                 <option value="hard">Hard</option>
               </select>
             </div>
+            <TagInput
+              label="Tags"
+              value={formData.tags}
+              onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            />
           </div>
           <div className="form-group full-width">
             <label>Audio File * (MP3, WAV, OGG, WebM)</label>
@@ -268,12 +279,8 @@ const CreateEnglishListeningQuestion = () => {
           ))}
         </div>
 
-        <div className="form-actions">
-          <button type="button" onClick={() => navigate('/vendor-admin/english-questions')} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving...' : isEditMode ? 'Update' : 'Create Question'}</button>
-        </div>
       </form>
-    </div>
+    </EnglishQuestionFormShell>
   );
 };
 

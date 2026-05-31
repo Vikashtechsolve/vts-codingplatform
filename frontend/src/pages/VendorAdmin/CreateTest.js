@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
-import './CreateTest.css';
+import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
+import VendorStandardTestBuilder from '../../components/VendorAdmin/VendorStandardTestBuilder';
+import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
+import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 
 const CreateTest = () => {
+  const { testId } = useParams();
+  const isEditMode = !!testId;
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -23,6 +28,8 @@ const CreateTest = () => {
   const [theoryQuestions, setTheoryQuestions] = useState([]);
   const [filteredTheory, setFilteredTheory] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTag, setSelectedTag] = useState('');
+  const { registryTags } = useQuestionTagRegistry();
   const [selectedTab, setSelectedTab] = useState('coding');
   const [questionSource, setQuestionSource] = useState('my'); // 'my' or 'global'
   const [loading, setLoading] = useState(false);
@@ -31,7 +38,9 @@ const CreateTest = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const typeParam = new URLSearchParams(location.search).get('type');
-  const lockedType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(typeParam) ? typeParam : null;
+  const queryLockedType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(typeParam) ? typeParam : null;
+  const [lockedType, setLockedType] = useState(queryLockedType);
+  const [testLoading, setTestLoading] = useState(false);
 
   useEffect(() => {
     fetchQuestions();
@@ -50,53 +59,131 @@ const CreateTest = () => {
     }
   }, [formData.type, selectedTab]);
 
+  const toLocalDateTime = (v) => {
+    if (!v) return '';
+    try {
+      return new Date(v).toISOString().slice(0, 16);
+    } catch {
+      return '';
+    }
+  };
+
+  const fetchTest = async () => {
+    if (!isEditMode || !testId) return;
+    setTestLoading(true);
+    try {
+      const res = await axiosInstance.get(`/tests/${testId}`);
+      const test = res.data;
+
+      const supported = ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(test?.type);
+      if (!supported) {
+        setError('This test type is not editable in this UI.');
+        return;
+      }
+
+      const nextType = test.type;
+
+      const mappedQuestions = (test.questions || []).map((q) => {
+        const qData = q?.questionId; // already populated in backend response
+        const qId = qData && typeof qData === 'object' ? (qData._id || qData.id) : q?.questionId;
+        return {
+          questionId: qId ? String(qId) : q?.questionId,
+          type: q.type,
+          points: q.points ?? 10,
+          order: q.order ?? 1,
+          questionData: qData,
+        };
+      });
+
+      setLockedType(nextType);
+      setFormData({
+        title: test.title || '',
+        description: test.description || '',
+        type: nextType,
+        duration: test.duration ?? 60,
+        startDate: toLocalDateTime(test.startDate),
+        endDate: toLocalDateTime(test.endDate),
+        questions: mappedQuestions,
+      });
+      setSelectedTab(nextType === 'mixed' ? 'coding' : nextType);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load test');
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Filter questions based on search term and source
-    const term = searchTerm.toLowerCase();
-    
-    // Filter by source first
-    const sourceFilteredCoding = codingQuestions.filter(q => 
-      questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
-    );
-    const sourceFilteredMcq = mcqQuestions.filter(q => 
-      questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
-    );
-    const sourceFilteredAptitude = aptitudeQuestions.filter(q =>
-      questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
-    );
-    const sourceFilteredTheory = theoryQuestions.filter(q =>
-      questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
-    );
-    
-    // Then filter by search term
+    // Wait until questions are loaded so selected questions can render titles correctly.
+    if (isEditMode && testId && !loading) fetchTest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, testId, loading]);
+
+  useEffect(() => {
+    setSelectedTag('');
+  }, [selectedTab, questionSource]);
+
+  useEffect(() => {
+    const sourceFilter = (list) =>
+      list.filter((q) =>
+        questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
+      );
+
+    const filterPool = (list, textFieldsFor) =>
+      filterQuestionsBySearchAndTag(sourceFilter(list), {
+        term: searchTerm,
+        selectedTag,
+        textFieldsFor,
+      });
+
     setFilteredCoding(
-      sourceFilteredCoding.filter(q => 
-        q.title.toLowerCase().includes(term) || 
-        q.description?.toLowerCase().includes(term) ||
-        q.difficulty?.toLowerCase().includes(term)
-      )
+      filterPool(codingQuestions, (q) => [q.title, q.description, q.difficulty])
     );
-    setFilteredMcq(
-      sourceFilteredMcq.filter(q => 
-        q.question.toLowerCase().includes(term) ||
-        q.difficulty?.toLowerCase().includes(term)
-      )
-    );
+    setFilteredMcq(filterPool(mcqQuestions, (q) => [q.question, q.category, q.difficulty]));
     setFilteredAptitude(
-      sourceFilteredAptitude.filter(q =>
-        q.question.toLowerCase().includes(term) ||
-        q.section?.toLowerCase().includes(term) ||
-        q.subCategory?.toLowerCase().includes(term)
-      )
+      filterPool(aptitudeQuestions, (q) => [
+        q.question,
+        q.section,
+        q.subCategory,
+        q.questionType,
+      ])
     );
     setFilteredTheory(
-      sourceFilteredTheory.filter(q =>
-        q.questionText.toLowerCase().includes(term) ||
-        q.subjectId?.name?.toLowerCase().includes(term) ||
-        q.topicId?.name?.toLowerCase().includes(term)
-      )
+      filterPool(theoryQuestions, (q) => [
+        q.questionText,
+        q.subjectId?.name,
+        q.topicId?.name,
+      ])
     );
-  }, [searchTerm, codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions, questionSource]);
+  }, [
+    searchTerm,
+    selectedTag,
+    codingQuestions,
+    mcqQuestions,
+    aptitudeQuestions,
+    theoryQuestions,
+    questionSource,
+  ]);
+
+  const availableTagsByTab = useMemo(() => {
+    const byTab = {
+      coding: buildTagFilterOptions(
+        registryTags,
+        codingQuestions.flatMap((q) => q.tags || [])
+      ),
+      mcq: buildTagFilterOptions(registryTags, mcqQuestions.flatMap((q) => q.tags || [])),
+      aptitude: buildTagFilterOptions(
+        registryTags,
+        aptitudeQuestions.flatMap((q) => q.tags || [])
+      ),
+      theory: buildTagFilterOptions(
+        registryTags,
+        theoryQuestions.flatMap((q) => q.tags || [])
+      ),
+    };
+    return byTab;
+  }, [registryTags, codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions]);
 
   const fetchQuestions = async () => {
     try {
@@ -151,14 +238,14 @@ const CreateTest = () => {
 
   const handleAddQuestion = (questionId, type, questionData) => {
     if (formData.type !== 'mixed' && type !== formData.type) {
-      alert(`This test only supports ${formData.type.toUpperCase()} questions.`);
+      setError(`This test only supports ${formData.type.toUpperCase()} questions.`);
       return;
     }
-    // Check if question already added
-    if (formData.questions.some(q => q.questionId === questionId)) {
-      alert('This question is already added to the test');
+    if (formData.questions.some((q) => String(q.questionId) === String(questionId))) {
+      setError('This question is already in the test.');
       return;
     }
+    setError('');
 
     const order = formData.questions.length + 1;
     setFormData({
@@ -263,8 +350,13 @@ const CreateTest = () => {
       return;
     }
 
-    // Mixed test can have either or both types
-    // No additional validation needed for mixed type
+    if (formData.startDate && formData.endDate) {
+      if (new Date(formData.endDate) <= new Date(formData.startDate)) {
+        setError('End date must be after the start date.');
+        setSubmitting(false);
+        return;
+      }
+    }
 
     try {
       // Prepare data for API (remove questionData)
@@ -273,121 +365,199 @@ const CreateTest = () => {
         questions: formData.questions.map(({ questionData, ...q }) => q)
       };
 
-      console.log('📤 Creating test:', submitData);
-      const response = await axiosInstance.post('/tests', submitData);
-      console.log('✅ Test created:', response.data);
-      
-      alert('Test created successfully!');
-      navigate('/vendor-admin/tests');
+      if (isEditMode) {
+        console.log('📤 Updating test:', submitData);
+        await axiosInstance.put(`/tests/${testId}`, submitData);
+        navigate(`/vendor-admin/tests?type=${encodeURIComponent(submitData.type || formData.type)}`);
+      } else {
+        await axiosInstance.post('/tests', submitData);
+        navigate(`/vendor-admin/tests?type=${encodeURIComponent(formData.type)}`);
+      }
     } catch (error) {
       console.error('❌ Error creating test:', error);
       const errorMsg = error.response?.data?.message || 
                       error.response?.data?.errors?.map(e => e.msg).join(', ') ||
-                      'Error creating test. Please try again.';
+                      isEditMode ? 'Error updating test. Please try again.' : 'Error creating test. Please try again.';
       setError(errorMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const getQuestionTitle = (questionId, type) => {
+  const getQuestionTitle = (questionId, type, questionData) => {
+    if (questionData && typeof questionData === 'object') {
+      if (type === 'coding') return questionData.title || 'Coding question';
+      if (type === 'mcq') return questionData.question?.replace(/<[^>]+>/g, ' ').trim().slice(0, 60) || 'MCQ';
+      if (type === 'theory') return questionData.questionText?.replace(/<[^>]+>/g, ' ').trim().slice(0, 60) || 'Theory';
+      if (type === 'aptitude') return questionData.question?.replace(/<[^>]+>/g, ' ').trim().slice(0, 60) || 'Aptitude';
+    }
+    const id = String(questionId);
     if (type === 'coding') {
-      const q = codingQuestions.find(q => q._id === questionId);
-      return q?.title || 'Coding Question';
+      const q = codingQuestions.find((x) => String(x._id) === id);
+      return q?.title || 'Coding question';
     }
     if (type === 'mcq') {
-      const q = mcqQuestions.find(q => q._id === questionId);
-      return q?.question || 'MCQ Question';
+      const q = mcqQuestions.find((x) => String(x._id) === id);
+      return q?.question?.replace(/<[^>]+>/g, ' ').trim().slice(0, 60) || 'MCQ';
     }
     if (type === 'theory') {
-      const q = theoryQuestions.find(q => q._id === questionId);
-      return q?.questionText || 'Theory Question';
+      const q = theoryQuestions.find((x) => String(x._id) === id);
+      return q?.questionText?.replace(/<[^>]+>/g, ' ').trim().slice(0, 60) || 'Theory';
     }
-    const q = aptitudeQuestions.find(q => q._id === questionId);
-    return q?.question || 'Aptitude Question';
+    const q = aptitudeQuestions.find((x) => String(x._id) === id);
+    return q?.question?.replace(/<[^>]+>/g, ' ').trim().slice(0, 60) || 'Aptitude';
   };
 
-  if (loading) {
-    return <div className="loading">Loading questions...</div>;
-  }
+  const testType = lockedType || formData.type;
+  const meta = getTestFormMeta(testType, isEditMode);
+
+  const questionPools = useMemo(
+    () => ({
+      coding: codingQuestions,
+      mcq: mcqQuestions,
+      aptitude: aptitudeQuestions,
+      theory: theoryQuestions,
+    }),
+    [codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions]
+  );
+
+  const totalPoints = useMemo(
+    () => formData.questions.reduce((sum, q) => sum + (Number(q.points) || 0), 0),
+    [formData.questions]
+  );
+
+  const stats = [
+    { label: 'Questions', value: formData.questions.length, highlight: true },
+    { label: 'Total points', value: totalPoints },
+    { label: 'Duration', value: `${formData.duration} min` },
+  ];
+
+  const isQuestionAdded = (id) =>
+    formData.questions.some((q) => String(q.questionId) === String(id));
+
+  const footer = (
+    <>
+      <span className="vtf-footer-meta">
+        {formData.questions.length === 0 ? (
+          'Add at least one question to continue'
+        ) : (
+          <>
+            <strong>{formData.questions.length}</strong> questions ·{' '}
+            <strong>{totalPoints}</strong> points
+          </>
+        )}
+      </span>
+      <button
+        type="button"
+        className="va-btn va-btn--secondary"
+        onClick={() => navigate(meta.back)}
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        form="standard-test-form"
+        className="va-btn va-btn--primary"
+        disabled={submitting || formData.questions.length === 0}
+        style={{ '--va-accent': meta.accent }}
+      >
+        {submitting
+          ? isEditMode
+            ? 'Saving…'
+            : 'Creating…'
+          : isEditMode
+            ? 'Save test'
+            : 'Create test'}
+      </button>
+    </>
+  );
 
   return (
-    <div className="container">
-      <div className="page-header">
-        <h1 className="page-title">Create Test</h1>
-        <Link to="/vendor-admin/tests" className="btn btn-secondary">
-          Back to Tests
-        </Link>
-      </div>
-
-      {error && (
-        <div className="error" style={{ marginBottom: '20px' }}>
-          {error}
-        </div>
-      )}
-
-      <div className="card">
-        <form onSubmit={handleSubmit}>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Test Title *</label>
+    <VendorTestFormPage
+      loading={loading || testLoading}
+      backTo={meta.back}
+      backLabel="All assessments"
+      eyebrow={meta.eyebrow}
+      title={meta.title}
+      subtitle={meta.subtitle}
+      accent={meta.accent}
+      error={error}
+      stats={stats}
+      footer={footer}
+      wide
+    >
+      <form id="standard-test-form" onSubmit={handleSubmit}>
+        <section className="vtf-section">
+          <h2 className="vtf-section-title">Test details</h2>
+          <div className="vtf-row">
+            <div className="vtf-field">
+              <label htmlFor="test-title">Title *</label>
               <input
+                id="test-title"
                 type="text"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
                 required
-                placeholder="e.g., DSA Assessment - Arrays and Strings"
+                placeholder="e.g. DSA Assessment — Arrays & Strings"
               />
             </div>
-            <div className="form-group">
-              <label>Duration (minutes) *</label>
+            <div className="vtf-field">
+              <label htmlFor="test-duration">Duration (minutes) *</label>
               <input
+                id="test-duration"
                 type="number"
                 name="duration"
                 value={formData.duration}
                 onChange={handleChange}
                 required
-                min="1"
-                placeholder="60"
+                min={1}
               />
             </div>
+            <div className="vtf-field">
+              <label htmlFor="test-type">Test type *</label>
+              <select
+                id="test-type"
+                name="type"
+                value={formData.type}
+                onChange={handleChange}
+                required
+                disabled={isEditMode || !!lockedType}
+              >
+                <option value="coding">Coding only</option>
+                <option value="mcq">MCQ only</option>
+                <option value="aptitude">Aptitude only</option>
+                <option value="theory">Theory only</option>
+                <option value="mixed">Mixed (all types)</option>
+              </select>
+            </div>
           </div>
-
-          <div className="form-group">
-            <label>Description</label>
+          <div className="vtf-field">
+            <label htmlFor="test-desc">Description</label>
             <textarea
+              id="test-desc"
               name="description"
               value={formData.description}
               onChange={handleChange}
-              rows="3"
-              placeholder="Test description and instructions..."
+              rows={3}
+              placeholder="Instructions and context for students…"
             />
           </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Test Type *</label>
-              <select name="type" value={formData.type} onChange={handleChange} required disabled={!!lockedType}>
-                <option value="coding">Coding Only (DSA Questions)</option>
-                <option value="mcq">MCQ Only</option>
-                <option value="aptitude">Aptitude Only</option>
-                <option value="theory">Theory Only</option>
-                <option value="mixed">Mixed (All Types)</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Start Date (Optional)</label>
+          <div className="vtf-row">
+            <div className="vtf-field">
+              <label htmlFor="test-start">Start (optional)</label>
               <input
+                id="test-start"
                 type="datetime-local"
                 name="startDate"
                 value={formData.startDate}
                 onChange={handleChange}
               />
             </div>
-            <div className="form-group">
-              <label>End Date (Optional)</label>
+            <div className="vtf-field">
+              <label htmlFor="test-end">End (optional)</label>
               <input
+                id="test-end"
                 type="datetime-local"
                 name="endDate"
                 value={formData.endDate}
@@ -395,347 +565,34 @@ const CreateTest = () => {
               />
             </div>
           </div>
+        </section>
 
-          <div className="questions-section">
-            <div className="section-header">
-              <h2>Add Questions</h2>
-              <div className="question-stats">
-                <span>Total: {formData.questions.length}</span>
-                <span>Coding: {formData.questions.filter(q => q.type === 'coding').length}</span>
-                <span>MCQ: {formData.questions.filter(q => q.type === 'mcq').length}</span>
-                <span>Aptitude: {formData.questions.filter(q => q.type === 'aptitude').length}</span>
-                <span>Theory: {formData.questions.filter(q => q.type === 'theory').length}</span>
-              </div>
-            </div>
 
-            {codingQuestions.length === 0 && mcqQuestions.length === 0 && aptitudeQuestions.length === 0 && theoryQuestions.length === 0 ? (
-              <div className="no-questions">
-                <p>No questions available. Create questions first!</p>
-                <div style={{ marginTop: '20px' }}>
-                  <Link to="/vendor-admin/questions/coding/create" className="btn btn-primary" style={{ marginRight: '10px' }}>
-                    Create Coding Question
-                  </Link>
-                  <Link to="/vendor-admin/questions/mcq/create" className="btn btn-primary">
-                    Create MCQ Question
-                  </Link>
-                  <Link to="/vendor-admin/questions/aptitude/create" className="btn btn-primary" style={{ marginLeft: '10px' }}>
-                    Create Aptitude Question
-                  </Link>
-                  <Link to="/vendor-admin/questions/theory/create" className="btn btn-primary" style={{ marginLeft: '10px' }}>
-                    Create Theory Question
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Question Source Selector */}
-                <div className="btn-group" style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setQuestionSource('my')}
-                    className={`btn ${questionSource === 'my' ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ flex: 1 }}
-                  >
-                    🏢 My Questions ({codingQuestions.filter(q => q.source === 'vendor').length + mcqQuestions.filter(q => q.source === 'vendor').length + aptitudeQuestions.filter(q => q.source === 'vendor').length + theoryQuestions.filter(q => q.source === 'vendor').length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuestionSource('global')}
-                    className={`btn ${questionSource === 'global' ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ flex: 1 }}
-                  >
-                    🌐 Global Questions ({codingQuestions.filter(q => q.source === 'global').length + mcqQuestions.filter(q => q.source === 'global').length + aptitudeQuestions.filter(q => q.source === 'global').length + theoryQuestions.filter(q => q.source === 'global').length})
-                  </button>
-                </div>
-
-                <div className="search-bar">
-                  <input
-                    type="text"
-                    placeholder={`Search ${questionSource === 'my' ? 'my' : 'global'} questions...`}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="search-input"
-                  />
-                </div>
-
-                <div className="question-tabs">
-                  {(formData.type === 'mixed' || formData.type === 'coding') && (
-                    <button
-                      type="button"
-                      className={`tab-btn ${selectedTab === 'coding' ? 'active' : ''}`}
-                      onClick={() => setSelectedTab('coding')}
-                    >
-                      Coding Questions ({filteredCoding.length})
-                    </button>
-                  )}
-                  {(formData.type === 'mixed' || formData.type === 'mcq') && (
-                    <button
-                      type="button"
-                      className={`tab-btn ${selectedTab === 'mcq' ? 'active' : ''}`}
-                      onClick={() => setSelectedTab('mcq')}
-                    >
-                      MCQ Questions ({filteredMcq.length})
-                    </button>
-                  )}
-                  {(formData.type === 'mixed' || formData.type === 'aptitude') && (
-                    <button
-                      type="button"
-                      className={`tab-btn ${selectedTab === 'aptitude' ? 'active' : ''}`}
-                      onClick={() => setSelectedTab('aptitude')}
-                    >
-                      Aptitude Questions ({filteredAptitude.length})
-                    </button>
-                  )}
-                  {(formData.type === 'mixed' || formData.type === 'theory') && (
-                    <button
-                      type="button"
-                      className={`tab-btn ${selectedTab === 'theory' ? 'active' : ''}`}
-                      onClick={() => setSelectedTab('theory')}
-                    >
-                      Theory Questions ({filteredTheory.length})
-                    </button>
-                  )}
-                </div>
-
-                <div className="questions-grid">
-                  {selectedTab === 'coding' && (
-                    <div className="question-list">
-                      {filteredCoding.length === 0 ? (
-                        <div className="empty-state">
-                          {searchTerm ? 'No questions match your search' : `No ${questionSource === 'my' ? 'my' : 'global'} coding questions available`}
-                          {questionSource === 'my' && (
-                            <Link to="/vendor-admin/questions/coding/create" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block' }}>
-                              Create Coding Question
-                            </Link>
-                          )}
-                        </div>
-                      ) : (
-                        filteredCoding.map(q => (
-                          <div key={q._id} className="question-card">
-                            <div className="question-header">
-                              <h4>{q.title}</h4>
-                              <span className={`difficulty-badge ${q.difficulty}`}>
-                                {q.difficulty || 'medium'}
-                              </span>
-                            </div>
-                            <p className="question-preview">
-                              {q.description?.substring(0, 100)}...
-                            </p>
-                            <div className="question-meta">
-                              <span>Languages: {q.allowedLanguages?.join(', ') || 'N/A'}</span>
-                              <span>Test Cases: {q.testCases?.length || 0}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAddQuestion(q._id, 'coding', q)}
-                              className="btn btn-primary btn-sm"
-                              disabled={formData.questions.some(added => added.questionId === q._id)}
-                            >
-                              {formData.questions.some(added => added.questionId === q._id) ? 'Added' : 'Add Question'}
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {selectedTab === 'mcq' && (
-                    <div className="question-list">
-                      {filteredMcq.length === 0 ? (
-                        <div className="empty-state">
-                          {searchTerm ? 'No questions match your search' : `No ${questionSource === 'my' ? 'my' : 'global'} MCQ questions available`}
-                          {questionSource === 'my' && (
-                            <Link to="/vendor-admin/questions/mcq/create" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block' }}>
-                              Create MCQ Question
-                            </Link>
-                          )}
-                        </div>
-                      ) : (
-                        filteredMcq.map(q => (
-                          <div key={q._id} className="question-card">
-                            <div className="question-header">
-                              <h4>{q.question}</h4>
-                              <span className={`difficulty-badge ${q.difficulty}`}>
-                                {q.difficulty || 'medium'}
-                              </span>
-                            </div>
-                            <div className="question-meta">
-                              <span>Options: {q.options?.length || 0}</span>
-                              <span>Points: {q.points || 10}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAddQuestion(q._id, 'mcq', q)}
-                              className="btn btn-primary btn-sm"
-                              disabled={formData.questions.some(added => added.questionId === q._id)}
-                            >
-                              {formData.questions.some(added => added.questionId === q._id) ? 'Added' : 'Add Question'}
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {selectedTab === 'aptitude' && (
-                    <div className="question-list">
-                      {filteredAptitude.length === 0 ? (
-                        <div className="empty-state">
-                          {searchTerm ? 'No questions match your search' : `No ${questionSource === 'my' ? 'my' : 'global'} aptitude questions available`}
-                          {questionSource === 'my' && (
-                            <Link to="/vendor-admin/questions/aptitude/create" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block' }}>
-                              Create Aptitude Question
-                            </Link>
-                          )}
-                        </div>
-                      ) : (
-                        filteredAptitude.map(q => (
-                          <div key={q._id} className="question-card">
-                            <div className="question-header">
-                              <h4>{q.question}</h4>
-                              <span className={`difficulty-badge ${q.difficulty}`}>
-                                {q.difficulty || 'medium'}
-                              </span>
-                            </div>
-                            <div className="question-meta">
-                              <span>Section: {q.section}</span>
-                              <span>Type: {q.questionType}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAddQuestion(q._id, 'aptitude', q)}
-                              className="btn btn-primary btn-sm"
-                              disabled={formData.questions.some(added => added.questionId === q._id)}
-                            >
-                              {formData.questions.some(added => added.questionId === q._id) ? 'Added' : 'Add Question'}
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {selectedTab === 'theory' && (
-                    <div className="question-list">
-                      {filteredTheory.length === 0 ? (
-                        <div className="empty-state">
-                          {searchTerm ? 'No questions match your search' : `No ${questionSource === 'my' ? 'my' : 'global'} theory questions available`}
-                          {questionSource === 'my' && (
-                            <Link to="/vendor-admin/questions/theory/create" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block' }}>
-                              Create Theory Question
-                            </Link>
-                          )}
-                        </div>
-                      ) : (
-                        filteredTheory.map(q => (
-                          <div key={q._id} className="question-card">
-                            <div className="question-header">
-                              <h4>{q.questionText}</h4>
-                              <span className={`difficulty-badge ${q.difficulty}`}>
-                                {q.difficulty || 'medium'}
-                              </span>
-                            </div>
-                            <div className="question-meta">
-                              <span>Subject: {q.subjectId?.name || 'N/A'}</span>
-                              <span>Marks: {q.maxMarks || 10}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAddQuestion(q._id, 'theory', q)}
-                              className="btn btn-primary btn-sm"
-                              disabled={formData.questions.some(added => added.questionId === q._id)}
-                            >
-                              {formData.questions.some(added => added.questionId === q._id) ? 'Added' : 'Add Question'}
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {formData.questions.length > 0 && (
-            <div className="selected-questions-section">
-              <h2>Selected Questions ({formData.questions.length})</h2>
-              <div className="selected-questions-list">
-                {formData.questions.map((q, index) => (
-                  <div key={index} className="selected-question-item">
-                    <div className="question-info">
-                      <div className="question-number">Q{index + 1}</div>
-                      <div className="question-details">
-                        <h4>{getQuestionTitle(q.questionId, q.type)}</h4>
-                        <span className={`question-type-badge ${q.type}`}>
-                          {q.type.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="question-controls">
-                      <div className="points-input">
-                        <label>Points:</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={q.points}
-                          onChange={(e) => handlePointsChange(index, e.target.value)}
-                          style={{ width: '80px', marginLeft: '5px' }}
-                        />
-                      </div>
-                      <div className="move-buttons">
-                        <button
-                          type="button"
-                          onClick={() => handleMoveQuestion(index, 'up')}
-                          disabled={index === 0}
-                          className="btn btn-sm btn-secondary"
-                          title="Move up"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveQuestion(index, 'down')}
-                          disabled={index === formData.questions.length - 1}
-                          className="btn btn-sm btn-secondary"
-                          title="Move down"
-                        >
-                          ↓
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveQuestion(index)}
-                        className="btn btn-sm btn-danger"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="form-actions">
-            <button
-              type="button"
-              onClick={() => navigate('/vendor-admin/tests')}
-              className="btn btn-secondary"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={submitting || formData.questions.length === 0}
-            >
-              {submitting ? 'Creating Test...' : 'Create Test'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <VendorStandardTestBuilder
+          formData={formData}
+          selectedTab={selectedTab}
+          setSelectedTab={setSelectedTab}
+          questionSource={questionSource}
+          setQuestionSource={setQuestionSource}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          selectedTag={selectedTag}
+          setSelectedTag={setSelectedTag}
+          availableTagsByTab={availableTagsByTab}
+          filteredCoding={filteredCoding}
+          filteredMcq={filteredMcq}
+          filteredAptitude={filteredAptitude}
+          filteredTheory={filteredTheory}
+          questionPools={questionPools}
+          onAddQuestion={handleAddQuestion}
+          onRemoveQuestion={handleRemoveQuestion}
+          onPointsChange={handlePointsChange}
+          onMoveQuestion={handleMoveQuestion}
+          getQuestionTitle={getQuestionTitle}
+          isQuestionAdded={isQuestionAdded}
+        />
+      </form>
+    </VendorTestFormPage>
   );
 };
 

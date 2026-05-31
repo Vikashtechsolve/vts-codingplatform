@@ -7,10 +7,12 @@ const ALLOWED_TAGS = [
   'p', 'br', 'span', 'div',
   'strong', 'b', 'em', 'i', 'u', 's', 'strike',
   'ul', 'ol', 'li',
-  'a', 'blockquote', 'pre', 'code'
+  'a', 'blockquote', 'pre', 'code',
+  'img',
+  'iframe',
 ];
 
-const ALLOWED_ATTR = ['href', 'target', 'rel', 'class'];
+const ALLOWED_ATTR = ['href', 'target', 'rel', 'class', 'src', 'alt', 'title', 'width', 'height', 'style', 'frameborder', 'allowfullscreen'];
 
 /**
  * Strip HTML tags and return plain text.

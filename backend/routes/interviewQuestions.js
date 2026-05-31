@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const { auth, authorize } = require('../middleware/auth');
 const tenantMiddleware = require('../middleware/tenant');
 const InterviewQuestion = require('../models/InterviewQuestion');
+const { resolveTagsForSave } = require('../utils/questionTags');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -50,7 +51,7 @@ router.post('/', [
       expectedAnswer: req.body.expectedAnswer || '',
       rubrics: req.body.rubrics || [],
       followUpHints: req.body.followUpHints || [],
-      tags: req.body.tags || [],
+      tags: await resolveTagsForSave(req.vendorId, req.body.tags, req.user._id),
       vendorId: req.vendorId,
       isGlobal: false,
       createdBy: req.user._id,
@@ -133,6 +134,10 @@ router.put('/:id', async (req, res) => {
     const validationErrors = validateInterviewQuestion(mergedPayload);
     if (validationErrors.length > 0) {
       return res.status(400).json({ message: validationErrors.join(', ') });
+    }
+
+    if (req.body.tags !== undefined) {
+      req.body.tags = await resolveTagsForSave(req.vendorId, req.body.tags, req.user._id);
     }
 
     Object.keys(req.body).forEach(key => {

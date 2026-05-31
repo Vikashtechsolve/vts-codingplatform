@@ -44,7 +44,7 @@ const interviewQuestionSchema = new mongoose.Schema({
   }],
   tags: [{
     type: String,
-    default: ''
+    trim: true
   }],
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,

@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
-import './CreateEnglishTest.css';
+import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
+import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
+import { FiChevronUp, FiChevronDown, FiTrash2 } from 'react-icons/fi';
+import { FiSearch } from 'react-icons/fi';
+import { buildTagFilterOptions, filterQuestionsBySearchAndTag, tagSlug } from '../../utils/tagUtils';
+import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 
 const SECTION_TYPES = [
   { key: 'grammar', label: 'Grammar', qType: 'english_grammar', modelType: 'EnglishGrammarQuestion' },
@@ -38,6 +43,11 @@ const CreateEnglishTest = () => {
   const [fetchingQuestions, setFetchingQuestions] = useState(true);
   const [initialLoad, setInitialLoad] = useState(isEditMode);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [error, setError] = useState('');
+  const [sectionSearch, setSectionSearch] = useState('');
+  const [sectionTag, setSectionTag] = useState('');
+  const { registryTags } = useQuestionTagRegistry();
+  const meta = getTestFormMeta('english', isEditMode);
 
   useEffect(() => {
     fetchQuestionBanks();
@@ -140,7 +150,11 @@ const CreateEnglishTest = () => {
   const addSection = (sectionKey) => {
     const config = SECTION_TYPES.find(s => s.key === sectionKey);
     if (!config) return;
-    if (sections.find(s => s.sectionType === sectionKey)) return showModal('Warning', `${config.label} section already added`, 'warning');
+    if (sections.find(s => s.sectionType === sectionKey)) {
+      setError(`${config.label} is already in this test.`);
+      return;
+    }
+    setError('');
     setSections([...sections, {
       sectionType: sectionKey,
       sectionTitle: config.label,
@@ -209,13 +223,44 @@ const CreateEnglishTest = () => {
     return sum + s.selectedQuestions.reduce((qSum, q) => qSum + getQuestionPoints(q, s.sectionType), 0);
   }, 0);
 
+  const activeSectionType = activeSectionIdx !== null && sections[activeSectionIdx]
+    ? sections[activeSectionIdx].sectionType
+    : null;
+  const activeBank = activeSectionType ? (questionBanks[activeSectionType] || []) : [];
+  const activeBankTags = buildTagFilterOptions(
+    registryTags,
+    activeBank.flatMap((q) => q.tags || [])
+  );
+  const visibleActiveBank = useMemo(
+    () =>
+      filterQuestionsBySearchAndTag(activeBank, {
+        term: sectionSearch,
+        selectedTag: sectionTag,
+        textFieldsFor: (q) => [getQuestionLabel(q, activeSectionType || '')],
+      }),
+    [activeBank, sectionSearch, sectionTag, activeSectionType]
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!testInfo.title.trim()) return showModal('Error', 'Test title is required', 'error');
-    if (sections.length === 0) return showModal('Error', 'At least one section is required', 'error');
-
+    setError('');
+    if (!testInfo.title.trim()) {
+      setError('Test title is required.');
+      return;
+    }
+    if (sections.length === 0) {
+      setError('Add at least one section.');
+      return;
+    }
     for (const s of sections) {
-      if (s.selectedQuestions.length === 0) return showModal('Error', `Section "${s.sectionTitle}" has no questions`, 'error');
+      if (s.selectedQuestions.length === 0) {
+        setError(`Section "${s.sectionTitle}" needs at least one question.`);
+        return;
+      }
+    }
+    if (testInfo.startDate && testInfo.endDate && new Date(testInfo.endDate) <= new Date(testInfo.startDate)) {
+      setError('End date must be after the start date.');
+      return;
     }
 
     setLoading(true);
@@ -277,152 +322,402 @@ const CreateEnglishTest = () => {
     }
   };
 
-  if (initialLoad) {
-    return <div className="loading">Loading test...</div>;
-  }
+  const stats = [
+    { label: 'Sections', value: sections.length, highlight: true },
+    { label: 'Questions', value: totalQuestions },
+    { label: 'Points', value: totalPoints },
+    { label: 'Duration', value: `${totalDuration || testInfo.duration} min` },
+  ];
+
+  const footer = (
+    <>
+      <span className="vtf-footer-meta">
+        {sections.length === 0 ? (
+          'Add sections to build your English assessment'
+        ) : (
+          <>
+            <strong>{totalQuestions}</strong> questions across <strong>{sections.length}</strong>{' '}
+            sections
+          </>
+        )}
+      </span>
+      <button type="button" className="va-btn va-btn--secondary" onClick={() => navigate(meta.back)}>
+        Cancel
+      </button>
+      <button
+        type="submit"
+        form="english-test-form"
+        className="va-btn va-btn--primary"
+        disabled={loading}
+        style={{ '--va-accent': meta.accent }}
+      >
+        {loading ? 'Saving…' : isEditMode ? 'Update English test' : 'Create English test'}
+      </button>
+    </>
+  );
 
   return (
-    <div className="container create-english-test">
+    <VendorTestFormPage
+      loading={initialLoad}
+      backTo={meta.back}
+      backLabel="English assessments"
+      eyebrow={meta.eyebrow}
+      title={meta.title}
+      subtitle={meta.subtitle}
+      accent={meta.accent}
+      error={error}
+      stats={stats}
+      footer={footer}
+      wide
+    >
       <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} type={modal.type}>
         <p>{modal.message}</p>
       </Modal>
 
-      <div className="page-header">
-        <h1 className="page-title">{isEditMode ? 'Edit English Test' : 'Create English Test'}</h1>
-        <button onClick={() => navigate('/vendor-admin/tests')} className="btn btn-secondary">Back to Tests</button>
-      </div>
-
-      <form onSubmit={handleSubmit}>
-        <div className="test-builder-layout">
-          <div className="test-builder-main">
-            <div className="form-section">
-              <h2 className="section-title">Test Information</h2>
-              <div className="form-group">
-                <label>Test Title *</label>
-                <input type="text" value={testInfo.title} onChange={(e) => setTestInfo({ ...testInfo, title: e.target.value })} placeholder="e.g., English Proficiency Test - Batch 2026" className="form-input" required />
+      <form id="english-test-form" onSubmit={handleSubmit}>
+        <div className="vtf-builder">
+          <div className="vtf-builder-main">
+            <section className="vtf-section">
+              <h2 className="vtf-section-title">Test information</h2>
+              <div className="vtf-field">
+                <label htmlFor="en-title">Title *</label>
+                <input
+                  id="en-title"
+                  type="text"
+                  value={testInfo.title}
+                  onChange={(e) => setTestInfo({ ...testInfo, title: e.target.value })}
+                  placeholder="e.g. English Proficiency — Batch 2026"
+                  required
+                />
               </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea value={testInfo.description} onChange={(e) => setTestInfo({ ...testInfo, description: e.target.value })} rows="3" placeholder="Brief description of the test..." className="form-textarea" />
+              <div className="vtf-field">
+                <label htmlFor="en-desc">Description</label>
+                <textarea
+                  id="en-desc"
+                  value={testInfo.description}
+                  onChange={(e) => setTestInfo({ ...testInfo, description: e.target.value })}
+                  rows={3}
+                  placeholder="Brief description for students…"
+                />
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Start Date</label>
-                  <input type="datetime-local" value={testInfo.startDate} onChange={(e) => setTestInfo({ ...testInfo, startDate: e.target.value })} className="form-input" />
+              <div className="vtf-row">
+                <div className="vtf-field">
+                  <label htmlFor="en-start">Start (optional)</label>
+                  <input
+                    id="en-start"
+                    type="datetime-local"
+                    value={testInfo.startDate}
+                    onChange={(e) => setTestInfo({ ...testInfo, startDate: e.target.value })}
+                  />
                 </div>
-                <div className="form-group">
-                  <label>End Date</label>
-                  <input type="datetime-local" value={testInfo.endDate} onChange={(e) => setTestInfo({ ...testInfo, endDate: e.target.value })} className="form-input" />
+                <div className="vtf-field">
+                  <label htmlFor="en-end">End (optional)</label>
+                  <input
+                    id="en-end"
+                    type="datetime-local"
+                    value={testInfo.endDate}
+                    onChange={(e) => setTestInfo({ ...testInfo, endDate: e.target.value })}
+                  />
                 </div>
               </div>
-              <div className="form-row">
-                <label className="checkbox-inline"><input type="checkbox" checked={testInfo.shuffleQuestions} onChange={(e) => setTestInfo({ ...testInfo, shuffleQuestions: e.target.checked })} /><span>Shuffle Questions</span></label>
-                <label className="checkbox-inline"><input type="checkbox" checked={testInfo.showResults} onChange={(e) => setTestInfo({ ...testInfo, showResults: e.target.checked })} /><span>Show Results to Students</span></label>
-                <label className="checkbox-inline"><input type="checkbox" checked={testInfo.practiceMode} onChange={(e) => setTestInfo({ ...testInfo, practiceMode: e.target.checked })} /><span>Practice Mode (no time limit, instant feedback)</span></label>
+              <div className="vtf-checks">
+                <label className="vtf-check">
+                  <input
+                    type="checkbox"
+                    checked={testInfo.shuffleQuestions}
+                    onChange={(e) => setTestInfo({ ...testInfo, shuffleQuestions: e.target.checked })}
+                  />
+                  Shuffle questions
+                </label>
+                <label className="vtf-check">
+                  <input
+                    type="checkbox"
+                    checked={testInfo.showResults}
+                    onChange={(e) => setTestInfo({ ...testInfo, showResults: e.target.checked })}
+                  />
+                  Show results to students
+                </label>
+                <label className="vtf-check">
+                  <input
+                    type="checkbox"
+                    checked={testInfo.practiceMode}
+                    onChange={(e) => setTestInfo({ ...testInfo, practiceMode: e.target.checked })}
+                  />
+                  Practice mode
+                </label>
               </div>
-            </div>
+            </section>
 
-            <div className="form-section">
-              <h2 className="section-title">Sections</h2>
-              <div className="add-sections-bar">
-                {SECTION_TYPES.map(st => (
-                  <button key={st.key} type="button" onClick={() => addSection(st.key)} className={`add-section-btn ${sections.find(s => s.sectionType === st.key) ? 'added' : ''}`} disabled={!!sections.find(s => s.sectionType === st.key)}>
-                    + {st.label}
-                  </button>
-                ))}
+            <section className="vtf-section">
+              <h2 className="vtf-section-title">Sections</h2>
+              <p className="vtf-section-hint">Add one block per skill area. Each section needs at least one question.</p>
+              <div className="vtf-section-chips">
+                {SECTION_TYPES.map((st) => {
+                  const added = !!sections.find((s) => s.sectionType === st.key);
+                  return (
+                    <button
+                      key={st.key}
+                      type="button"
+                      onClick={() => addSection(st.key)}
+                      className={`vtf-section-chip ${added ? 'added' : ''}`}
+                      disabled={added}
+                    >
+                      + {st.label}
+                    </button>
+                  );
+                })}
               </div>
 
               {sections.length === 0 ? (
-                <div className="empty-sections">Click a section button above to add sections to your test.</div>
+                <div className="vtf-empty">
+                  <h3>No sections yet</h3>
+                  <p>Choose a section type above to start building your test.</p>
+                </div>
               ) : (
-                <div className="sections-list">
+                <div className="vtf-section-list">
                   {sections.map((s, idx) => (
-                    <div key={s.sectionType} className={`section-card ${activeSectionIdx === idx ? 'active' : ''}`} onClick={() => setActiveSectionIdx(idx)}>
-                      <div className="section-card-header">
-                        <div className="section-card-info">
-                          <span className="section-order">{s.order}</span>
-                          <span className="section-name">{s.sectionTitle}</span>
-                          <span className="section-meta">{s.selectedQuestions.length} Q | {s.duration} min</span>
+                    <div
+                      key={s.sectionType}
+                      role="button"
+                      tabIndex={0}
+                      className={`vtf-section-row ${activeSectionIdx === idx ? 'active' : ''}`}
+                      onClick={() => setActiveSectionIdx(idx)}
+                      onKeyDown={(e) => e.key === 'Enter' && setActiveSectionIdx(idx)}
+                    >
+                      <div>
+                        <strong>
+                          {s.order}. {s.sectionTitle}
+                        </strong>
+                        <div className="vtf-q-meta" style={{ marginTop: 4 }}>
+                          {s.selectedQuestions.length} questions · {s.duration} min
                         </div>
-                        <div className="section-card-actions">
-                          <button type="button" onClick={(e) => { e.stopPropagation(); moveSection(idx, -1); }} disabled={idx === 0} className="btn-icon-sm">^</button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); moveSection(idx, 1); }} disabled={idx === sections.length - 1} className="btn-icon-sm">v</button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); removeSection(idx); }} className="btn-icon-sm btn-danger">x</button>
-                        </div>
+                      </div>
+                      <div className="vtf-selected-actions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="vtf-icon-btn"
+                          disabled={idx === 0}
+                          onClick={() => moveSection(idx, -1)}
+                          aria-label="Move up"
+                        >
+                          <FiChevronUp />
+                        </button>
+                        <button
+                          type="button"
+                          className="vtf-icon-btn"
+                          disabled={idx === sections.length - 1}
+                          onClick={() => moveSection(idx, 1)}
+                          aria-label="Move down"
+                        >
+                          <FiChevronDown />
+                        </button>
+                        <button
+                          type="button"
+                          className="vtf-icon-btn vtf-icon-btn--danger"
+                          onClick={() => removeSection(idx)}
+                          aria-label="Remove section"
+                        >
+                          <FiTrash2 />
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </section>
 
             {activeSectionIdx !== null && sections[activeSectionIdx] && (
-              <div className="form-section section-editor">
-                <h2 className="section-title">Configure: {sections[activeSectionIdx].sectionTitle}</h2>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Section Title</label>
-                    <input type="text" value={sections[activeSectionIdx].sectionTitle} onChange={(e) => updateSection(activeSectionIdx, 'sectionTitle', e.target.value)} className="form-input" />
+              <section className="vtf-section">
+                <h2 className="vtf-section-title">
+                  Configure: {sections[activeSectionIdx].sectionTitle}
+                </h2>
+                <div className="vtf-row">
+                  <div className="vtf-field">
+                    <label>Section title</label>
+                    <input
+                      type="text"
+                      value={sections[activeSectionIdx].sectionTitle}
+                      onChange={(e) =>
+                        updateSection(activeSectionIdx, 'sectionTitle', e.target.value)
+                      }
+                    />
                   </div>
-                  <div className="form-group">
+                  <div className="vtf-field">
                     <label>Duration (minutes)</label>
-                    <input type="number" value={sections[activeSectionIdx].duration} onChange={(e) => updateSection(activeSectionIdx, 'duration', e.target.value)} min="1" className="form-input" />
+                    <input
+                      type="number"
+                      min={1}
+                      value={sections[activeSectionIdx].duration}
+                      onChange={(e) =>
+                        updateSection(activeSectionIdx, 'duration', e.target.value)
+                      }
+                    />
                   </div>
                 </div>
-                <div className="form-group">
-                  <label>Section Instructions</label>
-                  <textarea value={sections[activeSectionIdx].instructions} onChange={(e) => updateSection(activeSectionIdx, 'instructions', e.target.value)} rows="2" placeholder="Instructions shown before this section starts..." className="form-textarea" />
+                <div className="vtf-field">
+                  <label>Instructions</label>
+                  <textarea
+                    value={sections[activeSectionIdx].instructions}
+                    onChange={(e) =>
+                      updateSection(activeSectionIdx, 'instructions', e.target.value)
+                    }
+                    rows={2}
+                    placeholder="Shown to students before this section starts…"
+                  />
                 </div>
 
-                <h3 className="subsection-title">Select Questions ({sections[activeSectionIdx].selectedQuestions.length} selected)</h3>
-                {fetchingQuestions ? (
-                  <p>Loading questions...</p>
-                ) : (
-                  <div className="question-picker">
-                    {(questionBanks[sections[activeSectionIdx].sectionType] || []).length === 0 ? (
-                      <div className="empty-questions">No questions available. <a href={`/vendor-admin/english-questions/${sections[activeSectionIdx].sectionType}/create`}>Create one</a></div>
-                    ) : (
-                      (questionBanks[sections[activeSectionIdx].sectionType] || []).map(q => {
-                        const selected = sections[activeSectionIdx].selectedQuestions.find(sq => sq._id === q._id);
-                        return (
-                          <div key={q._id} className={`question-pick-item ${selected ? 'selected' : ''}`} onClick={() => toggleQuestion(activeSectionIdx, q)}>
-                            <div className="pick-checkbox">{selected ? '✓' : ''}</div>
-                            <div className="pick-info">
-                              <span className="pick-title">{getQuestionLabel(q, sections[activeSectionIdx].sectionType)}</span>
-                              <span className="pick-meta">{q.difficulty} | {getQuestionPoints(q, sections[activeSectionIdx].sectionType)} pts</span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                <h3 className="vtf-section-title" style={{ fontSize: '0.95rem' }}>
+                  Questions ({sections[activeSectionIdx].selectedQuestions.length} selected)
+                </h3>
+                <div className="vtf-search">
+                  <FiSearch />
+                  <input
+                    type="search"
+                    placeholder="Search by question text or tag…"
+                    value={sectionSearch}
+                    onChange={(e) => setSectionSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault();
+                    }}
+                  />
+                </div>
+                {activeBankTags.length > 0 && (
+                  <div className="vtf-tags-filter-wrap">
+                    <button
+                      type="button"
+                      className={`vtf-tag-chip ${sectionTag === '' ? 'is-active' : ''}`}
+                      onClick={() => setSectionTag('')}
+                    >
+                      All tags
+                    </button>
+                    {activeBankTags.map((tag) => (
+                      <button
+                        key={tag.slug}
+                        type="button"
+                        className={`vtf-tag-chip ${sectionTag === tag.slug ? 'is-active' : ''}`}
+                        onClick={() =>
+                          setSectionTag(sectionTag === tag.slug ? '' : tag.slug)
+                        }
+                      >
+                        #{tag.label}
+                      </button>
+                    ))}
                   </div>
                 )}
-              </div>
+                {fetchingQuestions ? (
+                  <p className="vtf-section-hint">Loading question bank…</p>
+                ) : activeBank.length === 0 ? (
+                  <div className="vtf-empty">
+                    <p>
+                      No questions in this category.{' '}
+                      <a
+                        href={`/vendor-admin/english-questions/${sections[activeSectionIdx].sectionType === 'writing' ? 'essay' : sections[activeSectionIdx].sectionType}/create`}
+                      >
+                        Create one
+                      </a>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="vtf-pick-list">
+                    {visibleActiveBank.map((q) => {
+                      const selected = sections[activeSectionIdx].selectedQuestions.find(
+                        (sq) => sq._id === q._id
+                      );
+                      return (
+                        <div
+                          key={q._id}
+                          role="button"
+                          tabIndex={0}
+                          className={`vtf-pick-item ${selected ? 'selected' : ''}`}
+                          onClick={() => toggleQuestion(activeSectionIdx, q)}
+                          onKeyDown={(e) => e.key === 'Enter' && toggleQuestion(activeSectionIdx, q)}
+                        >
+                          <div className="vtf-pick-check">{selected ? '✓' : ''}</div>
+                          <div>
+                            <strong style={{ fontSize: '0.88rem' }}>
+                              {getQuestionLabel(q, sections[activeSectionIdx].sectionType)}
+                            </strong>
+                            <div className="vtf-q-meta">
+                              {q.difficulty} ·{' '}
+                              {getQuestionPoints(q, sections[activeSectionIdx].sectionType)} pts
+                            </div>
+                            {!!q.tags?.length && (
+                              <div className="vtf-tags-row">
+                                {q.tags.slice(0, 3).map((tag) => {
+                                  const slug = tagSlug(tag);
+                                  return (
+                                    <button
+                                      key={slug}
+                                      type="button"
+                                      className={`vtf-tag-chip ${sectionTag === slug ? 'is-active' : ''}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSectionTag(sectionTag === slug ? '' : slug);
+                                      }}
+                                    >
+                                      #{tag}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
             )}
           </div>
 
-          <div className="test-builder-sidebar">
-            <div className="sidebar-card">
-              <h3>Test Summary</h3>
-              <div className="summary-item"><span>Sections</span><strong>{sections.length}</strong></div>
-              <div className="summary-item"><span>Questions</span><strong>{totalQuestions}</strong></div>
-              <div className="summary-item"><span>Total Points</span><strong>{totalPoints}</strong></div>
-              <div className="summary-item"><span>Total Duration</span><strong>{totalDuration} min</strong></div>
-              <hr />
-              {sections.map(s => (
-                <div key={s.sectionType} className="summary-section">
-                  <span>{s.sectionTitle}</span>
-                  <span>{s.selectedQuestions.length}Q / {s.duration}m</span>
+          <aside className="vtf-builder-aside">
+            <div className="vtf-selected-panel vtf-outline-panel">
+              <header className="vtf-selected-panel-header">
+                <div className="vtf-selected-panel-title-row">
+                  <h3>Test outline</h3>
                 </div>
-              ))}
+                <div className="vtf-selected-panel-badges">
+                  <span className="vtf-selected-count-pill">{sections.length} sections</span>
+                  <span className="vtf-selected-points-pill">{totalQuestions} questions</span>
+                </div>
+              </header>
+              {sections.length === 0 ? (
+                <div className="vtf-selected-empty">
+                  <p className="vtf-selected-empty-title">No sections yet</p>
+                  <p className="vtf-selected-empty-hint">
+                    Add grammar, reading, writing, and more from the sections panel.
+                  </p>
+                </div>
+              ) : (
+                <ol className="vtf-outline-stack">
+                  {sections.map((s, idx) => (
+                    <li
+                      key={s.sectionType}
+                      className={`vtf-outline-item ${activeSectionIdx === idx ? 'is-active' : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className="vtf-outline-item-btn"
+                        onClick={() => setActiveSectionIdx(idx)}
+                      >
+                        <span className="vtf-selected-card-order">{String(idx + 1).padStart(2, '0')}</span>
+                        <span className="vtf-outline-item-text">
+                          <strong>{s.sectionTitle}</strong>
+                          <span>
+                            {s.selectedQuestions.length} questions · {s.duration} min
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
-            <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-              {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update English Test' : 'Create English Test')}
-            </button>
-          </div>
+          </aside>
         </div>
       </form>
-    </div>
+    </VendorTestFormPage>
   );
 };
 

@@ -215,7 +215,7 @@ const CreateAssignment = () => {
 
       if (data.success) {
         alert(isEditMode ? 'Assignment updated successfully!' : 'Assignment created successfully!');
-        navigate('/vendor-admin/assignments');
+        navigate('/vendor-admin/tests?type=project');
       } else {
         setError(data.message || (isEditMode ? 'Failed to update assignment' : 'Failed to create assignment'));
       }
@@ -242,7 +242,7 @@ const CreateAssignment = () => {
   return (
     <div className="create-assignment-container">
       <div className="create-assignment-header">
-        <button className="back-button" onClick={() => navigate('/vendor-admin/assignments')}>
+        <button className="back-button" onClick={() => navigate('/vendor-admin/tests?type=project')}>
           ← Back
         </button>
         <h1>{isEditMode ? 'Edit Assignment' : 'Create New Assignment'}</h1>
@@ -550,7 +550,7 @@ const CreateAssignment = () => {
         <div className="form-actions">
           <button
             type="button"
-            onClick={() => navigate('/vendor-admin/assignments')}
+            onClick={() => navigate('/vendor-admin/tests?type=project')}
             className="cancel-button"
             disabled={loading}
           >
