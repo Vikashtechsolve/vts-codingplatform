@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
@@ -141,15 +141,7 @@ const TestList = () => {
     (action) => !action.primary && action.to !== currentListPath
   );
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    setOpenMenuId(null);
-  }, [activeType, search]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [testsRes, interviewsRes, assignmentsRes, systemDesignRes] = await Promise.all([
         axiosInstance.get('/vendor-admin/tests'),
@@ -167,7 +159,16 @@ const TestList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [refreshStats]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    setOpenMenuId(null);
+  }, [activeType, search]);
+
 
   const allItems = useMemo(() => {
     const testItems = (tests || []).map((t) => ({ ...t, kind: 'test' }));

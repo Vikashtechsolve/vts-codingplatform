@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FiCode,
@@ -91,30 +91,37 @@ const QuestionList = () => {
   }, [myByType, globalByType]);
 
   const currentType = QUESTION_TYPES.find((t) => t.id === questionType) || QUESTION_TYPES[0];
-  const rawQuestions = questionType === 'english'
-    ? []
-    : activeTab === 'my'
-      ? myByType[questionType] || []
-      : globalByType[questionType] || [];
+  const rawQuestions = useMemo(
+    () =>
+      questionType === 'english'
+        ? []
+        : activeTab === 'my'
+          ? myByType[questionType] || []
+          : globalByType[questionType] || [],
+    [questionType, activeTab, myByType, globalByType]
+  );
 
   useEffect(() => {
     setSelectedTag('');
   }, [questionType, activeTab]);
 
-  const getTextFields = (item) => {
-    switch (questionType) {
-      case 'coding':
-        return [item.title, item.description, item.difficulty];
-      case 'mcq':
-        return [item.question, item.category, item.difficulty];
-      case 'aptitude':
-        return [item.question, item.section, item.subCategory, item.questionType];
-      case 'theory':
-        return [item.questionText, item.subjectId?.name, item.topicId?.name];
-      default:
-        return [item.title, item.question, item.questionText];
-    }
-  };
+  const getTextFields = useCallback(
+    (item) => {
+      switch (questionType) {
+        case 'coding':
+          return [item.title, item.description, item.difficulty];
+        case 'mcq':
+          return [item.question, item.category, item.difficulty];
+        case 'aptitude':
+          return [item.question, item.section, item.subCategory, item.questionType];
+        case 'theory':
+          return [item.questionText, item.subjectId?.name, item.topicId?.name];
+        default:
+          return [item.title, item.question, item.questionText];
+      }
+    },
+    [questionType]
+  );
 
   const availableTags = useMemo(
     () => buildTagFilterOptions(registryTags, rawQuestions.flatMap((q) => q.tags || [])),
@@ -128,7 +135,7 @@ const QuestionList = () => {
         selectedTag,
         textFieldsFor: getTextFields,
       }),
-    [rawQuestions, search, selectedTag, questionType]
+    [rawQuestions, search, selectedTag, getTextFields]
   );
 
   const renderDifficultyBadge = (d) => ({

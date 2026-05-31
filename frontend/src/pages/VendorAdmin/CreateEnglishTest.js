@@ -226,7 +226,10 @@ const CreateEnglishTest = () => {
   const activeSectionType = activeSectionIdx !== null && sections[activeSectionIdx]
     ? sections[activeSectionIdx].sectionType
     : null;
-  const activeBank = activeSectionType ? (questionBanks[activeSectionType] || []) : [];
+  const activeBank = useMemo(
+    () => (activeSectionType ? questionBanks[activeSectionType] || [] : []),
+    [activeSectionType, questionBanks]
+  );
   const activeBankTags = buildTagFilterOptions(
     registryTags,
     activeBank.flatMap((q) => q.tags || [])

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FiPlus,
@@ -18,10 +18,6 @@ const ClassroomList = () => {
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [deletingId, setDeletingId] = useState(null);
 
-  useEffect(() => {
-    fetchClassrooms();
-  }, []);
-
   const showModal = (title, message, type = 'info') => {
     setModal({ isOpen: true, title, message, type });
   };
@@ -30,18 +26,27 @@ const ClassroomList = () => {
     setModal({ isOpen: false, title: '', message: '', type: 'info' });
   };
 
-  const fetchClassrooms = async () => {
+  const fetchClassrooms = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axiosInstance.get('/vendor-admin/classrooms');
       setClassrooms(response.data || []);
     } catch (error) {
       console.error('Error fetching classrooms:', error);
-      showModal('Error', error.response?.data?.message || 'Failed to load classrooms.', 'error');
+      setModal({
+        isOpen: true,
+        title: 'Error',
+        message: error.response?.data?.message || 'Failed to load classrooms.',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchClassrooms();
+  }, [fetchClassrooms]);
 
   const handleDelete = async (classroomId, classroomName) => {
     if (

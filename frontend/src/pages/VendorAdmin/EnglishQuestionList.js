@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { FiPlus, FiUpload, FiSearch, FiMessageCircle } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
@@ -136,15 +136,18 @@ const EnglishQuestionList = () => {
     [questions, activeTab, sourceTab]
   );
 
-  const getTextFields = (q) => {
-    if (activeTab === 'grammar') return [q.questionText, q.grammarCategory, q.subType];
-    if (activeTab === 'vocabulary') return [q.word, q.subType];
-    if (activeTab === 'reading') return [q.passage?.title, q.passage?.text];
-    if (activeTab === 'essay') return [q.prompt, q.writingType];
-    if (activeTab === 'speaking') return [q.prompt, q.speakingType];
-    if (activeTab === 'listening') return [q.title, q.transcript];
-    return [];
-  };
+  const getTextFields = useCallback(
+    (q) => {
+      if (activeTab === 'grammar') return [q.questionText, q.grammarCategory, q.subType];
+      if (activeTab === 'vocabulary') return [q.word, q.subType];
+      if (activeTab === 'reading') return [q.passage?.title, q.passage?.text];
+      if (activeTab === 'essay') return [q.prompt, q.writingType];
+      if (activeTab === 'speaking') return [q.prompt, q.speakingType];
+      if (activeTab === 'listening') return [q.title, q.transcript];
+      return [];
+    },
+    [activeTab]
+  );
 
   const availableTags = useMemo(
     () => buildTagFilterOptions(registryTags, rawQuestions.flatMap((q) => q.tags || [])),
@@ -158,7 +161,7 @@ const EnglishQuestionList = () => {
         selectedTag,
         textFieldsFor: getTextFields,
       }),
-    [rawQuestions, search, selectedTag, activeTab]
+    [rawQuestions, search, selectedTag, getTextFields]
   );
 
   const getQuestionTitle = (q, type) => {
