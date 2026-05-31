@@ -422,7 +422,6 @@ const TestTaking = () => {
     }, 800);
     return () => clearTimeout(t);
   }, [result, fullscreenReady, fromShareLink]);
-  const [codeExecutionResult, setCodeExecutionResult] = useState(null);
   const [testCaseResults, setTestCaseResults] = useState([]); // For visible test case execution results
   // eslint-disable-next-line no-unused-vars
   const [hiddenTestCaseResults, setHiddenTestCaseResults] = useState([]); // For hidden test case results (used in submission summary)
@@ -593,7 +592,6 @@ const TestTaking = () => {
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '', type: 'info' });
-    setCodeExecutionResult(null);
   };
 
   const fetchTest = async () => {

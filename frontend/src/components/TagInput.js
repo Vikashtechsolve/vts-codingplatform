@@ -172,13 +172,15 @@ const TagInput = ({
               setActiveIndex(-1);
             }}
             onKeyDown={onKeyDown}
+            role="combobox"
             aria-autocomplete="list"
             aria-expanded={showSuggestions && options.length > 0}
+            aria-controls="tag-input-suggestions"
           />
         </div>
 
         {showSuggestions && (loading || options.length > 0) && (
-          <div className="tag-input-suggest-strip" role="listbox">
+          <div id="tag-input-suggestions" className="tag-input-suggest-strip" role="listbox">
             {loading && options.length === 0 && (
               <span className="tag-input-suggest-hint">Finding tags…</span>
             )}
