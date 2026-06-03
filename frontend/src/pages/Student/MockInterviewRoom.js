@@ -622,7 +622,7 @@ const MockInterviewRoom = () => {
   useEffect(() => {
     if (!usesBrowserTts) return undefined;
     return () => setUsesBrowserTts(false);
-  }, [currentQuestion?.spokenText, currentQuestion?.questionText]);
+  }, [usesBrowserTts, currentQuestion?.spokenText, currentQuestion?.questionText]);
 
   const parseSpeakResponse = useCallback(async (response) => {
     let blob = response.data;
@@ -889,13 +889,7 @@ const MockInterviewRoom = () => {
     if (lastSpokenQuestionRef.current === speechText) return;
     lastSpokenQuestionRef.current = speechText;
     speakQuestion(speechText, sid);
-  }, [
-    currentQuestion?.spokenText,
-    currentQuestion?.questionText,
-    isInterviewActive,
-    sessionId,
-    speakQuestion
-  ]);
+  }, [currentQuestion, isInterviewActive, sessionId, speakQuestion]);
 
   const requestFullscreen = useCallback(() => {
     const el = document.documentElement;
