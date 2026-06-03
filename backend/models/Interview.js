@@ -71,7 +71,7 @@ const interviewSchema = new mongoose.Schema({
     },
     maxFollowUps: {
       type: Number,
-      default: 2
+      default: 6
     },
     adaptiveDifficulty: {
       type: Boolean,

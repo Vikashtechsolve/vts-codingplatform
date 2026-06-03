@@ -68,6 +68,14 @@ const interviewSessionSchema = new mongoose.Schema({
       type: String,
       default: ''
     },
+    spokenText: {
+      type: String,
+      default: ''
+    },
+    acknowledgment: {
+      type: String,
+      default: ''
+    },
     isFollowUp: {
       type: Boolean,
       default: false
@@ -80,6 +88,8 @@ const interviewSessionSchema = new mongoose.Schema({
       default: null
     },
     questionText: String,
+    spokenText: String,
+    acknowledgment: String,
     isFollowUp: {
       type: Boolean,
       default: false
@@ -101,7 +111,9 @@ const interviewSessionSchema = new mongoose.Schema({
   finalFeedback: {
     strengths: [String],
     improvements: [String],
-    summary: String
+    summary: String,
+    readinessLabel: String,
+    focusAreas: [String]
   },
   creditCharged: {
     type: Boolean,

@@ -8,8 +8,16 @@ const InterviewQuestion = require('../models/InterviewQuestion');
 const InterviewSession = require('../models/InterviewSession');
 const User = require('../models/User');
 const Vendor = require('../models/Vendor');
-const { evaluateInterviewAnswer, generateFollowUpQuestion, generateInterviewQuestion } = require('../utils/aiEvaluation');
+const {
+  evaluateInterviewAnswer,
+  generateInterviewQuestion,
+  resolveInterviewerTurn,
+  generateInterviewOpener,
+  generateInterviewFinalReport
+} = require('../utils/aiEvaluation');
 const { transcribeAudio } = require('../utils/sttService');
+const { synthesizeSpeech } = require('../utils/ttsService');
+const { createTalkingHeadVideo, isTalkingHeadEnabled } = require('../utils/avatarTalkService');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -22,7 +30,7 @@ const buildFallbackQuestions = (interview, count) => {
   }));
 };
 
-const buildQuestionQueue = async (interview, vendorId) => {
+const getStaticQuestionList = async (interview, vendorId) => {
   if (interview.questions && interview.questions.length > 0) {
     const populated = [];
     for (const q of interview.questions.sort((a, b) => a.order - b.order)) {
@@ -35,7 +43,7 @@ const buildQuestionQueue = async (interview, vendorId) => {
         });
       }
     }
-    return populated;
+    if (populated.length > 0) return populated;
   }
 
   const pool = await InterviewQuestion.find({
@@ -56,9 +64,13 @@ const buildQuestionQueue = async (interview, vendorId) => {
     }));
   }
 
-  const generated = [];
-  const total = interview.questionCount || 6;
-  for (let i = 0; i < total; i++) {
+  return null;
+};
+
+const generateAiQuestionBatch = async (interview, count, previousTexts = []) => {
+  const generated = [...previousTexts];
+  const items = [];
+  for (let i = 0; i < count; i++) {
     const questionText = await generateInterviewQuestion({
       interviewType: interview.interviewType,
       topic: interview.topic,
@@ -67,18 +79,72 @@ const buildQuestionQueue = async (interview, vendorId) => {
     });
     if (questionText) {
       generated.push(questionText);
+      items.push({
+        questionId: null,
+        questionText,
+        isFollowUp: false
+      });
     }
   }
+  return items;
+};
 
-  if (generated.length === 0) {
-    return buildFallbackQuestions(interview, total);
+/** Fast path for session start: static list or a single AI question (rest filled in background). */
+const buildQuestionQueueForStart = async (interview, vendorId) => {
+  const staticList = await getStaticQuestionList(interview, vendorId);
+  if (staticList?.length) return staticList;
+
+  const total = interview.questionCount || 6;
+  const [first] = await generateAiQuestionBatch(interview, 1);
+  if (first) return [first];
+  return buildFallbackQuestions(interview, Math.min(1, total));
+};
+
+const fillQuestionQueueInBackground = async (sessionId, interviewId) => {
+  try {
+    const session = await InterviewSession.findById(sessionId);
+    const interview = await Interview.findById(interviewId);
+    if (!session || !interview || session.status !== 'in_progress') return;
+
+    const staticList = await getStaticQuestionList(interview, session.vendorId);
+    const planned = interview.questionCount || 6;
+    const knownTexts = new Set(
+      [session.currentQuestion?.questionText, ...(session.questionQueue || []).map((q) => q.questionText)]
+        .filter(Boolean)
+    );
+
+    if (staticList?.length) {
+      const toAdd = staticList.filter((q) => !knownTexts.has(q.questionText));
+      if (toAdd.length) {
+        session.questionQueue.push(...toAdd);
+        await session.save();
+      }
+      return;
+    }
+
+    const have = 1 + (session.questionQueue?.length || 0);
+    const need = Math.max(0, planned - have);
+    if (need <= 0) return;
+
+    const previous = [...knownTexts];
+    const batch = await generateAiQuestionBatch(interview, need, previous);
+    if (batch.length) {
+      session.questionQueue.push(...batch);
+      await session.save();
+    }
+  } catch (err) {
+    console.warn('Background question queue fill failed:', err.message);
   }
+};
 
-  return generated.map(questionText => ({
-    questionId: null,
-    questionText,
-    isFollowUp: false
-  }));
+const buildQuestionQueue = async (interview, vendorId) => {
+  const staticList = await getStaticQuestionList(interview, vendorId);
+  if (staticList?.length) return staticList;
+
+  const total = interview.questionCount || 6;
+  const batch = await generateAiQuestionBatch(interview, total);
+  if (batch.length > 0) return batch;
+  return buildFallbackQuestions(interview, total);
 };
 
 router.post('/start/:interviewId', auth, authorize('student'), async (req, res) => {
@@ -151,7 +217,7 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
     }
 
     if (!session) {
-      const queue = await buildQuestionQueue(interview, interview.vendorId);
+      const queue = await buildQuestionQueueForStart(interview, interview.vendorId);
       const [currentQuestion, ...remaining] = queue;
       session = new InterviewSession({
         interviewId: interview._id,
@@ -170,8 +236,12 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
         status: 'in_progress'
       });
       await session.save();
+      const staticOnCreate = await getStaticQuestionList(interview, interview.vendorId);
+      if (!staticOnCreate?.length || staticOnCreate.length < (interview.questionCount || 6)) {
+        setImmediate(() => fillQuestionQueueInBackground(session._id, interview._id));
+      }
     } else if (!session.currentQuestion || !session.currentQuestion.questionText) {
-      const queue = await buildQuestionQueue(interview, interview.vendorId);
+      const queue = await buildQuestionQueueForStart(interview, interview.vendorId);
       const [currentQuestion, ...remaining] = queue;
       session.currentQuestion = currentQuestion || {
         questionId: null,
@@ -189,25 +259,106 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
     enrollment.startedAt = new Date();
     await student.save();
 
+    if (session.currentQuestion?.questionText && !session.currentQuestion?.spokenText) {
+      const opener = await generateInterviewOpener({
+        interviewTitle: interview.title,
+        interviewType: interview.interviewType,
+        topic: interview.topic,
+        difficulty: interview.difficulty,
+        firstQuestionText: session.currentQuestion.questionText
+      });
+      session.currentQuestion = {
+        questionId: session.currentQuestion.questionId || null,
+        questionText: opener.displayQuestionText || session.currentQuestion.questionText,
+        spokenText: opener.spokenText,
+        acknowledgment: opener.acknowledgment || '',
+        isFollowUp: false
+      };
+      await session.save();
+    }
+
+    const planned = interview.questionCount || 6;
+    const have = 1 + (session.questionQueue?.length ?? 0);
+    if (have < planned) {
+      setImmediate(() => fillQuestionQueueInBackground(session._id, interview._id));
+    }
+
     const queueLen = session.questionQueue?.length ?? 0;
-    const totalQuestions = 1 + queueLen;
+    const totalQuestions = interview.questionCount || Math.max(6, 1 + queueLen);
     res.json({
       sessionId: session._id,
       currentQuestion: session.currentQuestion,
       timeLimit: interview.duration,
-      totalQuestions
+      totalQuestions,
+      readyToJoin: Boolean(
+        session.currentQuestion?.spokenText?.trim() || session.currentQuestion?.questionText?.trim()
+      )
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
+router.post('/:sessionId/speak', auth, authorize('student'), async (req, res) => {
+  try {
+    const session = await InterviewSession.findOne({
+      _id: req.params.sessionId,
+      studentId: req.user._id,
+      status: 'in_progress'
+    });
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    const text = String(req.body.text || '').trim();
+    if (!text) {
+      return res.status(400).json({ message: 'Text is required' });
+    }
+    if (text.length > 4096) {
+      return res.status(400).json({ message: 'Text is too long for speech synthesis' });
+    }
+
+    const audioBuffer = await synthesizeSpeech(text);
+    const wantVideo = req.body.video === true || req.query.video === '1';
+
+    if (wantVideo && isTalkingHeadEnabled()) {
+      try {
+        const videoBuffer = await createTalkingHeadVideo(audioBuffer, session._id.toString());
+        if (videoBuffer?.length > 128) {
+          res.set('Content-Type', 'video/mp4');
+          res.set('X-Interview-Media', 'talking-video');
+          res.set('Cache-Control', 'private, max-age=3600');
+          return res.send(videoBuffer);
+        }
+      } catch (videoErr) {
+        console.warn('Talking-head video fallback to audio:', videoErr.message);
+      }
+    }
+
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('X-Interview-Media', 'audio');
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(audioBuffer);
+  } catch (error) {
+    res.status(500).json({ message: 'Speech synthesis failed', error: error.message });
+  }
+});
+
 router.post('/:sessionId/transcribe', auth, authorize('student'), upload.single('audio'), async (req, res) => {
   try {
+    const session = await InterviewSession.findOne({
+      _id: req.params.sessionId,
+      studentId: req.user._id,
+      status: 'in_progress'
+    });
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
     if (!req.file) {
       return res.status(400).json({ message: 'Audio file is required' });
     }
-    const transcript = await transcribeAudio(req.file.buffer, req.file.mimetype);
+    const prompt = String(req.body.prompt || session.currentQuestion?.questionText || '').trim();
+    const transcript = await transcribeAudio(req.file.buffer, req.file.mimetype, { prompt });
     res.json({ transcript });
   } catch (error) {
     res.status(500).json({ message: 'Transcription failed', error: error.message });
@@ -250,39 +401,63 @@ router.post('/:sessionId/answer', auth, authorize('student'), async (req, res) =
       isFollowUp: session.currentQuestion?.isFollowUp || false
     });
 
-    let nextQuestion = null;
+    const interview = await Interview.findById(session.interviewId);
+    const settings = interview?.settings || {};
+    const allowFollowUp = settings.allowFollowUps !== false;
+    const maxFollowUps = Math.max(1, Number(settings.maxFollowUps) || 6);
     const followUpsUsed = session.answers.filter(a => a.isFollowUp).length;
-    if (evaluation.overall < 60) {
-      const interview = await Interview.findById(session.interviewId);
-      if (interview?.settings?.allowFollowUps && followUpsUsed < (interview.settings.maxFollowUps || 2)) {
-        const followUpText = await generateFollowUpQuestion({
-          questionText: session.currentQuestion?.questionText || '',
-          transcript: transcriptForEval,
-          interviewType: session.interviewType,
-          topic: session.topic,
-          difficulty: session.difficulty
-        });
-        if (followUpText) {
-          session.questionQueue.unshift({
-            questionId: null,
-            questionText: followUpText,
-            isFollowUp: true
-          });
-        }
-      }
+    const followUpsRemaining = Math.max(0, maxFollowUps - followUpsUsed);
+    const nextQueued = session.questionQueue?.[0] || null;
+    const recentExchanges = session.answers
+      .slice(-3)
+      .map((a, i) => `Q${i + 1}: ${a.questionText}\nAnswer: ${a.transcript}`)
+      .join('\n\n');
+
+    const turn = await resolveInterviewerTurn({
+      evaluation,
+      questionText: session.currentQuestion?.questionText || '',
+      transcript: transcriptForEval,
+      interviewType: session.interviewType,
+      topic: session.topic,
+      difficulty: session.difficulty,
+      nextQueuedQuestionText: nextQueued?.questionText || null,
+      followUpsRemaining,
+      allowFollowUp,
+      isFollowUpQuestion: Boolean(session.currentQuestion?.isFollowUp),
+      recentExchanges
+    });
+
+    let nextQuestion = null;
+    let lastAcknowledgment = turn?.acknowledgment || '';
+
+    if (turn?.shouldFollowUp && turn.followUpQuestion) {
+      nextQuestion = {
+        questionId: null,
+        questionText: turn.displayQuestionText || turn.followUpQuestion,
+        spokenText: turn.spokenText,
+        acknowledgment: turn.acknowledgment || '',
+        isFollowUp: true
+      };
+    } else if (session.questionQueue.length > 0) {
+      const queued = session.questionQueue.shift();
+      nextQuestion = {
+        questionId: queued.questionId || null,
+        questionText: turn?.displayQuestionText || queued.questionText,
+        spokenText: turn?.spokenText || queued.questionText,
+        acknowledgment: turn?.acknowledgment || '',
+        isFollowUp: false
+      };
     }
 
-    if (session.questionQueue.length > 0) {
-      nextQuestion = session.questionQueue.shift();
-    }
-
-    session.currentQuestion = nextQuestion || { questionText: '', isFollowUp: false };
+    session.currentQuestion = nextQuestion || { questionText: '', spokenText: '', acknowledgment: '', isFollowUp: false };
     await session.save();
 
     res.json({
       evaluation,
+      acknowledgment: lastAcknowledgment,
       nextQuestion,
-      completed: !nextQuestion
+      completed: !nextQuestion,
+      askedFollowUp: Boolean(nextQuestion?.isFollowUp)
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -308,17 +483,15 @@ router.post('/:sessionId/submit', auth, authorize('student'), async (req, res) =
     session.timeSpent = Math.floor((session.submittedAt - startTime) / 1000);
     session.status = 'completed';
 
-    const scores = session.answers.map(a => a.evaluation?.overall || 0);
-    const overallScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-    session.overallScore = overallScore;
-    session.readinessPercent = overallScore;
-
-    const strengths = session.answers.flatMap(a => a.evaluation?.strengths || []);
-    const weaknesses = session.answers.flatMap(a => a.evaluation?.weaknesses || []);
+    const report = await generateInterviewFinalReport(session);
+    session.overallScore = report.overallScore;
+    session.readinessPercent = report.readinessPercent;
     session.finalFeedback = {
-      strengths: strengths.slice(0, 5),
-      improvements: weaknesses.slice(0, 5),
-      summary: session.answers[session.answers.length - 1]?.evaluation?.feedback || ''
+      strengths: report.strengths,
+      improvements: report.improvements,
+      summary: report.summary,
+      readinessLabel: report.readinessLabel,
+      focusAreas: report.focusAreas
     };
 
     // Charge 1 credit only if attempt > 5 min (requirement: "if student will attempt for more than 5 min then count reduced")

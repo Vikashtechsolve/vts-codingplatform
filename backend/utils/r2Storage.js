@@ -29,7 +29,7 @@ const getClient = () => {
 const MIME_TYPES = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
   '.gif': 'image/gif', '.webp': 'image/webp',
-  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+  '.mp3': 'audio/mpeg', '.mp4': 'video/mp4', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
   '.webm': 'audio/webm', '.m4a': 'audio/mp4', '.flac': 'audio/flac',
   '.json': 'application/json', '.csv': 'text/csv',
 };
