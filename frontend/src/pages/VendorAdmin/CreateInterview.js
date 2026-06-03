@@ -25,7 +25,7 @@ const CreateInterview = () => {
     questions: [],
     settings: {
       allowFollowUps: true,
-      maxFollowUps: 2,
+      maxFollowUps: 6,
       adaptiveDifficulty: true,
       allowMultipleAttempts: false,
       showResults: true,
@@ -65,7 +65,7 @@ const CreateInterview = () => {
           })),
           settings: {
             allowFollowUps: interview.settings?.allowFollowUps ?? true,
-            maxFollowUps: interview.settings?.maxFollowUps ?? 2,
+            maxFollowUps: interview.settings?.maxFollowUps ?? 6,
             adaptiveDifficulty: interview.settings?.adaptiveDifficulty ?? true,
             allowMultipleAttempts: interview.settings?.allowMultipleAttempts ?? false,
             showResults: interview.settings?.showResults ?? true,

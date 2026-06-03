@@ -1,0 +1,340 @@
+/* Full-stage live interviewer */
+.interviewer-call {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: min(100%, 480px);
+  margin: 0 auto;
+}
+
+.interviewer-call.is-compact {
+  height: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
+.interviewer-call.is-compact .interviewer-call-feed {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: unset;
+  max-height: none;
+  border-radius: 20px;
+}
+
+.interviewer-call.is-compact .interviewer-call-waves {
+  bottom: 40px;
+}
+
+.interviewer-call.is-compact .interviewer-speech-bubble {
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 10px 12px;
+}
+
+.interviewer-call.is-compact .interviewer-speech-text {
+  font-size: 0.75rem;
+  min-height: auto;
+}
+
+.interviewer-call-status-compact {
+  flex-shrink: 0;
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.interviewer-call-status-compact.speaking {
+  color: var(--primary-color);
+}
+
+.interviewer-call-status-compact.listening {
+  color: #22c55e;
+}
+
+.interviewer-call-feed {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  max-height: min(52vh, 480px);
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(165deg, #2a3548 0%, #141a24 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.interviewer-call.is-speaking .interviewer-call-feed {
+  border-color: color-mix(in srgb, var(--primary-color) 60%, var(--border-color));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--primary-color) 12%, transparent),
+    0 22px 60px rgba(0, 0, 0, 0.35);
+}
+
+.interviewer-call.is-listening .interviewer-call-feed {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+
+.interviewer-call-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+
+.interviewer-call-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 42%, rgba(0, 0, 0, 0.5) 100%);
+  z-index: 3;
+}
+
+.interviewer-speech-bubble {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 6;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(12, 18, 28, 0.88) 45%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+  animation: bubbleIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.interviewer-speech-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 75%, transparent);
+}
+
+.interviewer-speech-label::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  animation: ivrLivePulse 1s ease-in-out infinite;
+}
+
+.interviewer-speech-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #f8fafc;
+  font-weight: 500;
+  min-height: 2.6em;
+}
+
+.interviewer-speech-word {
+  display: inline-block;
+  margin-right: 0.32em;
+  animation: wordFadeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes wordFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.interviewer-speech-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.95em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--primary-color);
+  animation: caretBlink 0.7s step-end infinite;
+}
+
+@keyframes caretBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.interviewer-speech-progress {
+  margin-top: 8px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.interviewer-speech-progress span {
+  display: block;
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: inherit;
+  transition: width 0.08s linear;
+}
+
+.interviewer-call-waves {
+  position: absolute;
+  bottom: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 36px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  z-index: 5;
+}
+
+.interviewer-call-wave-bar {
+  display: block;
+  width: 4px;
+  min-height: 4px;
+  height: calc(4px + var(--h) * 24px);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 50%, #fff));
+  transition: height 0.04s linear;
+}
+
+.interviewer-call-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(8, 12, 18, 0.78);
+  color: #f1f5f9;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.interviewer-call-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: ivrSpin 0.75s linear infinite;
+}
+
+.interviewer-call-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 14px;
+  z-index: 7;
+  display: flex;
+  justify-content: center;
+}
+
+.interviewer-call-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(6px);
+}
+
+.interviewer-call-live-pill.on-air {
+  background: color-mix(in srgb, var(--primary-color) 40%, rgba(0, 0, 0, 0.68));
+}
+
+.interviewer-call-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.interviewer-call-live-pill.on-air .interviewer-call-live-dot {
+  animation: ivrLivePulse 0.85s ease-in-out infinite;
+}
+
+@keyframes ivrLivePulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.interviewer-call-info {
+  text-align: center;
+  padding: 16px 12px 0;
+  width: 100%;
+}
+
+.interviewer-call-name {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.interviewer-call-role {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.interviewer-call-status {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.interviewer-call-status.speaking {
+  color: var(--primary-color);
+}
+
+.interviewer-call-status.listening {
+  color: #22c55e;
+}
+
+@keyframes ivrSpin {
+  to { transform: rotate(360deg); }
+}
