@@ -10,8 +10,10 @@
 
 .interviewer-call.is-compact {
   height: 100%;
+  width: 100%;
   max-width: 100%;
   margin: 0;
+  min-height: 0;
 }
 
 .interviewer-call.is-compact .interviewer-call-feed {
@@ -20,11 +22,8 @@
   min-height: 0;
   aspect-ratio: unset;
   max-height: none;
+  height: 100%;
   border-radius: 20px;
-}
-
-.interviewer-call.is-compact .interviewer-call-waves {
-  bottom: 40px;
 }
 
 .interviewer-call.is-compact .interviewer-speech-bubble {
@@ -59,22 +58,23 @@
 .interviewer-call-feed {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 5;
-  max-height: min(52vh, 480px);
-  border-radius: 24px;
+  /* Same ratio as /interviewer-portrait.jpg (900×1100) — no awkward crop */
+  aspect-ratio: 9 / 11;
+  max-height: min(58vh, 520px);
+  border-radius: 20px;
   overflow: hidden;
-  background: linear-gradient(165deg, #2a3548 0%, #141a24 100%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #e8edf2;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   box-shadow:
-    0 24px 48px rgba(15, 23, 42, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    0 16px 36px rgba(15, 23, 42, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.65) inset;
 }
 
 .interviewer-call.is-speaking .interviewer-call-feed {
-  border-color: color-mix(in srgb, var(--primary-color) 60%, var(--border-color));
+  border-color: color-mix(in srgb, var(--primary-color) 45%, #c5d4e8);
   box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--primary-color) 12%, transparent),
-    0 22px 60px rgba(0, 0, 0, 0.35);
+    0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent),
+    0 20px 44px rgba(15, 23, 42, 0.14);
 }
 
 .interviewer-call.is-listening .interviewer-call-feed {
@@ -202,32 +202,6 @@
   background: var(--primary-color);
   border-radius: inherit;
   transition: width 0.08s linear;
-}
-
-.interviewer-call-waves {
-  position: absolute;
-  bottom: 52px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 36px;
-  padding: 8px 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.58);
-  backdrop-filter: blur(10px);
-  z-index: 5;
-}
-
-.interviewer-call-wave-bar {
-  display: block;
-  width: 4px;
-  min-height: 4px;
-  height: calc(4px + var(--h) * 24px);
-  border-radius: 3px;
-  background: linear-gradient(180deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 50%, #fff));
-  transition: height 0.04s linear;
 }
 
 .interviewer-call-loading {

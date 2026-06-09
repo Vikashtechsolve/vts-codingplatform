@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
     ref: 'Vendor',
     default: null
   },
+  accountOrigin: {
+    type: String,
+    enum: ['vendor_enrolled', 'contest'],
+    default: 'vendor_enrolled',
+  },
   isActive: {
     type: Boolean,
     default: true

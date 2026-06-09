@@ -244,6 +244,7 @@ router.post('/:id/students/bulk', [
           password: studentData.password || 'student123',
           role: 'student',
           vendorId: req.vendorId,
+          accountOrigin: 'vendor_enrolled',
           isActive: true
         });
         await student.save();

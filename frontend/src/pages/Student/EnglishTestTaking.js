@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
@@ -17,6 +17,8 @@ import './EnglishTestTaking.css';
 
 const EnglishTestTaking = () => {
   const { testId } = useParams();
+  const [searchParams] = useSearchParams();
+  const contestId = searchParams.get('contestId');
   const navigate = useNavigate();
   const location = useLocation();
   const fromShareLink = isFromShareLink(location);
@@ -61,6 +63,9 @@ const EnglishTestTaking = () => {
   const streamRef = useRef(null);
   const speakTimerRef = useRef(null);
   const resultRef = useRef(null);
+  const attemptWindowEndRef = useRef(null);
+  const autoSubmitTriggeredRef = useRef(false);
+  const handleSubmitTestRef = useRef(null);
 
   const handleMaxViolations = useCallback(() => {
     setModal({
@@ -134,6 +139,10 @@ const EnglishTestTaking = () => {
 
   useEffect(() => { resultRef.current = result; }, [result]);
 
+  useEffect(() => {
+    handleSubmitTestRef.current = handleSubmitTest;
+  });
+
   const buildSections = useCallback((testData) => {
     if (!testData.englishSections || testData.englishSections.length === 0) {
       return [{ sectionType: 'mixed', sectionTitle: 'All Questions', duration: testData.duration, questions: testData.questions }];
@@ -170,8 +179,14 @@ const EnglishTestTaking = () => {
       });
       setSectionTimers(timers);
 
-      const resultRes = await axiosInstance.post(`/results/start/${testId}`);
+      const resultRes = await axiosInstance.post(
+        `/results/start/${testId}`,
+        contestId ? { contestId } : {}
+      );
       setResult(resultRes.data);
+      if (resultRes.data?.attemptWindowEnd) {
+        attemptWindowEndRef.current = resultRes.data.attemptWindowEnd;
+      }
 
       if (resultRes.data.answers) {
         const existingAnswers = {};
@@ -205,6 +220,15 @@ const EnglishTestTaking = () => {
         return;
       }
 
+      const autoSubmittedOnStart =
+        error.response?.status === 400 &&
+        (error.response?.data?.autoSubmitted || serverMsg.toLowerCase().includes('submitted automatically'));
+
+      if (autoSubmittedOnStart && existingResultId) {
+        goToResult(existingResultId);
+        return;
+      }
+
       setModal({ isOpen: true, title: 'Error', message: serverMsg || 'Failed to start test', type: 'error' });
     } finally {
       setLoading(false);
@@ -226,6 +250,39 @@ const EnglishTestTaking = () => {
 
   const isPractice = test?.settings?.practiceMode === true;
   const [practiceRevealed, setPracticeRevealed] = useState({});
+
+  useEffect(() => {
+    if (isPractice || !result?.startedAt || !test?.duration || submitting) return;
+
+    const startedAt = new Date(result.startedAt).getTime();
+    const durationDeadline = startedAt + test.duration * 60 * 1000;
+    const windowDeadline = attemptWindowEndRef.current
+      ? new Date(attemptWindowEndRef.current).getTime()
+      : null;
+    const deadline = windowDeadline
+      ? Math.min(durationDeadline, windowDeadline)
+      : durationDeadline;
+
+    const tick = () => {
+      if (autoSubmitTriggeredRef.current || Date.now() < deadline) return;
+      autoSubmitTriggeredRef.current = true;
+      setModal({
+        isOpen: true,
+        title: 'Time\'s up',
+        message: contestId
+          ? 'The contest attempt window has ended. Your test will be submitted automatically.'
+          : 'Your test time has ended. Your test will be submitted automatically.',
+        type: 'warning',
+      });
+      setTimeout(() => {
+        handleSubmitTestRef.current?.(true);
+      }, 2000);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [result, test, contestId, submitting, isPractice]);
 
   useEffect(() => {
     timeWarnedRef.current = { five: false, one: false };
@@ -383,7 +440,7 @@ const EnglishTestTaking = () => {
     if (currentQuestionIdx > 0) setCurrentQuestionIdx(currentQuestionIdx - 1);
   };
 
-  const handleSubmitTest = async () => {
+  const handleSubmitTest = async (autoSubmitted = false) => {
     if (submitting) return;
     const rid = result?._id || resultRef.current?._id;
     if (!rid) return;
@@ -391,9 +448,15 @@ const EnglishTestTaking = () => {
     setShowReview(false);
     try {
       await saveAllAnswersBeforeSubmit();
-      const response = await axiosInstance.post(`/results/${rid}/submit`, {}, {
-        timeout: 300000
-      });
+      const submitBody = {
+        ...(contestId ? { contestId } : {}),
+        ...(autoSubmitted ? { autoSubmitted: true } : {}),
+      };
+      const response = await axiosInstance.post(
+        `/results/${rid}/submit`,
+        submitBody,
+        { timeout: 300000 }
+      );
       const finalId = response?.data?._id || rid;
       goToResult(finalId);
     } catch (error) {

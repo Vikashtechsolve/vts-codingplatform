@@ -4,6 +4,8 @@ const Announcement = require('../models/Announcement');
 const AnnouncementRead = require('../models/AnnouncementRead');
 const Classroom = require('../models/Classroom');
 const User = require('../models/User');
+const Contest = require('../models/Contest');
+const ContestParticipant = require('../models/ContestParticipant');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
 const tenantMiddleware = require('../middleware/tenant');
 
@@ -18,7 +20,48 @@ async function getStudentClassroomIds(studentId, vendorId) {
   return classrooms;
 }
 
-function buildStudentVisibilityFilter(vendorId, classroomObjectIds) {
+/**
+ * Students should only see announcements published on or after they joined the vendor.
+ * Contest-only accounts use their contest registration time (not an older reused account date).
+ */
+async function getStudentAnnouncementEligibleSince(studentId, vendorId) {
+  const user = await User.findById(studentId).select('createdAt accountOrigin vendorId');
+  if (!user) return new Date();
+
+  let eligibleSince = user.createdAt ? new Date(user.createdAt) : new Date();
+
+  if (user.accountOrigin === 'contest' && vendorId) {
+    const participants = await ContestParticipant.find({ userId: studentId })
+      .select('registeredAt contestId')
+      .lean();
+
+    if (participants.length > 0) {
+      const contestIds = participants.map((p) => p.contestId);
+      const vendorContests = await Contest.find({
+        _id: { $in: contestIds },
+        vendorId,
+      })
+        .select('_id')
+        .lean();
+
+      const vendorContestIds = new Set(vendorContests.map((c) => c._id.toString()));
+
+      for (const participant of participants) {
+        if (!vendorContestIds.has(String(participant.contestId)) || !participant.registeredAt) {
+          continue;
+        }
+        const registeredAt = new Date(participant.registeredAt);
+        if (registeredAt > eligibleSince) {
+          eligibleSince = registeredAt;
+        }
+      }
+    }
+  }
+
+  return eligibleSince;
+}
+
+function buildStudentVisibilityFilter(vendorId, classroomObjectIds, eligibleSince) {
   const orConditions = [{ targetType: 'all' }];
   if (classroomObjectIds.length > 0) {
     orConditions.push({
@@ -26,21 +69,57 @@ function buildStudentVisibilityFilter(vendorId, classroomObjectIds) {
       targetClassroomIds: { $in: classroomObjectIds }
     });
   }
-  return {
+
+  const filter = {
     vendorId,
     status: 'published',
-    $or: orConditions
+    $or: orConditions,
+  };
+
+  if (eligibleSince) {
+    filter.publishedAt = { $gte: eligibleSince };
+  }
+
+  return filter;
+}
+
+async function getStudentAnnouncementContext(studentId, vendorId) {
+  const [classrooms, eligibleSince] = await Promise.all([
+    getStudentClassroomIds(studentId, vendorId),
+    getStudentAnnouncementEligibleSince(studentId, vendorId),
+  ]);
+  return {
+    classroomIds: classrooms.map((c) => c._id),
+    classrooms,
+    eligibleSince,
   };
 }
 
-async function resolveAudienceStudentIds(vendorId, targetType, targetClassroomIds) {
+async function resolveAudienceStudentIds(vendorId, targetType, targetClassroomIds, publishedAt = null) {
+  const publishedBefore = publishedAt ? new Date(publishedAt) : null;
+
   if (targetType === 'all') {
-    const students = await User.find({
+    const query = {
       vendorId,
       role: 'student',
-      isActive: { $ne: false }
-    }).select('_id');
-    return students.map((s) => s._id);
+      isActive: { $ne: false },
+    };
+    if (publishedBefore) {
+      query.createdAt = { $lte: publishedBefore };
+    }
+    const students = await User.find(query).select('_id accountOrigin createdAt');
+    if (!publishedBefore) {
+      return students.map((s) => s._id);
+    }
+
+    const eligible = [];
+    for (const student of students) {
+      const eligibleSince = await getStudentAnnouncementEligibleSince(student._id, vendorId);
+      if (eligibleSince <= publishedBefore) {
+        eligible.push(student._id);
+      }
+    }
+    return eligible;
   }
   if (!targetClassroomIds?.length) return [];
   const classrooms = await Classroom.find({
@@ -79,11 +158,10 @@ router.get(
     try {
       const vendorId = req.vendorId;
       const studentId = req.user._id;
-      const classrooms = await getStudentClassroomIds(studentId, vendorId);
-      const classroomIds = classrooms.map((c) => c._id);
+      const { classroomIds, eligibleSince } = await getStudentAnnouncementContext(studentId, vendorId);
 
       const visible = await Announcement.find(
-        buildStudentVisibilityFilter(vendorId, classroomIds)
+        buildStudentVisibilityFilter(vendorId, classroomIds, eligibleSince)
       ).select('_id');
 
       if (visible.length === 0) {
@@ -116,11 +194,13 @@ router.get(
     try {
       const vendorId = req.vendorId;
       const studentId = req.user._id;
-      const classrooms = await getStudentClassroomIds(studentId, vendorId);
-      const classroomIds = classrooms.map((c) => c._id);
+      const { classroomIds, classrooms, eligibleSince } = await getStudentAnnouncementContext(
+        studentId,
+        vendorId
+      );
 
       const announcements = await Announcement.find(
-        buildStudentVisibilityFilter(vendorId, classroomIds)
+        buildStudentVisibilityFilter(vendorId, classroomIds, eligibleSince)
       )
         .populate('createdBy', 'name')
         .populate('targetClassroomIds', 'name')
@@ -171,11 +251,10 @@ router.post(
     try {
       const vendorId = req.vendorId;
       const studentId = req.user._id;
-      const classrooms = await getStudentClassroomIds(studentId, vendorId);
-      const classroomIds = classrooms.map((c) => c._id);
+      const { classroomIds, eligibleSince } = await getStudentAnnouncementContext(studentId, vendorId);
 
       const visible = await Announcement.find(
-        buildStudentVisibilityFilter(vendorId, classroomIds)
+        buildStudentVisibilityFilter(vendorId, classroomIds, eligibleSince)
       ).select('_id');
 
       const ops = visible.map((a) => ({
@@ -207,12 +286,11 @@ router.get(
     try {
       const vendorId = req.vendorId;
       const studentId = req.user._id;
-      const classrooms = await getStudentClassroomIds(studentId, vendorId);
-      const classroomIds = classrooms.map((c) => c._id);
+      const { classroomIds, eligibleSince } = await getStudentAnnouncementContext(studentId, vendorId);
 
       const announcement = await Announcement.findOne({
         _id: req.params.id,
-        ...buildStudentVisibilityFilter(vendorId, classroomIds)
+        ...buildStudentVisibilityFilter(vendorId, classroomIds, eligibleSince)
       })
         .populate('createdBy', 'name')
         .populate('targetClassroomIds', 'name');
@@ -250,12 +328,11 @@ router.post(
     try {
       const vendorId = req.vendorId;
       const studentId = req.user._id;
-      const classrooms = await getStudentClassroomIds(studentId, vendorId);
-      const classroomIds = classrooms.map((c) => c._id);
+      const { classroomIds, eligibleSince } = await getStudentAnnouncementContext(studentId, vendorId);
 
       const announcement = await Announcement.findOne({
         _id: req.params.id,
-        ...buildStudentVisibilityFilter(vendorId, classroomIds)
+        ...buildStudentVisibilityFilter(vendorId, classroomIds, eligibleSince)
       });
 
       if (!announcement) {
@@ -309,7 +386,12 @@ router.get('/', async (req, res) => {
     const enriched = await Promise.all(
       announcements.map(async (a) => {
         const audienceSize = a.status === 'published'
-          ? (await resolveAudienceStudentIds(a.vendorId, a.targetType, a.targetClassroomIds)).length
+          ? (await resolveAudienceStudentIds(
+            a.vendorId,
+            a.targetType,
+            a.targetClassroomIds,
+            a.publishedAt
+          )).length
           : null;
         return {
           ...a.toObject(),
@@ -375,7 +457,12 @@ router.post('/', async (req, res) => {
     ]);
 
     const audienceSize = shouldPublish
-      ? (await resolveAudienceStudentIds(req.vendorId, resolvedTarget, classroomIds)).length
+      ? (await resolveAudienceStudentIds(
+        req.vendorId,
+        resolvedTarget,
+        classroomIds,
+        announcement.publishedAt
+      )).length
       : 0;
 
     res.status(201).json({
@@ -407,7 +494,8 @@ router.get('/:id', async (req, res) => {
       ? (await resolveAudienceStudentIds(
         announcement.vendorId,
         announcement.targetType,
-        announcement.targetClassroomIds
+        announcement.targetClassroomIds,
+        announcement.publishedAt
       )).length
       : null;
 
@@ -513,7 +601,8 @@ router.post('/:id/publish', async (req, res) => {
     const audienceSize = (await resolveAudienceStudentIds(
       announcement.vendorId,
       announcement.targetType,
-      announcement.targetClassroomIds
+      announcement.targetClassroomIds,
+      announcement.publishedAt
     )).length;
 
     res.json({

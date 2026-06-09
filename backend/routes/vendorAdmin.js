@@ -260,7 +260,11 @@ router.get('/students', async (req, res) => {
     console.log('📥 Fetching students for vendor:', req.vendorId);
     const Classroom = require('../models/Classroom');
     
-    const students = await User.find({ vendorId: req.vendorId, role: 'student' })
+    const students = await User.find({
+      vendorId: req.vendorId,
+      role: 'student',
+      accountOrigin: { $ne: 'contest' },
+    })
       .select('-password')
       .sort({ createdAt: -1 });
     
@@ -294,7 +298,8 @@ router.get('/students/:studentId', async (req, res) => {
     const student = await User.findOne({
       _id: req.params.studentId,
       vendorId: req.vendorId,
-      role: 'student'
+      role: 'student',
+      accountOrigin: { $ne: 'contest' },
     }).select('-password');
 
     if (!student) {
@@ -370,6 +375,7 @@ router.post('/students/enroll', async (req, res) => {
         password: studentData.password || 'student123',
         role: 'student',
         vendorId: req.vendorId,
+        accountOrigin: 'vendor_enrolled',
         isActive: true
       });
 

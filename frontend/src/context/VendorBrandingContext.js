@@ -31,6 +31,7 @@ export const VendorBrandingProvider = ({ children }) => {
   const [branding, setBranding] = useState(null);
   const [loading, setLoading] = useState(false);
   const brandingRef = useRef(null);
+  const publicVendorIdRef = useRef(null);
 
   useEffect(() => {
     brandingRef.current = branding;
@@ -50,6 +51,20 @@ export const VendorBrandingProvider = ({ children }) => {
       return merged;
     });
   }, [user]);
+
+  const applyPublicBranding = useCallback((incoming, vendorId) => {
+    if (!vendorId || !incoming) return;
+    publicVendorIdRef.current = String(vendorId);
+    commitBranding(incoming, vendorId);
+  }, [commitBranding]);
+
+  const clearPublicBranding = useCallback(() => {
+    publicVendorIdRef.current = null;
+    if (!isAuthenticated) {
+      setBranding(null);
+      clearBrandingFromDocument();
+    }
+  }, [isAuthenticated]);
 
   const fetchStudentBranding = useCallback(async () => {
     const { data } = await axiosInstance.get('/students/branding');
@@ -81,9 +96,17 @@ export const VendorBrandingProvider = ({ children }) => {
   const loadAllSources = useCallback(async () => {
     if (!isAuthenticated || !isVendorScopedUser(user)) {
       if (!isAuthenticated) {
+        if (publicVendorIdRef.current) {
+          const cached = getCachedBranding(publicVendorIdRef.current);
+          if (cached?.logo) {
+            commitBranding(cached, publicVendorIdRef.current);
+          } else if (brandingRef.current?.logo) {
+            applyBrandingState(brandingRef.current);
+          }
+          return;
+        }
         setBranding(null);
         clearBrandingFromDocument();
-        clearBrandingCache();
       }
       return;
     }
@@ -199,6 +222,8 @@ export const VendorBrandingProvider = ({ children }) => {
     loading,
     refreshBranding: loadAllSources,
     updateBranding,
+    applyPublicBranding,
+    clearPublicBranding,
     hasLogo: hasVisibleBranding(branding) && Boolean(branding?.logo),
   };
 

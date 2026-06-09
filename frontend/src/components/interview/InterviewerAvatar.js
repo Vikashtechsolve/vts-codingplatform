@@ -2,12 +2,10 @@ import React, { useMemo } from 'react';
 import LiveInterviewerVisual from './LiveInterviewerVisual';
 import './InterviewerAvatar.css';
 
-const WAVE_BAR_COUNT = 16;
 const BUBBLE_MAX = 140;
 
 const InterviewerAvatar = ({
   lipLevel = 0,
-  viseme = 0,
   isSpeaking = false,
   isListening = false,
   isLoadingVoice = false,
@@ -21,20 +19,6 @@ const InterviewerAvatar = ({
   name = 'Sarah Chen',
   role = 'Senior Interviewer'
 }) => {
-  const speakEnergy = useMemo(() => {
-    if (!isSpeaking) return 0;
-    return Math.min(1, lipLevel * 0.88 + 0.1);
-  }, [isSpeaking, lipLevel]);
-
-  const waveHeights = useMemo(() => {
-    if (!isSpeaking) return Array.from({ length: WAVE_BAR_COUNT }, () => 0.08);
-    return Array.from({ length: WAVE_BAR_COUNT }, (_, i) => {
-      const t = (i / WAVE_BAR_COUNT) * Math.PI * 2;
-      const wobble = Math.sin(t + lipLevel * 11) * 0.34;
-      return Math.min(1, Math.max(0.08, speakEnergy * 0.82 + wobble + 0.12));
-    });
-  }, [isSpeaking, lipLevel, speakEnergy]);
-
   const bubbleText = useMemo(() => {
     const t = (speakingText || '').trim();
     if (!t) return '';
@@ -54,7 +38,6 @@ const InterviewerAvatar = ({
   return (
     <div
       className={`interviewer-call ${compact ? 'is-compact' : ''} ${isSpeaking ? 'is-speaking' : ''} ${isListening ? 'is-listening' : ''} ${isLoadingVoice ? 'is-loading' : ''}`}
-      style={{ '--speak-energy': speakEnergy }}
     >
       <div className="interviewer-call-feed">
         {showVideo ? (
@@ -67,10 +50,8 @@ const InterviewerAvatar = ({
         ) : (
           <LiveInterviewerVisual
             lipLevel={lipLevel}
-            viseme={viseme}
             isSpeaking={isSpeaking}
             isListening={isListening && !isSpeaking}
-            speechProgress={speechProgress}
           />
         )}
 
@@ -94,14 +75,6 @@ const InterviewerAvatar = ({
             <div className="interviewer-speech-progress">
               <span style={{ width: `${Math.min(100, speechProgress * 100)}%` }} />
             </div>
-          </div>
-        )}
-
-        {isSpeaking && (
-          <div className="interviewer-call-waves" aria-hidden="true">
-            {waveHeights.map((h, i) => (
-              <span key={i} className="interviewer-call-wave-bar" style={{ '--h': h }} />
-            ))}
           </div>
         )}
 

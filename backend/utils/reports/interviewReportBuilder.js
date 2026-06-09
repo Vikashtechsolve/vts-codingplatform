@@ -2,7 +2,10 @@ const User = require('../../models/User');
 const InterviewSession = require('../../models/InterviewSession');
 const { formatDate, formatMinutes, truncate, safeNum } = require('./formatters');
 
-async function fetchEnrolledStudents(interviewId, vendorId) {
+async function fetchEnrolledStudents(interviewId, vendorId, studentIds) {
+  if (studentIds?.length) {
+    return User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email enrolledInterviews');
+  }
   return User.find({
     vendorId,
     role: 'student',
@@ -26,11 +29,16 @@ function pickLatestSession(sessionsByStudent, studentId) {
   })[0];
 }
 
-async function buildInterviewReport(interview, vendorId) {
+async function buildInterviewReport(interview, vendorId, options = {}) {
+  const { studentIds, participantMap: pMap } = options;
   const interviewId = interview._id;
+  const sessionQuery = { interviewId, vendorId };
+  if (studentIds?.length) {
+    sessionQuery.studentId = { $in: studentIds };
+  }
   const [students, sessions] = await Promise.all([
-    fetchEnrolledStudents(interviewId, vendorId),
-    InterviewSession.find({ interviewId, vendorId })
+    fetchEnrolledStudents(interviewId, vendorId, studentIds),
+    InterviewSession.find(sessionQuery)
       .populate('studentId', 'name email')
       .lean(),
   ]);
@@ -49,13 +57,14 @@ async function buildInterviewReport(interview, vendorId) {
   students.forEach((student) => {
     const sid = student._id.toString();
     const enrollment = getEnrollment(student, interviewId);
+    const participant = pMap?.get(sid);
     const session = pickLatestSession(sessionsByStudent, sid);
 
     const fb = session?.finalFeedback || {};
     summaryRows.push({
       studentName: student.name || '',
       studentEmail: student.email || '',
-      enrollmentStatus: enrollment?.status || 'assigned',
+      enrollmentStatus: enrollment?.status || participant?.status || 'registered',
       attemptStatus: session?.status || 'not_started',
       startedAt: formatDate(session?.startedAt),
       submittedAt: formatDate(session?.submittedAt),

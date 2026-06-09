@@ -51,6 +51,12 @@ router.post('/register', [
 
     const { name, email, password, role, vendorId } = req.body;
 
+    if (role === 'student') {
+      return res.status(403).json({
+        message: 'Student self-registration is disabled. Use a contest link to register for contests, or contact your organization for account access.',
+      });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
     if (existingUser) {

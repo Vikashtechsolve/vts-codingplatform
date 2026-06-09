@@ -15,6 +15,7 @@ import Register from './pages/Auth/Register';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
 import JoinAttempt from './pages/JoinAttempt';
+import ContestLanding from './pages/Contest/ContestLanding';
 
 // Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
@@ -103,6 +104,7 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/contest/:slug" element={<ContestLanding />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               {/* Student share links — open assessment after login */}

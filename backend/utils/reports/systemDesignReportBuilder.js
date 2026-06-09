@@ -51,14 +51,19 @@ async function fetchAssignedStudents(problem, vendorId) {
   }).select('name email');
 }
 
-async function buildSystemDesignReport(problem, vendorId) {
+async function buildSystemDesignReport(problem, vendorId, options = {}) {
+  const { studentIds, participantMap: pMap } = options;
   const problemId = problem._id;
-  const [students, submissions] = await Promise.all([
-    fetchAssignedStudents(problem, vendorId),
-    SystemDesignSubmission.find({ problemId, vendorId })
-      .populate('studentId', 'name email')
-      .lean(),
-  ]);
+  const submissionQuery = { problemId, vendorId };
+  if (studentIds?.length) {
+    submissionQuery.studentId = { $in: studentIds };
+  }
+  const students = studentIds?.length
+    ? await User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email')
+    : await fetchAssignedStudents(problem, vendorId);
+  const submissions = await SystemDesignSubmission.find(submissionQuery)
+    .populate('studentId', 'name email')
+    .lean();
 
   const submissionByStudent = new Map();
   submissions.forEach((s) => {
@@ -72,6 +77,7 @@ async function buildSystemDesignReport(problem, vendorId) {
   students.forEach((student) => {
     const sid = student._id.toString();
     const submission = submissionByStudent.get(sid);
+    const participant = pMap?.get(sid);
     const isAssigned = (problem.assignedTo || []).some(
       (id) => id.toString() === sid
     );
@@ -79,7 +85,7 @@ async function buildSystemDesignReport(problem, vendorId) {
     summaryRows.push({
       studentName: student.name || '',
       studentEmail: student.email || '',
-      assignmentStatus: isAssigned ? 'assigned' : 'classroom',
+      assignmentStatus: isAssigned ? 'assigned' : (participant ? 'contest' : 'classroom'),
       submissionStatus: submission?.status || 'not_started',
       startedAt: formatDate(submission?.startedAt),
       submittedAt: formatDate(submission?.submittedAt),

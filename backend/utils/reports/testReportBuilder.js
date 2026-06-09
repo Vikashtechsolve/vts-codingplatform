@@ -2,6 +2,7 @@ const User = require('../../models/User');
 const Result = require('../../models/Result');
 const { loadQuestionsForTest } = require('./questionLoader');
 const { truncate, formatDate, formatMinutes, formatBool, formatArray, safeNum } = require('./formatters');
+const { compareContestRanking } = require('../contestRanking');
 
 const SECTION_LABELS = {
   english_grammar: 'Grammar',
@@ -27,7 +28,13 @@ function buildViolationSummary(violations) {
   return violations.map((v) => v.type).join(', ');
 }
 
-async function fetchEnrolledStudents(testId, vendorId) {
+async function fetchEnrolledStudents(testId, vendorId, studentIds) {
+  if (studentIds?.length) {
+    return User.find({
+      _id: { $in: studentIds },
+      role: 'student',
+    }).select('name email enrolledTests');
+  }
   return User.find({
     vendorId,
     role: 'student',
@@ -117,11 +124,16 @@ function buildSectionRow(student, section) {
 /**
  * Build report datasets for a timed test.
  */
-async function buildTestReport(test, vendorId) {
+async function buildTestReport(test, vendorId, options = {}) {
+  const { studentIds, participantMap: pMap } = options;
   const testId = test._id;
+  const resultQuery = { testId, vendorId };
+  if (studentIds?.length) {
+    resultQuery.studentId = { $in: studentIds };
+  }
   const [students, results, questionMap] = await Promise.all([
-    fetchEnrolledStudents(testId, vendorId),
-    Result.find({ testId, vendorId }).populate('studentId', 'name email').lean(),
+    fetchEnrolledStudents(testId, vendorId, studentIds),
+    Result.find(resultQuery).populate('studentId', 'name email').lean(),
     loadQuestionsForTest(test),
   ]);
 
@@ -136,10 +148,17 @@ async function buildTestReport(test, vendorId) {
   const completedForRank = students
     .map((s) => {
       const r = pickLatestResult(resultsByStudent, s._id.toString());
-      return r?.status === 'completed' ? { sid: s._id.toString(), pct: r.percentage || 0 } : null;
+      if (r?.status !== 'completed') return null;
+      return {
+        sid: s._id.toString(),
+        totalScore: r.totalScore,
+        percentage: r.percentage,
+        submittedAt: r.submittedAt,
+        timeSpent: r.timeSpent,
+      };
     })
     .filter(Boolean)
-    .sort((a, b) => b.pct - a.pct);
+    .sort(studentIds?.length ? compareContestRanking : (a, b) => (b.percentage || 0) - (a.percentage || 0));
 
   const rankMap = new Map();
   completedForRank.forEach((item, idx) => rankMap.set(item.sid, idx + 1));
@@ -151,10 +170,15 @@ async function buildTestReport(test, vendorId) {
   students.forEach((student) => {
     const sid = student._id.toString();
     const enrollment = getEnrollment(student, testId);
+    const participant = pMap?.get(sid);
     const result = pickLatestResult(resultsByStudent, sid);
     const rank = rankMap.get(sid) || '';
 
-    summaryRows.push(buildSummaryRow(student, enrollment, result, rank));
+    const summary = buildSummaryRow(student, enrollment, result, rank);
+    if (participant && !enrollment) {
+      summary.enrollmentStatus = participant.status || 'registered';
+    }
+    summaryRows.push(summary);
 
     if (result?.answers?.length) {
       const sortedAnswers = [...result.answers].sort((a, b) => {

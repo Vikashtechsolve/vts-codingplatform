@@ -1,0 +1,75 @@
+.vco-panel {
+  margin-bottom: 20px;
+}
+
+.vco-participants-search {
+  min-width: 220px;
+  max-width: 300px;
+  margin-bottom: 0;
+  height: 40px;
+}
+
+.vco-empty--compact {
+  padding: 36px 20px;
+  border: none;
+  background: transparent;
+}
+
+.vco-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 0.82rem;
+  background: var(--vh-surface-2);
+  color: var(--vh-muted);
+}
+
+.vco-rank--top {
+  color: var(--vh-accent);
+  background: color-mix(in srgb, var(--vh-accent) 12%, var(--vh-surface));
+  border: 1px solid color-mix(in srgb, var(--vh-accent) 25%, transparent);
+}
+
+.vco-participant-status {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.vco-participant-status--registered {
+  color: #0369a1;
+  background: color-mix(in srgb, #0ea5e9 12%, transparent);
+  border: 1px solid color-mix(in srgb, #0ea5e9 25%, transparent);
+}
+
+.vco-participant-status--in_progress {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  border: 1px solid color-mix(in srgb, #f59e0b 25%, transparent);
+}
+
+.vco-participant-status--completed {
+  color: #059669;
+  background: color-mix(in srgb, #10b981 12%, transparent);
+  border: 1px solid color-mix(in srgb, #10b981 25%, transparent);
+}
+
+.vco-participant-status--disqualified {
+  color: #dc2626;
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 25%, transparent);
+}
+
+@media (max-width: 768px) {
+  .vco-participants-search {
+    width: 100%;
+    max-width: none;
+  }
+}

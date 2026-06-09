@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import axiosInstance from '../../utils/axios';
 import {
@@ -323,9 +323,13 @@ const TestTakingLoader = ({ message = 'Preparing your test…' }) => (
 
 const TestTaking = () => {
   const { testId } = useParams();
+  const [searchParams] = useSearchParams();
+  const contestId = searchParams.get('contestId');
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const attemptWindowEndRef = useRef(null);
+  const autoSubmitTriggeredRef = useRef(false);
   const fromShareLink = isFromShareLink(location);
   const [fullscreenReady, setFullscreenReady] = useState(false);
   const [test, setTest] = useState(null);
@@ -495,7 +499,7 @@ const TestTaking = () => {
     };
   }, [isResizing]);
 
-  const handleSubmitTest = async (skipConfirmation = false) => {
+  const handleSubmitTest = async (skipConfirmation = false, autoSubmitted = false) => {
     if (!result) {
       showToast('Test session not found', 'error');
       return;
@@ -518,7 +522,11 @@ const TestTaking = () => {
       setSubmitting(true);
       setPageLoading(true);
       console.log('📤 Submitting test:', result._id);
-      const response = await axiosInstance.post(`/results/${result._id}/submit`);
+      const submitBody = {
+        ...(contestId ? { contestId } : {}),
+        ...(autoSubmitted ? { autoSubmitted: true } : {}),
+      };
+      const response = await axiosInstance.post(`/results/${result._id}/submit`, submitBody);
       console.log('✅ Test submitted successfully');
       const finalId = response?.data?._id || result._id;
       goToResult(finalId);
@@ -548,7 +556,12 @@ const TestTaking = () => {
     if (result && result.status === 'in_progress' && test) {
       const duration = test.duration * 60 * 1000;
       const elapsed = Date.now() - new Date(result.startedAt).getTime();
-      const remaining = Math.max(0, duration - elapsed);
+      const durationRemaining = Math.max(0, duration - elapsed);
+      const windowEnd = attemptWindowEndRef.current
+        ? new Date(attemptWindowEndRef.current).getTime()
+        : null;
+      const windowRemaining = windowEnd ? Math.max(0, windowEnd - Date.now()) : durationRemaining;
+      const remaining = windowEnd ? Math.min(durationRemaining, windowRemaining) : durationRemaining;
       setTimeRemaining(remaining);
       
       // Check if time already expired
@@ -557,12 +570,22 @@ const TestTaking = () => {
       }
 
       const timer = setInterval(() => {
-        setTimeRemaining(prev => {
+        setTimeRemaining((prev) => {
           const newTime = prev - 1000;
-          if (newTime <= 0 && !timeExpired) {
+          if (newTime <= 0 && !autoSubmitTriggeredRef.current) {
+            autoSubmitTriggeredRef.current = true;
             setTimeExpired(true);
-            // Don't auto-submit, just mark as expired
-            // User can still continue but will see time expired message
+            setModal({
+              isOpen: true,
+              title: 'Time\'s up',
+              message: contestId
+                ? 'The contest attempt window has ended. Your test will be submitted automatically.'
+                : 'Your test time has ended. Your test will be submitted automatically.',
+              type: 'warning',
+            });
+            setTimeout(() => {
+              handleSubmitTestRef.current?.(true, true);
+            }, 2000);
             return 0;
           }
           return Math.max(0, newTime);
@@ -617,8 +640,15 @@ const TestTaking = () => {
       }
 
       console.log('🚀 Starting test...');
-      const resultRes = await axiosInstance.post(`/results/start/${testId}`);
+      const resultRes = await axiosInstance.post(
+        `/results/start/${testId}`,
+        contestId ? { contestId } : {}
+      );
       console.log('✅ Test started:', resultRes.data);
+
+      if (resultRes.data?.attemptWindowEnd) {
+        attemptWindowEndRef.current = resultRes.data.attemptWindowEnd;
+      }
 
       setTest(testRes.data);
       setResult(resultRes.data);
@@ -693,6 +723,15 @@ const TestTaking = () => {
         serverMsg.toLowerCase().includes('already completed');
 
       if (alreadyCompleted && existingResultId) {
+        goToResult(existingResultId);
+        return;
+      }
+
+      const autoSubmittedOnStart =
+        error.response?.status === 400 &&
+        (error.response?.data?.autoSubmitted || serverMsg.toLowerCase().includes('submitted automatically'));
+
+      if (autoSubmittedOnStart && existingResultId) {
         goToResult(existingResultId);
         return;
       }
@@ -1462,8 +1501,8 @@ const TestTaking = () => {
             <span className="test-timer-icon" aria-hidden>⏱</span>
             <span>{timeExpired ? 'Time up' : formatTime(timeRemaining)}</span>
           </div>
-          {timeExpired && (
-            <span className="test-time-hint">You can still save answers</span>
+          {timeExpired && submitting && (
+            <span className="test-time-hint">Submitting…</span>
           )}
           <button
             type="button"

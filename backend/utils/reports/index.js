@@ -2,9 +2,11 @@ const { buildTestReport } = require('./testReportBuilder');
 const { buildInterviewReport } = require('./interviewReportBuilder');
 const { buildAssignmentReport } = require('./assignmentReportBuilder');
 const { buildSystemDesignReport } = require('./systemDesignReportBuilder');
+const { buildContestReport } = require('./contestReportBuilder');
 const { generateExcelBuffer, sanitizeFilename } = require('./generateExcel');
 const {
   getColumnDefs,
+  getContestReportOptions,
   getTestReportOptions,
   getInterviewReportOptions,
   getAssignmentReportOptions,
@@ -28,9 +30,11 @@ async function buildReportData(category, resource, vendorId) {
 
 module.exports = {
   buildReportData,
+  buildContestReport,
   generateExcelBuffer,
   sanitizeFilename,
   getColumnDefs,
+  getContestReportOptions,
   getTestReportOptions,
   getInterviewReportOptions,
   getAssignmentReportOptions,

@@ -1,4 +1,11 @@
 const express = require('express');
+const Contest = require('../models/Contest');
+const {
+  enforceContestWindowIfApplicable,
+  syncParticipantOnAssignmentStart,
+  markParticipantCompleted,
+  getParticipant,
+} = require('../utils/contestService');
 const router = express.Router();
 const Assignment = require('../models/Assignment');
 const User = require('../models/User');
@@ -602,11 +609,38 @@ router.get('/student/my-assignments', authenticateToken, authorizeRoles('student
  */
 router.post('/:id/start', authenticateToken, authorizeRoles('student'), async (req, res) => {
   try {
+    const contestId = req.body?.contestId || req.query?.contestId;
+    let activeContest = null;
+    try {
+      activeContest = await enforceContestWindowIfApplicable(
+        contestId,
+        'assignment',
+        req.params.id,
+        req.user._id
+      );
+    } catch (contestErr) {
+      return res.status(contestErr.status || 403).json({
+        success: false,
+        message: contestErr.message,
+        code: contestErr.code,
+      });
+    }
+
     const student = await User.findById(req.user._id);
     
-    const enrollment = student.enrolledAssignments.find(
+    let enrollment = student.enrolledAssignments.find(
       ea => ea.assignmentId.toString() === req.params.id
     );
+
+    if (!enrollment && activeContest) {
+      student.enrolledAssignments.push({
+        assignmentId: req.params.id,
+        status: 'assigned',
+        deadline: activeContest.attemptWindowEnd,
+      });
+      enrollment = student.enrolledAssignments[student.enrolledAssignments.length - 1];
+      await student.save();
+    }
 
     if (!enrollment) {
       return res.status(404).json({
@@ -636,11 +670,17 @@ router.post('/:id/start', authenticateToken, authorizeRoles('student'), async (r
 
     await student.save();
 
+    if (activeContest) {
+      await syncParticipantOnAssignmentStart(activeContest._id, req.user._id);
+    }
+
     res.json({
       success: true,
       message: 'Assignment started. Timer is now running!',
       startedAt: enrollment.startedAt,
-      deadline: enrollment.deadline
+      deadline: enrollment.deadline,
+      contestId: activeContest?._id,
+      attemptWindowEnd: activeContest?.attemptWindowEnd,
     });
   } catch (error) {
     console.error('Error starting assignment:', error);

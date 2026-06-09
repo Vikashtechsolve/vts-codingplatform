@@ -1,194 +1,82 @@
+/* Matches interviewer-portrait.jpg (900×1100, 9:11 head-and-shoulders) */
 .live-interviewer-visual {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  --energy: 0;
-  --mouth-open: 0;
+  overflow: hidden;
+  background: #e8edf2;
 }
 
-.live-interviewer-svg {
+.live-interviewer-photo {
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: cover;
+  /* Face centered; slight top bias for professional headroom */
+  object-position: center 14%;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-.liv-orb {
-  opacity: 0.12;
-  animation: livOrbFloat 7s ease-in-out infinite;
+.live-interviewer-visual.speaking .live-interviewer-photo {
+  filter: brightness(1.03) saturate(1.04);
+  transition: filter 0.12s ease-out;
 }
 
-.liv-orb-b {
-  animation-delay: -2.5s;
+.live-interviewer-visual.listening .live-interviewer-photo {
+  filter: saturate(1.02);
 }
 
-@keyframes livOrbFloat {
-  0%, 100% { transform: translateY(0) scale(1); opacity: 0.1; }
-  50% { transform: translateY(-10px) scale(1.05); opacity: 0.16; }
-}
-
-.liv-cheek {
-  fill: #f5a8a0;
-  opacity: 0.42;
-}
-
-.live-interviewer-visual.happy .liv-cheek {
-  animation: livCheekGlow 3s ease-in-out infinite;
-}
-
-@keyframes livCheekGlow {
-  0%, 100% { opacity: 0.38; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(1.06); }
-}
-
-.live-interviewer-visual .liv-body {
-  animation: livBreathe 5s ease-in-out infinite;
-  transform-origin: 200px 400px;
-}
-
-.live-interviewer-visual.speaking .liv-body {
-  animation: livSpeakBody 2s ease-in-out infinite;
-}
-
-@keyframes livBreathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.012); }
-}
-
-@keyframes livSpeakBody {
-  0%, 100% { transform: scale(1) translateY(0); }
-  45% { transform: scale(1.018) translateY(2px); }
-}
-
-.live-interviewer-visual .liv-head-group {
-  transform-origin: 200px 185px;
-}
-
-.live-interviewer-visual.happy:not(.speaking):not(.listening) .liv-head-group {
-  animation: livHeadWelcome 5s ease-in-out infinite;
-}
-
-.live-interviewer-visual.speaking .liv-head-group {
-  animation: livHeadTalk 1.9s ease-in-out infinite;
-}
-
-.live-interviewer-visual.listening .liv-head-group {
-  animation: livHeadListen 3.2s ease-in-out infinite;
-}
-
-@keyframes livHeadWelcome {
-  0%, 100% { transform: rotate(0deg) translateY(0); }
-  50% { transform: rotate(0.5deg) translateY(-3px); }
-}
-
-@keyframes livHeadTalk {
-  0%, 100% { transform: rotate(-0.4deg) translateY(0); }
-  30% { transform: rotate(0.55deg) translateY(2px); }
-  60% { transform: rotate(-0.2deg) translateY(1px); }
-}
-
-@keyframes livHeadListen {
-  0%, 100% { transform: rotate(-0.5deg); }
-  50% { transform: rotate(0.45deg) translateY(1px); }
-}
-
-.liv-brow {
-  animation: livBrowLift 4s ease-in-out infinite;
-}
-
-@keyframes livBrowLift {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-1px); }
-}
-
-.liv-eye-smile {
-  animation: livEyeSmile 4.5s ease-in-out infinite;
-}
-
-@keyframes livEyeSmile {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 0.75; }
-}
-
-.liv-blink {
-  opacity: 0;
-  animation: livBlinkAnim 6s ease-in-out infinite;
-}
-
-@keyframes livBlinkAnim {
-  0%, 40%, 44%, 100% { opacity: 0; }
-  42% { opacity: 0.92; }
-}
-
-.live-interviewer-visual.happy .liv-pupil {
-  animation: livEyeSparkle 3s ease-in-out infinite;
-}
-
-@keyframes livEyeSparkle {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(0.5px, -1px); }
-}
-
-.liv-mouth {
-  transform-origin: 200px 258px;
-  transition: transform 0.05s cubic-bezier(0.33, 1, 0.68, 1);
-}
-
-.live-interviewer-visual.speaking .liv-mouth {
-  transform: scale(calc(1 + var(--mouth-open) * 0.1));
-}
-
-.liv-teeth {
-  transition: ry 0.05s ease-out, opacity 0.1s ease;
-  animation: livTeethGlow 0.4s ease-in-out infinite alternate;
-}
-
-@keyframes livTeethGlow {
-  from { opacity: 0.88; }
-  to { opacity: 1; }
-}
-
-.liv-smile-shine {
-  animation: livShine 2s ease-in-out infinite;
-}
-
-@keyframes livShine {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
-
-.liv-speak-ring {
-  animation: livRingPulse 1s ease-in-out infinite;
-}
-
-@keyframes livRingPulse {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 0.5; }
-}
-
-.liv-energy-rings {
-  position: absolute;
-  left: 50%;
-  top: 36%;
-  width: 130px;
-  height: 130px;
-  margin: -65px 0 0 -65px;
-  pointer-events: none;
-}
-
-.liv-ring {
+.live-interviewer-speak-shade {
   position: absolute;
   inset: 0;
-  border: 2px solid color-mix(in srgb, var(--primary-color, #8b9cf8) 55%, #fff);
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 55% 42% at 50% 38%,
+    rgba(255, 255, 255, calc(0.06 + var(--speak-glow) * 0.12)) 0%,
+    transparent 72%
+  );
+  z-index: 1;
+}
+
+.live-interviewer-frame-edge {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  z-index: 2;
+}
+
+/* Minimal fallback if portrait missing */
+.live-interviewer-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #f1f5f9 0%, #cbd5e1 100%);
+}
+
+.live-interviewer-fallback-inner {
+  text-align: center;
+  color: #475569;
+}
+
+.live-interviewer-fallback-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 12px;
   border-radius: 50%;
-  animation: livRingExpand 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-  opacity: calc(0.2 + var(--energy) * 0.45);
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(145deg, #64748b, #334155);
 }
 
-.liv-ring-2 {
-  animation-delay: 0.6s;
-}
-
-@keyframes livRingExpand {
-  0% { transform: scale(0.8); opacity: 0.55; }
-  100% { transform: scale(1.4); opacity: 0; }
+.live-interviewer-fallback-inner p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
 }

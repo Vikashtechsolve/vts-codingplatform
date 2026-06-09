@@ -64,6 +64,15 @@ async function addInfoSheet(workbook, meta, assessmentLabel) {
   if (meta.duration) lines.push(['Duration (minutes)', meta.duration]);
   if (meta.topic) lines.push(['Topic', meta.topic]);
   if (meta.difficulty) lines.push(['Difficulty', meta.difficulty]);
+  if (meta.contestTitle) lines.push(['Contest', meta.contestTitle]);
+  if (meta.contestSlug) lines.push(['Contest Link Slug', meta.contestSlug]);
+  if (meta.totalRegistered != null) lines.push(['Contest Registrations', meta.totalRegistered]);
+  if (meta.attemptWindowStart) {
+    lines.push(['Attempt Window Start', new Date(meta.attemptWindowStart).toISOString()]);
+  }
+  if (meta.attemptWindowEnd) {
+    lines.push(['Attempt Window End', new Date(meta.attemptWindowEnd).toISOString()]);
+  }
 
   lines.forEach(([a, b], i) => {
     const row = ws.getRow(i + 1);
@@ -82,8 +91,8 @@ async function addInfoSheet(workbook, meta, assessmentLabel) {
  * @param {string[]} params.selectedKeys
  * @param {object} params.reportData - from *ReportBuilder
  */
-async function generateExcelBuffer({ category, test, selectedKeys, reportData }) {
-  const allColumns = resolveColumns(category, test, selectedKeys);
+async function generateExcelBuffer({ category, test, selectedKeys, reportData, isContest }) {
+  const allColumns = resolveColumns(category, test, selectedKeys, isContest);
 
   const summaryCols = allColumns.filter((c) => c.sheet === 'summary');
   const detailCols = allColumns.filter((c) => c.sheet === 'detail');

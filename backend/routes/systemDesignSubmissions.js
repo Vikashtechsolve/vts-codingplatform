@@ -3,6 +3,13 @@ const router = express.Router();
 const SystemDesignProblem = require('../models/SystemDesignProblem');
 const SystemDesignSubmission = require('../models/SystemDesignSubmission');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
+const Contest = require('../models/Contest');
+const {
+  enforceContestWindowIfApplicable,
+  syncParticipantOnSystemDesignStart,
+  markParticipantCompleted,
+  getParticipant,
+} = require('../utils/contestService');
 
 /**
  * POST /api/system-design-submissions/start/:problemId
@@ -20,6 +27,23 @@ router.post('/start/:problemId', authenticateToken, authorizeRoles('student'), a
 
     if (!problem.isActive) {
       return res.status(400).json({ success: false, message: 'This problem is no longer active' });
+    }
+
+    const contestId = req.body?.contestId || req.query?.contestId;
+    let activeContest = null;
+    try {
+      activeContest = await enforceContestWindowIfApplicable(
+        contestId,
+        'system_design',
+        problemId,
+        studentId
+      );
+    } catch (contestErr) {
+      return res.status(contestErr.status || 403).json({
+        success: false,
+        message: contestErr.message,
+        code: contestErr.code,
+      });
     }
 
     // Check if already started
@@ -78,10 +102,16 @@ router.post('/start/:problemId', authenticateToken, authorizeRoles('student'), a
 
     await submission.save();
 
+    if (activeContest) {
+      await syncParticipantOnSystemDesignStart(activeContest._id, studentId, submission._id);
+    }
+
     res.status(201).json({
       success: true,
       message: 'System design attempt started',
-      submission
+      submission,
+      contestId: activeContest?._id,
+      attemptWindowEnd: activeContest?.attemptWindowEnd,
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -261,6 +291,29 @@ router.post('/:submissionId/submit', authenticateToken, authorizeRoles('student'
     submission.submittedAt = new Date();
     submission.timeSpent = Math.round((submission.submittedAt - submission.startedAt) / 1000);
     await submission.save();
+
+    const submitContestId = req.body?.contestId || req.query?.contestId;
+    if (submitContestId) {
+      await markParticipantCompleted(submitContestId, req.user._id, {
+        model: 'SystemDesignSubmission',
+        id: submission._id,
+      });
+    } else {
+      const linkedContest = await Contest.findOne({
+        assessmentType: 'system_design',
+        assessmentId: submission.problemId,
+        status: 'published',
+      });
+      if (linkedContest) {
+        const linkedParticipant = await getParticipant(linkedContest._id, req.user._id);
+        if (linkedParticipant) {
+          await markParticipantCompleted(linkedContest._id, req.user._id, {
+            model: 'SystemDesignSubmission',
+            id: submission._id,
+          });
+        }
+      }
+    }
 
     // Update problem stats
     await SystemDesignProblem.findByIdAndUpdate(submission.problemId, {

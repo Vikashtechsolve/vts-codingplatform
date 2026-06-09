@@ -300,8 +300,13 @@
 .interview-call-main-inner .interviewer-call {
   height: 100%;
   width: 100%;
-  max-width: min(100%, 300px);
+  max-width: min(100%, 340px);
+  min-height: 0;
   filter: drop-shadow(0 12px 28px rgba(15, 23, 42, 0.12));
+}
+
+.interview-call-main-inner .interviewer-call.is-compact {
+  max-width: 100%;
 }
 
 /* Question bar — always visible below video stage */

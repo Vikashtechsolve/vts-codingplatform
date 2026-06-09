@@ -20,6 +20,15 @@ const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
 const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
 const CodingQuestion = require('../models/CodingQuestion');
 const { MAX_VIOLATIONS, normalizeViolationType } = require('../utils/examViolations');
+const {
+  enforceContestWindowIfApplicable,
+  syncParticipantOnTestStart,
+  markParticipantCompleted,
+  getParticipant,
+  isTestAttemptExpired,
+  finalizeInProgressTestResult,
+} = require('../utils/contestService');
+const Contest = require('../models/Contest');
 
 const sanitizeCodingQuestionForStudent = (q) => {
   if (!q) return null;
@@ -203,15 +212,54 @@ router.post('/start/:testId', auth, async (req, res) => {
       return res.status(400).json({ message: 'Test is not active' });
     }
 
+    const contestId = req.body?.contestId || req.query?.contestId;
+    let activeContest = null;
+    try {
+      activeContest = await enforceContestWindowIfApplicable(
+        contestId,
+        'test',
+        test._id,
+        req.user._id
+      );
+    } catch (contestErr) {
+      return res.status(contestErr.status || 403).json({
+        message: contestErr.message,
+        code: contestErr.code,
+      });
+    }
+
     // Check if student is enrolled
     const student = await User.findById(req.user._id);
-    const enrollment = student.enrolledTests.find(
+    let enrollment = student.enrolledTests.find(
       et => et.testId.toString() === test._id.toString()
     );
+
+    if (!enrollment && activeContest) {
+      student.enrolledTests.push({ testId: test._id, status: 'assigned' });
+      enrollment = student.enrolledTests[student.enrolledTests.length - 1];
+      await student.save();
+    }
 
     if (!enrollment) {
       console.log('❌ Student not enrolled in test');
       return res.status(403).json({ message: 'Test not assigned to you' });
+    }
+
+    if (!activeContest && !contestId) {
+      const contestOnlyAccess = await Contest.findOne({
+        assessmentType: 'test',
+        assessmentId: test._id,
+        status: 'published',
+      });
+      if (contestOnlyAccess) {
+        const participant = await getParticipant(contestOnlyAccess._id, req.user._id);
+        if (participant && req.user.accountOrigin === 'contest') {
+          return res.status(403).json({
+            message: 'This test is only available through the contest during the scheduled window',
+            contestSlug: contestOnlyAccess.slug,
+          });
+        }
+      }
     }
 
     // Prefer an in-progress attempt; only block when no active attempt exists
@@ -222,8 +270,30 @@ router.post('/start/:testId', auth, async (req, res) => {
     });
 
     if (result) {
+      let contestForResume = activeContest;
+      if (!contestForResume && contestId) {
+        contestForResume = await Contest.findById(contestId);
+      }
+
+      if (contestForResume && isTestAttemptExpired(result, test, contestForResume)) {
+        await finalizeInProgressTestResult(result, req.user._id, {
+          autoSubmitted: true,
+          contestId: contestForResume._id,
+        });
+        return res.status(400).json({
+          message: 'Time expired — your test was submitted automatically',
+          resultId: result._id,
+          autoSubmitted: true,
+        });
+      }
+
       console.log('✅ Returning existing in-progress result');
-      return res.json(result);
+      const payload = result.toObject();
+      if (contestForResume) {
+        payload.contestId = contestForResume._id;
+        payload.attemptWindowEnd = contestForResume.attemptWindowEnd;
+      }
+      return res.json(payload);
     }
 
     const completedResult = await Result.findOne({
@@ -268,13 +338,22 @@ router.post('/start/:testId', auth, async (req, res) => {
     await result.save();
     console.log('✅ Result created:', result._id);
 
+    if (activeContest) {
+      await syncParticipantOnTestStart(activeContest._id, req.user._id, result._id);
+    }
+
     // Update enrollment status
     enrollment.status = 'in_progress';
     enrollment.startedAt = new Date();
     await student.save();
     console.log('✅ Enrollment status updated');
 
-    res.status(201).json(result);
+    const payload = result.toObject();
+    if (activeContest) {
+      payload.contestId = activeContest._id;
+      payload.attemptWindowEnd = activeContest.attemptWindowEnd;
+    }
+    res.status(201).json(payload);
   } catch (error) {
     console.error('❌ Error starting test:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -792,14 +871,31 @@ router.post('/:resultId/submit', auth, async (req, res) => {
       result.sectionScores = buildSectionScoresForStandardTest(test, result);
     }
 
+    const submitContestId = req.body?.contestId || req.query?.contestId;
+    let contestForDeadline = null;
+    if (submitContestId) {
+      contestForDeadline = await Contest.findById(submitContestId);
+    } else {
+      contestForDeadline = await Contest.findOne({
+        assessmentType: 'test',
+        assessmentId: result.testId,
+        status: { $in: ['published', 'ended'] },
+      });
+    }
+    const submitTime = new Date();
+    const deadlinePassed = isTestAttemptExpired(result, test, contestForDeadline, submitTime);
+
     // Calculate total score
     result.totalScore = result.answers.reduce((sum, a) => sum + (a.points || 0), 0);
     result.percentage = (result.maxScore > 0)
       ? Math.round((result.totalScore / result.maxScore) * 100)
       : 0;
-    result.submittedAt = new Date();
+    result.submittedAt = submitTime;
     result.timeSpent = Math.floor((result.submittedAt - result.startedAt) / 1000);
     result.status = 'completed';
+    if (req.body?.autoSubmitted || deadlinePassed) {
+      result.autoSubmitted = true;
+    }
     
     console.log(`✅ Test submitted: Score ${result.totalScore}/${result.maxScore} (${result.percentage}%)`);
 
@@ -814,6 +910,22 @@ router.post('/:resultId/submit', auth, async (req, res) => {
       enrollment.status = 'completed';
       enrollment.completedAt = new Date();
       await student.save();
+    }
+
+    if (submitContestId) {
+      await markParticipantCompleted(submitContestId, req.user._id, { model: 'Result', id: result._id });
+    } else {
+      const linkedContest = await Contest.findOne({
+        assessmentType: 'test',
+        assessmentId: result.testId,
+        status: { $in: ['published', 'ended'] },
+      });
+      if (linkedContest) {
+        const linkedParticipant = await getParticipant(linkedContest._id, req.user._id);
+        if (linkedParticipant) {
+          await markParticipantCompleted(linkedContest._id, req.user._id, { model: 'Result', id: result._id });
+        }
+      }
     }
 
     res.json(result);

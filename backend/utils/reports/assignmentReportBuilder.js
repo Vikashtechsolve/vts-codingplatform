@@ -3,7 +3,10 @@ const ProjectSubmission = require('../../models/ProjectSubmission');
 const EvaluationResult = require('../../models/EvaluationResult');
 const { formatDate, formatBool, truncate, safeNum } = require('./formatters');
 
-async function fetchEnrolledStudents(assignmentId, vendorId) {
+async function fetchEnrolledStudents(assignmentId, vendorId, studentIds) {
+  if (studentIds?.length) {
+    return User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email enrolledAssignments');
+  }
   return User.find({
     vendorId,
     role: 'student',
@@ -17,11 +20,16 @@ function getEnrollment(student, assignmentId) {
   );
 }
 
-async function buildAssignmentReport(assignment, vendorId) {
+async function buildAssignmentReport(assignment, vendorId, options = {}) {
+  const { studentIds, participantMap: pMap } = options;
   const assignmentId = assignment._id;
+  const submissionQuery = { assignmentId, vendorId };
+  if (studentIds?.length) {
+    submissionQuery.studentId = { $in: studentIds };
+  }
   const [students, submissions] = await Promise.all([
-    fetchEnrolledStudents(assignmentId, vendorId),
-    ProjectSubmission.find({ assignmentId, vendorId })
+    fetchEnrolledStudents(assignmentId, vendorId, studentIds),
+    ProjectSubmission.find(submissionQuery)
       .populate('studentId', 'name email')
       .lean(),
   ]);
@@ -48,6 +56,7 @@ async function buildAssignmentReport(assignment, vendorId) {
   students.forEach((student) => {
     const sid = student._id.toString();
     const enrollment = getEnrollment(student, assignmentId);
+    const participant = pMap?.get(sid);
     const submission = submissionByStudent.get(sid);
     const evaluation = submission
       ? evalBySubmission.get(submission._id.toString())
@@ -56,7 +65,7 @@ async function buildAssignmentReport(assignment, vendorId) {
     summaryRows.push({
       studentName: student.name || '',
       studentEmail: student.email || '',
-      enrollmentStatus: enrollment?.status || 'assigned',
+      enrollmentStatus: enrollment?.status || participant?.status || 'registered',
       submissionStatus: submission?.status || 'not_submitted',
       submittedAt: formatDate(submission?.submittedAt),
       isLateSubmission: formatBool(submission?.isLateSubmission),

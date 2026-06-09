@@ -18,6 +18,7 @@ import {
   FiBarChart2,
   FiSettings,
   FiList,
+  FiAward,
 } from 'react-icons/fi';
 
 /** Matches student panel accent — use sparingly */
@@ -64,6 +65,14 @@ export const VENDOR_MENU_SECTIONS = [
     path: '/vendor-admin/classrooms',
     icon: FiGrid,
     accent: '#0891b2',
+  },
+  {
+    id: 'contests',
+    label: 'Contests',
+    shortLabel: 'Contests',
+    path: '/vendor-admin/contests',
+    icon: FiAward,
+    accent: VENDOR_ACCENT,
   },
   {
     id: 'announcements',

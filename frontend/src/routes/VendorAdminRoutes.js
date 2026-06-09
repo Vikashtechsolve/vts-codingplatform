@@ -38,6 +38,10 @@ import AssignSystemDesign from '../pages/VendorAdmin/AssignSystemDesign';
 import SystemDesignSubmissions from '../pages/VendorAdmin/SystemDesignSubmissions';
 import AnnouncementList from '../pages/VendorAdmin/AnnouncementList';
 import CreateAnnouncement from '../pages/VendorAdmin/CreateAnnouncement';
+import ContestList from '../pages/VendorAdmin/ContestList';
+import CreateContest from '../pages/VendorAdmin/CreateContest';
+import ContestParticipants from '../pages/VendorAdmin/ContestParticipants';
+import ContestResults from '../pages/VendorAdmin/ContestResults';
 import EnglishQuestionList from '../pages/VendorAdmin/EnglishQuestionList';
 import CreateEnglishGrammarQuestion from '../pages/VendorAdmin/CreateEnglishGrammarQuestion';
 import CreateEnglishVocabularyQuestion from '../pages/VendorAdmin/CreateEnglishVocabularyQuestion';
@@ -105,6 +109,11 @@ const VendorAdminRoutes = (
     <Route path="system-designs/:id/assign" element={<AssignSystemDesign />} />
     <Route path="system-designs/:id/submissions" element={<SystemDesignSubmissions />} />
     <Route path="system-design-result/:submissionId" element={<SystemDesignResult />} />
+    <Route path="contests" element={<ContestList />} />
+    <Route path="contests/create" element={<CreateContest />} />
+    <Route path="contests/:id/edit" element={<CreateContest />} />
+    <Route path="contests/:id/participants" element={<ContestParticipants />} />
+    <Route path="contests/:id/results" element={<ContestResults />} />
     <Route path="announcements" element={<AnnouncementList />} />
     <Route path="announcements/create" element={<CreateAnnouncement />} />
     <Route path="announcements/:id/edit" element={<CreateAnnouncement />} />

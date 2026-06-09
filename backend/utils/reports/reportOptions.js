@@ -256,6 +256,33 @@ function getSystemDesignReportOptions() {
   };
 }
 
+const CONTEST_EXTRA_COLUMNS = [
+  col('contestRegisteredAt', 'Contest Registered At', { default: true }),
+  col('contestStatus', 'Contest Status', { default: true }),
+  col('college', 'College', { default: false }),
+  col('rollNumber', 'Roll Number', { default: false }),
+  col('phone', 'Phone', { default: false }),
+];
+
+function getContestReportOptions(contest, assessmentResource) {
+  const base = getColumnDefs(contest.assessmentType, assessmentResource);
+  const contestSummaryCols = CONTEST_EXTRA_COLUMNS.map((c) => ({ ...c, sheet: 'summary' }));
+  const columns = [...contestSummaryCols, ...base.columns];
+  const defaultSelected = [...new Set([
+    ...contestSummaryCols.filter((c) => c.default).map((c) => c.key),
+    ...base.defaultSelected,
+  ])];
+  return {
+    ...base,
+    assessmentType: contest.assessmentType,
+    contestId: contest._id,
+    contestTitle: contest.title,
+    columns,
+    defaultSelected,
+    sheets: base.sheets,
+  };
+}
+
 function getColumnDefs(category, test) {
   switch (category) {
     case 'test':
@@ -271,8 +298,9 @@ function getColumnDefs(category, test) {
   }
 }
 
-function resolveColumns(category, test, selectedKeys) {
-  const { columns } = getColumnDefs(category, test);
+function resolveColumns(category, test, selectedKeys, contestColumns) {
+  const base = getColumnDefs(category, test);
+  const columns = contestColumns ? [...CONTEST_EXTRA_COLUMNS, ...base.columns] : base.columns;
   const keySet = new Set(selectedKeys);
   return columns.filter((c) => keySet.has(c.key));
 }
@@ -282,6 +310,8 @@ module.exports = {
   getInterviewReportOptions,
   getAssignmentReportOptions,
   getSystemDesignReportOptions,
+  getContestReportOptions,
   getColumnDefs,
   resolveColumns,
+  CONTEST_EXTRA_COLUMNS,
 };

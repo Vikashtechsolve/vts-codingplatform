@@ -160,12 +160,29 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const applySession = (newToken, userData) => {
+    const normalized = normalizeAuthUser(userData);
+    const vendorId = getUserVendorId(normalized) || userData?.vendorId;
+    if (vendorId) {
+      normalized.vendorId = String(vendorId);
+      if (normalized?.branding) {
+        setCachedBranding(vendorId, normalized.branding);
+      }
+    }
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(normalized));
+    setToken(newToken);
+    setUser(normalized);
+    window.dispatchEvent(new CustomEvent('platform:branding-changed'));
+  };
+
   const value = {
     user,
     loading,
     login,
     register,
     logout,
+    applySession,
     updateUserBranding,
     isAuthenticated: !!user,
   };

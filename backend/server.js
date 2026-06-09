@@ -278,6 +278,7 @@ app.use('/api/announcements', require('./routes/announcements'));
 app.use('/api/project-submissions', require('./routes/projectSubmissions'));
 app.use('/api/system-design-problems', require('./routes/systemDesignProblems'));
 app.use('/api/system-design-submissions', require('./routes/systemDesignSubmissions'));
+app.use('/api/contests', require('./routes/contests'));
 
 // Load workers and test Redis connection on startup
 const { testRedisConnection } = require('./config/redis');
@@ -329,6 +330,14 @@ mongoose.connect(mongoURI)
   console.log('✅ MongoDB Connected Successfully');
   // Initialize super admin
   require('./utils/initSuperAdmin')();
+
+  const { sweepExpiredContestTestAttempts } = require('./utils/contestService');
+  const sweepMs = parseInt(process.env.CONTEST_AUTO_SUBMIT_SWEEP_MS || '60000', 10);
+  setInterval(() => {
+    sweepExpiredContestTestAttempts().catch((err) => {
+      console.error('Contest auto-submit sweep error:', err.message || err);
+    });
+  }, sweepMs);
 })
 .catch(err => {
   console.error('❌ MongoDB connection error:', err);

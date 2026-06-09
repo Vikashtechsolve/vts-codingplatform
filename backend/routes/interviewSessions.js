@@ -18,6 +18,13 @@ const {
 const { transcribeAudio } = require('../utils/sttService');
 const { synthesizeSpeech } = require('../utils/ttsService');
 const { createTalkingHeadVideo, isTalkingHeadEnabled } = require('../utils/avatarTalkService');
+const {
+  enforceContestWindowIfApplicable,
+  syncParticipantOnInterviewStart,
+  markParticipantCompleted,
+  getParticipant,
+} = require('../utils/contestService');
+const Contest = require('../models/Contest');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -157,10 +164,32 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
       return res.status(400).json({ message: 'Interview is not active' });
     }
 
+    const contestId = req.body?.contestId || req.query?.contestId;
+    let activeContest = null;
+    try {
+      activeContest = await enforceContestWindowIfApplicable(
+        contestId,
+        'interview',
+        interview._id,
+        req.user._id
+      );
+    } catch (contestErr) {
+      return res.status(contestErr.status || 403).json({
+        message: contestErr.message,
+        code: contestErr.code,
+      });
+    }
+
     const student = await User.findById(req.user._id);
-    const enrollment = student.enrolledInterviews.find(
+    let enrollment = student.enrolledInterviews.find(
       ei => ei.interviewId && ei.interviewId.toString() === interview._id.toString()
     );
+
+    if (!enrollment && activeContest) {
+      student.enrolledInterviews.push({ interviewId: interview._id, status: 'assigned' });
+      enrollment = student.enrolledInterviews[student.enrolledInterviews.length - 1];
+      await student.save();
+    }
 
     if (!enrollment) {
       return res.status(403).json({ message: 'Interview not assigned to you' });
@@ -258,6 +287,10 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
     enrollment.status = 'in_progress';
     enrollment.startedAt = new Date();
     await student.save();
+
+    if (activeContest) {
+      await syncParticipantOnInterviewStart(activeContest._id, req.user._id, session._id);
+    }
 
     if (session.currentQuestion?.questionText && !session.currentQuestion?.spokenText) {
       const opener = await generateInterviewOpener({
@@ -534,6 +567,29 @@ router.post('/:sessionId/submit', auth, authorize('student'), async (req, res) =
       enrollment.status = 'completed';
       enrollment.completedAt = new Date();
       await student.save();
+    }
+
+    const submitContestId = req.body?.contestId || req.query?.contestId;
+    if (submitContestId) {
+      await markParticipantCompleted(submitContestId, req.user._id, {
+        model: 'InterviewSession',
+        id: session._id,
+      });
+    } else {
+      const linkedContest = await Contest.findOne({
+        assessmentType: 'interview',
+        assessmentId: session.interviewId,
+        status: 'published',
+      });
+      if (linkedContest) {
+        const linkedParticipant = await getParticipant(linkedContest._id, req.user._id);
+        if (linkedParticipant) {
+          await markParticipantCompleted(linkedContest._id, req.user._id, {
+            model: 'InterviewSession',
+            id: session._id,
+          });
+        }
+      }
     }
 
     res.json(session);
