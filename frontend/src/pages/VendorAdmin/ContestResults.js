@@ -33,6 +33,8 @@ const getDetailLink = (contest, row) => {
   return null;
 };
 
+const EMPTY_ROWS = [];
+
 const ContestResults = () => {
   const { id } = useParams();
   const [data, setData] = useState(null);
@@ -60,7 +62,10 @@ const ContestResults = () => {
   }, [id]);
 
   const contest = data?.contest;
-  const rows = data?.rows || [];
+  const rows = useMemo(
+    () => (Array.isArray(data?.rows) ? data.rows : EMPTY_ROWS),
+    [data]
+  );
   const analytics = data?.analytics;
 
   const sortByRank = (list) =>

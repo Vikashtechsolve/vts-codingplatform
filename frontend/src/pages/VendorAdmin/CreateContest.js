@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiAward, FiSave, FiSend, FiLink } from 'react-icons/fi';
+import { FiSave, FiSend, FiLink } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import { useToast } from '../../context/ToastContext';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';

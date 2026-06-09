@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import axiosInstance from '../utils/axios';
 import { applyBrandingToDocument, clearBrandingFromDocument } from '../utils/applyBranding';
 import { getUserVendorId, getBrandingFromUser, isVendorScopedUser } from '../utils/user';
-import { getCachedBranding, setCachedBranding, clearBrandingCache } from '../utils/brandingCache';
+import { getCachedBranding, setCachedBranding } from '../utils/brandingCache';
 import {
   normalizeBrandingPayload,
   mergeBranding,

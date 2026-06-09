@@ -233,7 +233,7 @@ const EnglishTestTaking = () => {
     } finally {
       setLoading(false);
     }
-  }, [testId, buildSections, testMicrophone, goToResult]);
+  }, [testId, contestId, buildSections, testMicrophone, goToResult]);
 
   useEffect(() => {
     fetchTestAndStart();

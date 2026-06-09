@@ -594,7 +594,7 @@ const TestTaking = () => {
 
       return () => clearInterval(timer);
     }
-  }, [result, test, timeExpired]);
+  }, [result, test, timeExpired, contestId]);
 
   // Normalize output for comparison (handles whitespace, newlines, etc.)
   const normalizeOutput = (output) => {
