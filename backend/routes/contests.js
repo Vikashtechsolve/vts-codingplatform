@@ -28,6 +28,8 @@ const {
   getRegistrationOpensAt,
   getRegistrationClosesAt,
   finalizeAllInProgressContestAttempts,
+  parseContestDateTime,
+  validateContestSchedule,
 } = require('../utils/contestService');
 const { loadBrandingForVendorId } = require('../utils/vendorBranding');
 const { getContestResultsBundle, buildContestLeaderboard } = require('../utils/contestResults');
@@ -326,34 +328,127 @@ vendorRouter.use(auth);
 vendorRouter.use(authorize('vendor_admin'));
 vendorRouter.use(tenantMiddleware);
 
+const TEST_TYPE_LABELS = {
+  coding: 'Coding',
+  mcq: 'MCQ',
+  aptitude: 'Aptitude',
+  theory: 'Theory',
+  mixed: 'Mixed',
+  sql: 'SQL',
+  english: 'English',
+};
+
+function formatContestTestItem(test) {
+  const typeLabel = TEST_TYPE_LABELS[test.type] || test.type || 'Test';
+  const durationPart = test.duration ? ` · ${test.duration} min` : '';
+  const inactivePart = test.isActive === false ? ' (inactive)' : '';
+  return {
+    _id: test._id,
+    title: test.title,
+    type: test.type,
+    typeLabel,
+    duration: test.duration,
+    isActive: test.isActive !== false,
+    label: `[${typeLabel}] ${test.title}${durationPart}${inactivePart}`,
+    createdAt: test.createdAt,
+  };
+}
+
+function formatContestInterviewItem(interview) {
+  const topicPart = interview.topic ? ` · ${interview.topic}` : '';
+  const inactivePart = interview.isActive === false ? ' (inactive)' : '';
+  return {
+    _id: interview._id,
+    title: interview.title,
+    type: 'interview',
+    typeLabel: 'Interview',
+    duration: interview.duration,
+    isActive: interview.isActive !== false,
+    label: `[Interview] ${interview.title}${topicPart} · ${interview.duration} min${inactivePart}`,
+    createdAt: interview.createdAt,
+  };
+}
+
+function formatContestAssignmentItem(assignment) {
+  const draftPart = assignment.status === 'draft' ? ' (draft)' : '';
+  return {
+    _id: assignment._id,
+    title: assignment.title,
+    type: 'assignment',
+    typeLabel: 'Project',
+    duration: assignment.duration,
+    status: assignment.status,
+    label: `[Project] ${assignment.title} · ${assignment.category || 'assignment'}${draftPart}`,
+    createdAt: assignment.createdAt,
+  };
+}
+
+function formatContestSystemDesignItem(problem) {
+  const inactivePart = problem.isActive === false ? ' (inactive)' : '';
+  return {
+    _id: problem._id,
+    title: problem.title,
+    type: 'system_design',
+    typeLabel: 'System Design',
+    duration: problem.duration,
+    isActive: problem.isActive !== false,
+    label: `[System Design] ${problem.title} · ${problem.duration} min${inactivePart}`,
+    createdAt: problem.createdAt,
+  };
+}
+
 vendorRouter.get('/assessments', async (req, res) => {
   try {
-    const { type } = req.query;
+    const { type, testType } = req.query;
     const vendorId = req.vendorId;
 
     if (!type || type === 'test') {
-      const tests = await Test.find({ vendorId, isActive: true })
-        .select('title type duration createdAt')
-        .sort({ createdAt: -1 });
-      return res.json({ assessmentType: 'test', items: tests });
+      const query = { vendorId };
+      if (testType && testType !== 'all') {
+        query.type = testType;
+      }
+      const tests = await Test.find(query)
+        .select('title type duration isActive createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.json({
+        assessmentType: 'test',
+        items: tests.map(formatContestTestItem),
+        testTypes: Object.keys(TEST_TYPE_LABELS),
+      });
     }
     if (type === 'interview') {
-      const interviews = await Interview.find({ vendorId, isActive: true })
-        .select('title duration interviewType createdAt')
-        .sort({ createdAt: -1 });
-      return res.json({ assessmentType: 'interview', items: interviews });
+      const interviews = await Interview.find({ vendorId })
+        .select('title duration interviewType topic isActive createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.json({
+        assessmentType: 'interview',
+        items: interviews.map(formatContestInterviewItem),
+      });
     }
     if (type === 'assignment') {
-      const assignments = await Assignment.find({ vendorId, isActive: true })
-        .select('title duration category createdAt')
-        .sort({ createdAt: -1 });
-      return res.json({ assessmentType: 'assignment', items: assignments });
+      const assignments = await Assignment.find({
+        vendorId,
+        status: { $ne: 'archived' },
+      })
+        .select('title duration category difficulty status createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.json({
+        assessmentType: 'assignment',
+        items: assignments.map(formatContestAssignmentItem),
+      });
     }
     if (type === 'system_design') {
-      const problems = await SystemDesignProblem.find({ vendorId, isActive: true })
-        .select('title duration category createdAt')
-        .sort({ createdAt: -1 });
-      return res.json({ assessmentType: 'system_design', items: problems });
+      const problems = await SystemDesignProblem.find({ vendorId })
+        .select('title duration category difficulty isActive createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.json({
+        assessmentType: 'system_design',
+        items: problems.map(formatContestSystemDesignItem),
+      });
     }
 
     res.status(400).json({ message: 'Invalid assessment type' });
@@ -412,10 +507,19 @@ vendorRouter.post('/', [
       return res.status(404).json({ message: 'Assessment not found' });
     }
 
-    const windowStart = new Date(attemptWindowStart);
-    const windowEnd = new Date(attemptWindowEnd);
-    if (windowEnd <= windowStart) {
-      return res.status(400).json({ message: 'Attempt window end must be after start' });
+    const windowStart = parseContestDateTime(attemptWindowStart);
+    const windowEnd = parseContestDateTime(attemptWindowEnd);
+    const regOpens = registrationOpensAt ? parseContestDateTime(registrationOpensAt) : null;
+    const regCloses = registrationClosesAt ? parseContestDateTime(registrationClosesAt) : null;
+
+    const scheduleError = validateContestSchedule({
+      registrationOpensAt: regOpens,
+      registrationClosesAt: regCloses,
+      attemptWindowStart: windowStart,
+      attemptWindowEnd: windowEnd,
+    });
+    if (scheduleError) {
+      return res.status(400).json({ message: scheduleError });
     }
 
     const contest = new Contest({
@@ -426,8 +530,8 @@ vendorRouter.post('/', [
       slug: Contest.generateSlug(),
       assessmentType,
       assessmentId,
-      registrationOpensAt: registrationOpensAt ? new Date(registrationOpensAt) : null,
-      registrationClosesAt: registrationClosesAt ? new Date(registrationClosesAt) : null,
+      registrationOpensAt: regOpens,
+      registrationClosesAt: regCloses,
       attemptWindowStart: windowStart,
       attemptWindowEnd: windowEnd,
       settings: settings || {},
@@ -485,18 +589,39 @@ vendorRouter.put('/:id', async (req, res) => {
 
     if (title) contest.title = title.trim();
     if (description !== undefined) contest.description = description.trim();
-    if (registrationOpensAt !== undefined) {
-      contest.registrationOpensAt = registrationOpensAt ? new Date(registrationOpensAt) : null;
-    }
-    if (registrationClosesAt !== undefined) {
-      contest.registrationClosesAt = registrationClosesAt ? new Date(registrationClosesAt) : null;
-    }
-    if (attemptWindowStart) contest.attemptWindowStart = new Date(attemptWindowStart);
-    if (attemptWindowEnd) contest.attemptWindowEnd = new Date(attemptWindowEnd);
-    if (settings) contest.settings = { ...contest.settings?.toObject?.() || contest.settings || {}, ...settings };
 
-    if (contest.attemptWindowEnd <= contest.attemptWindowStart) {
-      return res.status(400).json({ message: 'Attempt window end must be after start' });
+    const nextRegOpens = registrationOpensAt !== undefined
+      ? (registrationOpensAt ? parseContestDateTime(registrationOpensAt) : null)
+      : contest.registrationOpensAt;
+    const nextRegCloses = registrationClosesAt !== undefined
+      ? (registrationClosesAt ? parseContestDateTime(registrationClosesAt) : null)
+      : contest.registrationClosesAt;
+    const nextAttemptStart = attemptWindowStart !== undefined
+      ? parseContestDateTime(attemptWindowStart)
+      : contest.attemptWindowStart;
+    const nextAttemptEnd = attemptWindowEnd !== undefined
+      ? parseContestDateTime(attemptWindowEnd)
+      : contest.attemptWindowEnd;
+
+    const scheduleError = validateContestSchedule({
+      registrationOpensAt: nextRegOpens,
+      registrationClosesAt: nextRegCloses,
+      attemptWindowStart: nextAttemptStart,
+      attemptWindowEnd: nextAttemptEnd,
+    });
+    if (scheduleError) {
+      return res.status(400).json({ message: scheduleError });
+    }
+
+    contest.registrationOpensAt = nextRegOpens;
+    contest.registrationClosesAt = nextRegCloses;
+    contest.attemptWindowStart = nextAttemptStart;
+    contest.attemptWindowEnd = nextAttemptEnd;
+
+    if (settings) {
+      const current = contest.settings?.toObject?.() || contest.settings || {};
+      contest.settings = { ...current, ...settings };
+      contest.markModified('settings');
     }
 
     await contest.save();

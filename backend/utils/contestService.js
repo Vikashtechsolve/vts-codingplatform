@@ -20,6 +20,50 @@ function getNow() {
   return new Date();
 }
 
+function parseContestDateTime(value) {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const str = String(value).trim();
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(str)) {
+    const d = new Date(str);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (match) {
+    const [, y, mo, d, h, mi, s] = match;
+    const parsed = new Date(+y, +mo - 1, +d, +h, +mi, +(s || 0));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const fallback = new Date(str);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+function validateContestSchedule({
+  registrationOpensAt,
+  registrationClosesAt,
+  attemptWindowStart,
+  attemptWindowEnd,
+}) {
+  if (!attemptWindowStart || !attemptWindowEnd) {
+    return 'Attempt window start and end are required';
+  }
+  if (attemptWindowEnd <= attemptWindowStart) {
+    return 'Attempt window end must be after start';
+  }
+  if (registrationOpensAt && registrationClosesAt && registrationClosesAt < registrationOpensAt) {
+    return 'Registration close must be after registration open';
+  }
+  if (registrationClosesAt && registrationClosesAt > attemptWindowEnd) {
+    return 'Registration cannot close after the attempt window ends';
+  }
+  if (registrationOpensAt && registrationOpensAt > attemptWindowEnd) {
+    return 'Registration open cannot be after the attempt window ends';
+  }
+  return null;
+}
+
 function getRegistrationOpensAt(contest) {
   return contest.registrationOpensAt ? new Date(contest.registrationOpensAt) : new Date(contest.createdAt);
 }
@@ -487,4 +531,6 @@ module.exports = {
   ensureContestAttemptsFinalized,
   autoSubmitStaleContestTestAttempts,
   sweepExpiredContestTestAttempts,
+  parseContestDateTime,
+  validateContestSchedule,
 };

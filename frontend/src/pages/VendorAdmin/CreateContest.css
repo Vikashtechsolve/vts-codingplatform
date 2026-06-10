@@ -19,6 +19,14 @@
   gap: 16px;
 }
 
+.vco-assessment-field {
+  grid-column: 1 / -1;
+}
+
+.vco-assessment-empty {
+  color: var(--vh-muted, #64748b);
+}
+
 .vco-check-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

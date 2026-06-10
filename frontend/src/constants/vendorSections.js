@@ -270,6 +270,27 @@ export const VENDOR_TEST_SECTIONS = [
   },
 ];
 
+/** Labels for Test.type values used in contest / classroom pickers */
+export const VENDOR_TEST_TYPE_LABELS = {
+  coding: 'Coding',
+  mcq: 'MCQ',
+  aptitude: 'Aptitude',
+  theory: 'Theory',
+  mixed: 'Mixed',
+  sql: 'SQL',
+  english: 'English',
+};
+
+export const VENDOR_TEST_TYPE_FILTER_OPTIONS = [
+  { value: 'all', label: 'All test types' },
+  ...VENDOR_TEST_SECTIONS.filter(
+    (s) => s.testType && !s.comingSoon && !s.hub && s.testType !== 'project'
+  ).map((s) => ({
+    value: s.testType,
+    label: s.shortLabel,
+  })),
+];
+
 export function getVendorSectionById(id) {
   return (
     VENDOR_TEST_SECTIONS.find((s) => s.id === id) ||

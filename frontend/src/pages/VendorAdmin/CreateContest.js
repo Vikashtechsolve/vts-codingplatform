@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiSave, FiSend, FiLink } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import { useToast } from '../../context/ToastContext';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
-import { VENDOR_ACCENT } from '../../constants/vendorSections';
+import { VENDOR_ACCENT, VENDOR_TEST_TYPE_FILTER_OPTIONS, VENDOR_TEST_TYPE_LABELS } from '../../constants/vendorSections';
+import { toLocalDateTimeInput, fromLocalDateTimeInput } from '../../utils/datetimeLocal';
 import './CreateContest.css';
 
 const ASSESSMENT_TYPES = [
@@ -14,11 +15,11 @@ const ASSESSMENT_TYPES = [
   { value: 'system_design', label: 'System Design' },
 ];
 
-const toLocalInput = (iso) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+const normalizeId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
 };
 
 const CreateContest = () => {
@@ -30,6 +31,7 @@ const CreateContest = () => {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [assessments, setAssessments] = useState([]);
+  const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [status, setStatus] = useState('draft');
   const [slug, setSlug] = useState('');
 
@@ -49,9 +51,13 @@ const CreateContest = () => {
     maxParticipants: '',
   });
 
-  const fetchAssessments = useCallback(async (type) => {
+  const fetchAssessments = useCallback(async (type, subtype = 'all') => {
     try {
-      const { data } = await axiosInstance.get(`/contests/vendor/assessments?type=${type}`);
+      const params = new URLSearchParams({ type });
+      if (type === 'test' && subtype && subtype !== 'all') {
+        params.set('testType', subtype);
+      }
+      const { data } = await axiosInstance.get(`/contests/vendor/assessments?${params.toString()}`);
       setAssessments(data.items || []);
     } catch {
       setAssessments([]);
@@ -68,18 +74,18 @@ const CreateContest = () => {
         title: data.title || '',
         description: data.description || '',
         assessmentType: data.assessmentType || 'test',
-        assessmentId: data.assessmentId || '',
-        registrationOpensAt: toLocalInput(data.registrationOpensAt),
-        registrationClosesAt: toLocalInput(data.registrationClosesAt),
-        attemptWindowStart: toLocalInput(data.attemptWindowStart),
-        attemptWindowEnd: toLocalInput(data.attemptWindowEnd),
+        assessmentId: normalizeId(data.assessmentId),
+        registrationOpensAt: toLocalDateTimeInput(data.registrationOpensAt),
+        registrationClosesAt: toLocalDateTimeInput(data.registrationClosesAt),
+        attemptWindowStart: toLocalDateTimeInput(data.attemptWindowStart),
+        attemptWindowEnd: toLocalDateTimeInput(data.attemptWindowEnd),
         collectPhone: data.settings?.collectPhone || false,
         collectCollege: data.settings?.collectCollege || false,
         collectRollNumber: data.settings?.collectRollNumber || false,
         showLeaderboard: data.settings?.showLeaderboard || false,
         maxParticipants: data.settings?.maxParticipants || '',
       });
-      await fetchAssessments(data.assessmentType);
+      await fetchAssessments(data.assessmentType, 'all');
     } catch {
       showToast('Failed to load contest', 'error');
       navigate('/vendor-admin/contests');
@@ -91,15 +97,40 @@ const CreateContest = () => {
   useEffect(() => {
     if (isEdit) {
       fetchContest();
+      return;
+    }
+    if (form.assessmentType === 'test') {
+      fetchAssessments('test', testTypeFilter);
     } else {
       fetchAssessments(form.assessmentType);
     }
-  }, [isEdit, fetchContest, fetchAssessments, form.assessmentType]);
+  }, [isEdit, fetchContest, fetchAssessments, form.assessmentType, testTypeFilter]);
+
+  const groupedTests = useMemo(() => {
+    if (form.assessmentType !== 'test' || testTypeFilter !== 'all') return null;
+    const groups = new Map();
+    assessments.forEach((item) => {
+      const key = item.type || 'other';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    });
+    return [...groups.entries()].sort(([a], [b]) => {
+      const order = Object.keys(VENDOR_TEST_TYPE_LABELS);
+      return order.indexOf(a) - order.indexOf(b);
+    });
+  }, [assessments, form.assessmentType, testTypeFilter]);
 
   const handleTypeChange = async (e) => {
     const type = e.target.value;
+    setTestTypeFilter('all');
     setForm((prev) => ({ ...prev, assessmentType: type, assessmentId: '' }));
-    await fetchAssessments(type);
+    await fetchAssessments(type, type === 'test' ? 'all' : undefined);
+  };
+
+  const handleTestTypeFilterChange = async (e) => {
+    const nextFilter = e.target.value;
+    setTestTypeFilter(nextFilter);
+    setForm((prev) => ({ ...prev, assessmentId: '' }));
   };
 
   const handleChange = (e) => {
@@ -111,14 +142,14 @@ const CreateContest = () => {
   };
 
   const buildPayload = () => ({
-    title: form.title,
+    title: form.title.trim(),
     description: form.description,
     assessmentType: form.assessmentType,
     assessmentId: form.assessmentId,
-    registrationOpensAt: form.registrationOpensAt || null,
-    registrationClosesAt: form.registrationClosesAt || null,
-    attemptWindowStart: form.attemptWindowStart,
-    attemptWindowEnd: form.attemptWindowEnd,
+    registrationOpensAt: fromLocalDateTimeInput(form.registrationOpensAt),
+    registrationClosesAt: fromLocalDateTimeInput(form.registrationClosesAt),
+    attemptWindowStart: fromLocalDateTimeInput(form.attemptWindowStart),
+    attemptWindowEnd: fromLocalDateTimeInput(form.attemptWindowEnd),
     settings: {
       collectPhone: form.collectPhone,
       collectCollege: form.collectCollege,
@@ -128,11 +159,41 @@ const CreateContest = () => {
     },
   });
 
-  const handleSave = async (publish = false) => {
-    if (!form.title || !form.assessmentId || !form.attemptWindowStart || !form.attemptWindowEnd) {
+  const validateForm = () => {
+    if (!form.title.trim() || !form.assessmentId || !form.attemptWindowStart || !form.attemptWindowEnd) {
       showToast('Please fill in all required fields', 'error');
-      return;
+      return false;
     }
+
+    const attemptStart = fromLocalDateTimeInput(form.attemptWindowStart);
+    const attemptEnd = fromLocalDateTimeInput(form.attemptWindowEnd);
+    if (!attemptStart || !attemptEnd) {
+      showToast('Enter valid attempt window dates', 'error');
+      return false;
+    }
+    if (new Date(attemptEnd) <= new Date(attemptStart)) {
+      showToast('Attempt window end must be after start', 'error');
+      return false;
+    }
+
+    if (form.registrationOpensAt && form.registrationClosesAt) {
+      const regOpen = fromLocalDateTimeInput(form.registrationOpensAt);
+      const regClose = fromLocalDateTimeInput(form.registrationClosesAt);
+      if (regOpen && regClose && new Date(regClose) < new Date(regOpen)) {
+        showToast('Registration close must be after registration open', 'error');
+        return false;
+      }
+      if (regClose && new Date(regClose) > new Date(attemptEnd)) {
+        showToast('Registration cannot close after the attempt window ends', 'error');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleSave = async (publish = false) => {
+    if (!validateForm()) return;
 
     try {
       setSaving(true);
@@ -222,7 +283,7 @@ const CreateContest = () => {
             <div className="vh-panel-body">
               <div className="vco-form-row">
                 <div className="vh-field">
-                  <label htmlFor="assessment-type">Type *</label>
+                  <label htmlFor="assessment-type">Category *</label>
                   <select
                     id="assessment-type"
                     name="assessmentType"
@@ -234,8 +295,27 @@ const CreateContest = () => {
                       <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
+                  <span className="vh-field-hint">
+                    Tests include coding, MCQ, SQL, English, aptitude, theory, and mixed.
+                  </span>
                 </div>
-                <div className="vh-field">
+                {form.assessmentType === 'test' && !isEdit && (
+                  <div className="vh-field">
+                    <label htmlFor="test-type-filter">Test type</label>
+                    <select
+                      id="test-type-filter"
+                      value={testTypeFilter}
+                      onChange={handleTestTypeFilterChange}
+                    >
+                      {VENDOR_TEST_TYPE_FILTER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="vco-form-row">
+                <div className="vh-field vco-assessment-field">
                   <label htmlFor="assessment-id">Assessment *</label>
                   <select
                     id="assessment-id"
@@ -246,10 +326,32 @@ const CreateContest = () => {
                     disabled={isEdit}
                   >
                     <option value="">Select assessment…</option>
-                    {assessments.map((a) => (
-                      <option key={a._id} value={a._id}>{a.title}</option>
-                    ))}
+                    {groupedTests
+                      ? groupedTests.map(([type, items]) => (
+                          <optgroup key={type} label={VENDOR_TEST_TYPE_LABELS[type] || type}>
+                            {items.map((a) => (
+                              <option key={a._id} value={a._id}>
+                                {a.label || a.title}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))
+                      : assessments.map((a) => (
+                          <option key={a._id} value={a._id}>
+                            {a.label || a.title}
+                          </option>
+                        ))}
                   </select>
+                  {!isEdit && assessments.length === 0 && (
+                    <span className="vh-field-hint vco-assessment-empty">
+                      No assessments found for this filter. Create one from the Tests section first.
+                    </span>
+                  )}
+                  {!isEdit && assessments.length > 0 && (
+                    <span className="vh-field-hint">
+                      {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} available
+                    </span>
+                  )}
                   {isEdit && (
                     <span className="vh-field-hint">Assessment cannot be changed after creation.</span>
                   )}
@@ -362,7 +464,7 @@ const CreateContest = () => {
               Cancel
             </button>
             <button type="button" className="vh-btn vh-btn--secondary" disabled={saving} onClick={() => handleSave(false)}>
-              <FiSave /> {saving ? 'Saving…' : 'Save draft'}
+              <FiSave /> {saving ? 'Saving…' : status === 'published' ? 'Save changes' : 'Save draft'}
             </button>
             {(!isEdit || status === 'draft') && (
               <button type="button" className="vh-btn vh-btn--primary" disabled={saving} onClick={() => handleSave(true)}>

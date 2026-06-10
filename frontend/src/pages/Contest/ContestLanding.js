@@ -25,6 +25,7 @@ import axiosInstance from '../../utils/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useVendorBranding } from '../../context/VendorBrandingContext';
+import { formatCountdownShort } from '../../utils/datetimeLocal';
 import '../Auth/Login.css';
 import './ContestLanding.css';
 
@@ -56,23 +57,38 @@ const formatDateShort = (d) =>
       })
     : '—';
 
+function toTimestamp(value) {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
 function getLiveContestState(contest, participant, nowMs) {
   if (!contest) return { phase: 'unknown', countdownTo: null, countdownLabel: null };
 
   const now = nowMs;
-  const attemptStart = new Date(contest.attemptWindowStart).getTime();
-  const attemptEnd = new Date(contest.attemptWindowEnd).getTime();
-  const regOpens = new Date(contest.registrationOpensAt).getTime();
-  const regCloses = new Date(contest.registrationClosesAt).getTime();
+  const attemptStart = toTimestamp(contest.attemptWindowStart);
+  const attemptEnd = toTimestamp(contest.attemptWindowEnd);
+  const regOpens = toTimestamp(contest.registrationOpensAt);
+  const regCloses = toTimestamp(contest.registrationClosesAt);
+
+  if (!attemptStart || !attemptEnd) {
+    return { phase: 'unknown', countdownTo: null, countdownLabel: null };
+  }
 
   if (contest.status === 'ended' || contest.phase === 'draft' || now > attemptEnd) {
     return { phase: 'ended', countdownTo: null, countdownLabel: null };
   }
 
   if (now < attemptStart) {
+    const registrationOpen =
+      regOpens != null &&
+      regCloses != null &&
+      now >= regOpens &&
+      now <= regCloses;
     const phase = participant
       ? 'registered_waiting'
-      : now >= regOpens && now <= regCloses
+      : registrationOpen
         ? 'registration_open'
         : 'registration_closed_waiting';
     return {
@@ -132,6 +148,23 @@ const ContestField = ({ id, label, icon: Icon, children }) => (
   </div>
 );
 
+const normalizeParticipant = (participant) => {
+  if (!participant) return null;
+  return {
+    status: participant.status,
+    registeredAt: participant.registeredAt,
+  };
+};
+
+const mergeAuthContestResponse = (prev, { participant, phase }) => {
+  if (!prev) return prev;
+  return {
+    ...prev,
+    ...(phase ? { phase } : {}),
+    ...(participant ? { participant: normalizeParticipant(participant) } : {}),
+  };
+};
+
 const ContestLanding = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -157,9 +190,11 @@ const ContestLanding = () => {
     rollNumber: '',
   });
 
-  const fetchContest = useCallback(async () => {
+  const fetchContest = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError('');
       const { data } = await axiosInstance.get(`/contests/public/${slug}`);
       if (data.serverNow) {
@@ -170,9 +205,13 @@ const ContestLanding = () => {
       }
       setContest(data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Contest not found');
+      if (!silent) {
+        setError(err.response?.data?.message || 'Contest not found');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [slug, applyPublicBranding]);
 
@@ -204,7 +243,7 @@ const ContestLanding = () => {
   useEffect(() => {
     const phase = liveState.phase;
     if (prevPhaseRef.current && prevPhaseRef.current !== phase && phase === 'attempt_open') {
-      fetchContest();
+      fetchContest({ silent: true });
     }
     prevPhaseRef.current = phase;
   }, [liveState.phase, fetchContest]);
@@ -236,7 +275,8 @@ const ContestLanding = () => {
       if (data.token && data.user) {
         applySession(data.token, data.user);
       }
-      await fetchContest();
+      setContest((prev) => mergeAuthContestResponse(prev, data));
+      await fetchContest({ silent: true });
     } catch (err) {
       setFormError(err.response?.data?.message || 'Registration failed');
     } finally {
@@ -248,8 +288,9 @@ const ContestLanding = () => {
     setFormError('');
     setSubmitting(true);
     try {
-      await axiosInstance.post(`/contests/public/${slug}/join`);
-      await fetchContest();
+      const { data } = await axiosInstance.post(`/contests/public/${slug}/join`);
+      setContest((prev) => mergeAuthContestResponse(prev, data));
+      await fetchContest({ silent: true });
     } catch (err) {
       setFormError(err.response?.data?.message || 'Failed to join contest');
     } finally {
@@ -534,10 +575,7 @@ const ContestLanding = () => {
                       {countdownParts && (
                         <>
                           {' '}Window opens in{' '}
-                          <strong>
-                            {countdownParts.hours > 0 && `${countdownParts.hours}h `}
-                            {countdownParts.minutes}m {countdownParts.seconds}s
-                          </strong>.
+                          <strong>{formatCountdownShort(countdownParts)}</strong>.
                         </>
                       )}
                     </p>
