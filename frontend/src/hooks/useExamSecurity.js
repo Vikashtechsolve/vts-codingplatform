@@ -13,6 +13,8 @@ import {
   getCopyTextFromEvent,
   getPasteTextFromEvent,
   allowsEditorMetaShortcut,
+  isSilentBlockMetaShortcut,
+  isClipboardShortcut,
   isBlockedBrowserShortcut,
   allowsDragInExam,
 } from '../utils/examSecurityDom';
@@ -304,10 +306,21 @@ export const useExamSecurity = (
         return;
       }
 
+      // In-editor undo/copy/paste etc. — allowed without violation
       if (allowsEditorMetaShortcut(e)) {
         return;
       }
 
+      // Clipboard shortcuts outside editor — copy/cut/paste handlers record violations
+      if (
+        isClipboardShortcut(e) &&
+        !isInternalEditableZone(e.target) &&
+        !isActiveElementInInternalZone()
+      ) {
+        return;
+      }
+
+      // Navigation / devtools / tab shortcuts — block and count violation
       const blocked = isBlockedBrowserShortcut(e);
       if (blocked) {
         e.preventDefault();
@@ -322,10 +335,17 @@ export const useExamSecurity = (
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && !allowedTypingKeys.includes(e.key)) {
+      // Undo/redo/save/find etc. — block only, no violation (accidental muscle memory)
+      if (isSilentBlockMetaShortcut(e)) {
         e.preventDefault();
         e.stopPropagation();
-        blockAndViolate('shortcut_key', `Blocked shortcut: ${e.key}`);
+        return;
+      }
+
+      // Other unknown modifier combos — block silently, do not penalize
+      if ((e.ctrlKey || e.metaKey || e.altKey) && !allowedTypingKeys.includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
       }
     };
 

@@ -1565,7 +1565,7 @@ const TestTaking = () => {
                   {questionData.constraints && (
                     <div className="constraints-section">
                       <strong>Constraints:</strong>
-                      <div className="constraints-content" dangerouslySetInnerHTML={{ __html: questionData.constraints.replace(/\n/g, '<br />') }} />
+                      <RichTextDisplay content={questionData.constraints} className="constraints-content" />
                     </div>
                   )}
                   
@@ -1763,7 +1763,7 @@ const TestTaking = () => {
               </div>
 
               <div className="question-description">
-                <h4>{questionData.questionText}</h4>
+                <RichTextDisplay content={questionData.questionText} className="question-rich-text" />
               </div>
 
               <div className="form-group">
@@ -1804,12 +1804,12 @@ const TestTaking = () => {
               {questionData.caseStudy && (
                 <div className="case-study-block">
                   <h4>Case Study</h4>
-                  <p>{questionData.caseStudy}</p>
+                  <RichTextDisplay content={questionData.caseStudy} className="question-rich-text" />
                 </div>
               )}
 
               <div className="question-description">
-                <h4>{questionData.question}</h4>
+                <RichTextDisplay content={questionData.question} className="question-rich-text" />
               </div>
 
               {questionData.questionType === 'numeric' ? (
@@ -1850,7 +1850,7 @@ const TestTaking = () => {
                               }
                             }}
                           />
-                          <span className="option-text">{option.text}</span>
+                          <RichTextDisplay content={option.text} className="option-text" />
                         </label>
                       );
                     })
@@ -1876,7 +1876,7 @@ const TestTaking = () => {
                     <span className="q-marks-badge">{questionData.marks} mark(s)</span>
                   </div>
                   <div className="sql-question-text-wrap">
-                    <p className="sql-question-text">{questionData.text}</p>
+                    <RichTextDisplay content={questionData.text} className="sql-question-text question-rich-text" />
                   </div>
                 </div>
                 {test.datasetTemplate && (
@@ -1994,7 +1994,7 @@ const TestTaking = () => {
                 <h3>{currentSection.title} - Question {currentQuestionIndex + 1}</h3>
               </div>
               <div className="question-description">
-                <h4>{questionData.question}</h4>
+                <RichTextDisplay content={questionData.question} className="question-rich-text" />
               </div>
               <div className="mcq-options">
                 {questionData.options && questionData.options.length > 0 ? (
@@ -2006,7 +2006,7 @@ const TestTaking = () => {
                         checked={answerFor(answers, questionData._id).selectedOption === index}
                         onChange={() => handleMCQAnswer(index)}
                       />
-                      <span className="option-text">{option.text}</span>
+                      <RichTextDisplay content={option.text} className="option-text" />
                     </label>
                   ))
                 ) : (

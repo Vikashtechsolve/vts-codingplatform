@@ -73,6 +73,25 @@ export function getPasteTextFromEvent(e) {
 
 const EDITOR_META_KEYS = new Set(['c', 'x', 'v', 'a', 'z', 'y']);
 
+/** Productivity shortcuts students often hit by mistake — block only, no violation. */
+const SILENT_BLOCK_META_KEYS = new Set([
+  'z', // undo
+  'y', // redo (Windows)
+  'a', // select all
+  's', // save
+  'f', // find
+  'p', // print
+  'b', // bold
+  'i', // italic
+  'u', // underline
+  'k', // link
+  'd', // bookmark
+  '=', // zoom in
+  '+',
+  '-',
+  '0',
+]);
+
 /**
  * Allow undo/redo/select/copy/cut/paste shortcuts only inside exam code/text editors.
  */
@@ -91,6 +110,38 @@ export function allowsEditorMetaShortcut(e) {
   return false;
 }
 
+/**
+ * Common modifier shortcuts (undo, redo, save, etc.) — block the action but do not
+ * count as a proctoring violation when pressed accidentally.
+ */
+export function isSilentBlockMetaShortcut(e) {
+  const meta = e.ctrlKey || e.metaKey;
+  if (!meta && !e.altKey) return false;
+
+  const key = e.key?.length === 1 ? e.key.toLowerCase() : e.key;
+
+  // Redo variants
+  if (meta && key === 'z' && e.shiftKey) return true;
+  if (meta && key === 'y' && !e.altKey) return true;
+
+  if (meta && SILENT_BLOCK_META_KEYS.has(key)) return true;
+
+  // Zoom: Ctrl/Cmd + Shift + +/-
+  if (meta && e.shiftKey && (key === '+' || key === '=' || key === '-')) return true;
+
+  return false;
+}
+
+/**
+ * Copy/cut/paste shortcuts outside the editor — handled by clipboard listeners
+ * (block + violation). Skip keydown handling so those events still fire.
+ */
+export function isClipboardShortcut(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
+  const key = e.key?.length === 1 ? e.key.toLowerCase() : e.key;
+  return ['c', 'x', 'v'].includes(key);
+}
+
 export function isBlockedBrowserShortcut(e) {
   const key = e.key?.length === 1 ? e.key.toLowerCase() : e.key;
   const meta = e.ctrlKey || e.metaKey;
@@ -104,7 +155,7 @@ export function isBlockedBrowserShortcut(e) {
     return `Shortcut ${e.metaKey ? 'Cmd' : 'Ctrl'}+Shift+${e.key}`;
   }
   if (meta && alt && ['i', 'j', 'c'].includes(key)) return 'Developer tools shortcut';
-  if (meta && ['t', 'n', 'w', 'l', 'r', 'h', 'd', 'p', 'f', 'g', 'u', 'o', 'j'].includes(key)) {
+  if (meta && ['t', 'n', 'w', 'l', 'r', 'h', 'p', 'f', 'g', 'u', 'o', 'j'].includes(key)) {
     return `Browser shortcut ${e.metaKey ? 'Cmd' : 'Ctrl'}+${e.key.toUpperCase()}`;
   }
   if (alt && key === 'Tab') return 'Alt+Tab (task switch)';

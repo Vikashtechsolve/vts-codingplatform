@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import axiosInstance from '../../utils/axios';
 import QuestionPracticePanel from '../../components/QuestionPracticePanel';
+import RichTextDisplay from '../../components/RichTextDisplay';
 import './TestResult.css';
 
 const TYPE_META = {
@@ -237,7 +238,7 @@ const TestResult = () => {
     <>
       <div className="tr-q-block">
         <h5>Question</h5>
-        <p>{qd?.question}</p>
+        <RichTextDisplay content={qd?.question} className="tr-html" />
       </div>
       <div className="tr-options">
         {qd?.options?.map((option, optIndex) => {
@@ -249,7 +250,7 @@ const TestResult = () => {
               className={`tr-opt ${isCorrectOption ? 'is-correct' : ''} ${isSelected ? 'is-selected' : ''}`}
             >
               <span className="tr-opt-letter">{String.fromCharCode(65 + optIndex)}.</span>
-              <span className="tr-opt-text">{option.text}</span>
+              <RichTextDisplay content={option.text} className="tr-opt-text tr-html" />
               {isCorrectOption && <span className="tr-opt-pill ok">Correct</span>}
               {isSelected && !isCorrectOption && <span className="tr-opt-pill bad">Your answer</span>}
               {isSelected && isCorrectOption && <span className="tr-opt-pill ok">Your answer</span>}
@@ -260,7 +261,7 @@ const TestResult = () => {
       {qd?.explanation && (
         <div className="tr-explanation">
           <strong>Explanation</strong>
-          <p>{qd.explanation}</p>
+          <RichTextDisplay content={qd.explanation} className="tr-html" />
         </div>
       )}
     </>
@@ -271,12 +272,12 @@ const TestResult = () => {
       {qd?.caseStudy && (
         <div className="tr-q-block tr-case">
           <h5>Case study</h5>
-          <p>{qd.caseStudy}</p>
+          <RichTextDisplay content={qd.caseStudy} className="tr-html" />
         </div>
       )}
       <div className="tr-q-block">
         <h5>Question</h5>
-        <p>{qd?.question}</p>
+        <RichTextDisplay content={qd?.question} className="tr-html" />
       </div>
       {qd?.questionType === 'numeric' ? (
         <div className="tr-answer-box">
@@ -295,7 +296,7 @@ const TestResult = () => {
                 className={`tr-opt ${isCorrectOption ? 'is-correct' : ''} ${isSelected ? 'is-selected' : ''}`}
               >
                 <span className="tr-opt-letter">{String.fromCharCode(65 + optIndex)}.</span>
-                <span className="tr-opt-text">{option.text}</span>
+                <RichTextDisplay content={option.text} className="tr-opt-text tr-html" />
                 {isCorrectOption && <span className="tr-opt-pill ok">Correct</span>}
                 {isSelected && !isCorrectOption && <span className="tr-opt-pill bad">Your answer</span>}
               </div>
@@ -306,7 +307,7 @@ const TestResult = () => {
       {qd?.explanation && (
         <div className="tr-explanation">
           <strong>Explanation</strong>
-          <p>{qd.explanation}</p>
+          <RichTextDisplay content={qd.explanation} className="tr-html" />
         </div>
       )}
     </>
@@ -321,10 +322,7 @@ const TestResult = () => {
           <div className="tr-q-block">
             <h5>{qd.title}</h5>
             {qd.description && (
-              <div
-                className="tr-html"
-                dangerouslySetInnerHTML={{ __html: qd.description.replace(/\n/g, '<br />') }}
-              />
+              <RichTextDisplay content={qd.description} className="tr-html" />
             )}
           </div>
         )}
@@ -385,7 +383,7 @@ const TestResult = () => {
       {qd?.text && (
         <div className="tr-q-block">
           <h5>Question</h5>
-          <p>{qd.text}</p>
+          <RichTextDisplay content={qd.text} className="tr-html" />
         </div>
       )}
       <div className="tr-code-block">
@@ -407,7 +405,7 @@ const TestResult = () => {
     <>
       <div className="tr-q-block">
         <h5>Question</h5>
-        <p>{qd?.questionText || 'Theory question'}</p>
+        <RichTextDisplay content={qd?.questionText || 'Theory question'} className="tr-html" />
       </div>
       <div className="tr-answer-box">
         <h5>Your answer</h5>
@@ -416,7 +414,7 @@ const TestResult = () => {
       {qd?.referenceAnswer && (
         <div className="tr-ref-answer">
           <h5>Reference answer</h5>
-          <p>{qd.referenceAnswer}</p>
+          <RichTextDisplay content={qd.referenceAnswer} className="tr-html" />
         </div>
       )}
       {answer.evaluation && (

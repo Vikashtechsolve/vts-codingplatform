@@ -266,6 +266,16 @@
   line-height: 1.8;
 }
 
+.question-rich-text {
+  color: var(--text-primary);
+  margin-bottom: 15px;
+}
+
+.test-taking-container .mcq-option .option-text.rich-text-display {
+  flex: 1;
+  min-width: 0;
+}
+
 .question-description h4 {
   color: var(--text-primary);
   margin-top: 0;
