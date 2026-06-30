@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
-import VendorHubPage from '../../components/VendorAdmin/VendorAssessPage';
+import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 
 const CreateClassroom = () => {
   const { id } = useParams();

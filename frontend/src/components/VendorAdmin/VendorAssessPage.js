@@ -19,7 +19,7 @@ const VendorAssessPage = ({
 }) => {
   if (loading) {
     return (
-      <div className={`va-page ${className}`} style={{ '--card-accent': accent }}>
+      <div className={`va-page ${className}`} style={{ '--card-accent': accent, '--va-accent': accent }}>
         <div className="va-loading">
           <div className="va-spinner" />
           <p>Loading…</p>
@@ -29,7 +29,7 @@ const VendorAssessPage = ({
   }
 
   return (
-    <div className={`va-page ${className}`} style={{ '--card-accent': accent }}>
+    <div className={`va-page ${className}`} style={{ '--card-accent': accent, '--va-accent': accent }}>
       <header className="va-header">
         <div>
           {backTo && (

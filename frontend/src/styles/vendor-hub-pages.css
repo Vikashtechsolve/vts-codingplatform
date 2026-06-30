@@ -1006,6 +1006,26 @@ button.vh-tag {
   line-height: 1.55;
 }
 
+.vh-classrooms-page,
+.vh-create-classroom,
+.mcs-page,
+.va-atc-page {
+  --vh-accent: #0891b2;
+  max-width: 1180px;
+}
+
+.vh-alert--warning {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 8%, var(--vh-surface));
+  border: 1px solid color-mix(in srgb, #f59e0b 25%, transparent);
+}
+
+[data-theme='dark'] .vh-alert--warning {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
 /* Dark mode */
 [data-theme='dark'] .vh-page {
   --vh-surface: #1a1a1a;
@@ -1023,8 +1043,62 @@ button.vh-tag {
 [data-theme='dark'] .vh-field select,
 [data-theme='dark'] .vh-back,
 [data-theme='dark'] .vh-btn--secondary {
-  background: #1a1a1a;
-  color: #f4f4f5;
+  background: var(--vh-surface);
+  color: var(--vh-text);
+  border-color: var(--vh-border);
+}
+
+[data-theme='dark'] .vh-btn--secondary:hover:not(:disabled) {
+  background: var(--vh-surface-2);
+}
+
+[data-theme='dark'] .vh-btn--ghost {
+  background: transparent;
+  color: var(--vh-muted);
+  border-color: var(--vh-border);
+}
+
+[data-theme='dark'] .vh-btn--ghost:hover:not(:disabled) {
+  background: var(--vh-surface-2);
+  color: var(--vh-text);
+}
+
+[data-theme='dark'] .vh-btn--danger {
+  background: #27272a;
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+[data-theme='dark'] .vh-btn--danger:hover:not(:disabled) {
+  background: rgba(127, 29, 29, 0.35);
+}
+
+[data-theme='dark'] .vh-classroom-card {
+  background: var(--vh-surface);
+}
+
+[data-theme='dark'] .vh-classroom-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .vh-member-row {
+  background: var(--vh-surface-2);
+}
+
+[data-theme='dark'] .vh-member-row--selected {
+  background: color-mix(in srgb, var(--vh-accent) 10%, var(--vh-surface));
+}
+
+[data-theme='dark'] .vh-selection-bar {
+  background: color-mix(in srgb, var(--vh-accent) 12%, var(--vh-surface));
+  border-color: color-mix(in srgb, var(--vh-accent) 28%, transparent);
+  color: var(--vh-text);
+}
+
+[data-theme='dark'] .vh-field input::placeholder,
+[data-theme='dark'] .vh-field textarea::placeholder,
+[data-theme='dark'] .vh-search input::placeholder {
+  color: #71717a;
 }
 
 [data-theme='dark'] .vh-alert--error {

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiCheckSquare, FiSquare, FiSearch } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
-import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
+import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import Modal from '../../components/Modal';
 import './AssignTestToClassroom.css';
 
@@ -288,23 +288,25 @@ const AssignTestToClassroom = () => {
 
   if (!loading && !classroom) {
     return (
-      <VendorAssessPage
+      <VendorHubPage
+        className="va-atc-page"
         backTo="/vendor-admin/classrooms"
         backLabel="Back to classrooms"
         title="Classroom not found"
         accent="#0891b2"
       >
-        <Link to="/vendor-admin/classrooms" className="va-btn va-btn--primary">
+        <Link to="/vendor-admin/classrooms" className="vh-btn vh-btn--primary">
           Back to classrooms
         </Link>
-      </VendorAssessPage>
+      </VendorHubPage>
     );
   }
 
   const studentCount = classroom?.students?.length || 0;
 
   return (
-    <VendorAssessPage
+    <VendorHubPage
+      className="va-atc-page"
       loading={loading}
       backTo="/vendor-admin/classrooms"
       backLabel="Back to classrooms"
@@ -317,7 +319,7 @@ const AssignTestToClassroom = () => {
       }
       accent="#0891b2"
       actions={
-        <Link to={`/vendor-admin/classrooms/${id}/students`} className="va-btn va-btn--secondary">
+        <Link to={`/vendor-admin/classrooms/${id}/students`} className="vh-btn vh-btn--secondary">
           Manage students
         </Link>
       }
@@ -327,7 +329,7 @@ const AssignTestToClassroom = () => {
       </Modal>
 
       {studentCount === 0 && (
-        <div className="va-selection-banner" style={{ marginBottom: 16 }}>
+        <div className="vh-alert vh-alert--warning" style={{ marginBottom: 16 }}>
           This classroom has no students yet.{' '}
           <Link to={`/vendor-admin/classrooms/${id}/students`}>Add students</Link> before assigning tests.
         </div>
@@ -346,7 +348,7 @@ const AssignTestToClassroom = () => {
         ))}
       </div>
 
-      <div className="va-search" style={{ marginBottom: 16 }}>
+      <div className="vh-search va-atc-search">
         <FiSearch />
         <input
           type="search"
@@ -357,11 +359,13 @@ const AssignTestToClassroom = () => {
       </div>
 
       <div className="va-atc-grid">
-        <div className="va-panel">
-          <div className="va-panel-header">
-            <h2>Available ({filteredAvailable.length})</h2>
+        <div className="vh-panel">
+          <div className="vh-panel-head">
+            <div>
+              <h2 className="vh-panel-title">Available ({filteredAvailable.length})</h2>
+            </div>
             <div className="va-atc-actions">
-              <button type="button" className="va-btn va-btn--ghost va-btn--sm" onClick={handleSelectAllAvailableShown}>
+              <button type="button" className="vh-btn vh-btn--ghost vh-btn--sm" onClick={handleSelectAllAvailableShown}>
                 {filteredAvailable.length > 0 &&
                 filteredAvailable.every((x) => selectedAvailableIds.includes(x._id))
                   ? <><FiSquare /> Unselect shown</>
@@ -369,7 +373,7 @@ const AssignTestToClassroom = () => {
               </button>
               <button
                 type="button"
-                className="va-btn va-btn--primary va-btn--sm"
+                className="vh-btn vh-btn--primary vh-btn--sm"
                 disabled={!selectedAvailableIds.length || bulkAssigning || studentCount === 0}
                 onClick={handleBulkAssign}
               >
@@ -377,9 +381,9 @@ const AssignTestToClassroom = () => {
               </button>
             </div>
           </div>
-          <div className="va-panel-body va-atc-list">
+          <div className="vh-panel-body va-atc-list">
             {filteredAvailable.length === 0 ? (
-              <div className="va-empty">
+              <div className="vh-empty">
                 <p>Nothing available to assign for this filter.</p>
               </div>
             ) : (
@@ -400,12 +404,12 @@ const AssignTestToClassroom = () => {
                       {item.duration != null && <span>{item.duration} min</span>}
                     </div>
                     {item.kind === 'interview' && item.topic && (
-                      <p className="va-cell-muted">Topic: {item.topic}</p>
+                      <p className="vh-cell-muted">Topic: {item.topic}</p>
                     )}
                   </div>
                   <button
                     type="button"
-                    className="va-btn va-btn--primary va-btn--sm"
+                    className="vh-btn vh-btn--primary vh-btn--sm"
                     disabled={assigningId === item._id || studentCount === 0}
                     onClick={() => handleAssign(item)}
                   >
@@ -417,11 +421,13 @@ const AssignTestToClassroom = () => {
           </div>
         </div>
 
-        <div className="va-panel">
-          <div className="va-panel-header">
-            <h2>Assigned ({filteredAssigned.length})</h2>
+        <div className="vh-panel">
+          <div className="vh-panel-head">
+            <div>
+              <h2 className="vh-panel-title">Assigned ({filteredAssigned.length})</h2>
+            </div>
             <div className="va-atc-actions">
-              <button type="button" className="va-btn va-btn--ghost va-btn--sm" onClick={handleSelectAllAssignedShown}>
+              <button type="button" className="vh-btn vh-btn--ghost vh-btn--sm" onClick={handleSelectAllAssignedShown}>
                 {filteredAssigned.length > 0 &&
                 filteredAssigned.every((x) => selectedAssignedIds.includes(x._id))
                   ? <><FiSquare /> Unselect shown</>
@@ -429,7 +435,7 @@ const AssignTestToClassroom = () => {
               </button>
               <button
                 type="button"
-                className="va-btn va-btn--danger va-btn--sm"
+                className="vh-btn vh-btn--danger vh-btn--sm"
                 disabled={!selectedAssignedIds.length || bulkRemoving}
                 onClick={handleBulkRemove}
               >
@@ -437,9 +443,9 @@ const AssignTestToClassroom = () => {
               </button>
             </div>
           </div>
-          <div className="va-panel-body va-atc-list">
+          <div className="vh-panel-body va-atc-list">
             {filteredAssigned.length === 0 ? (
-              <div className="va-empty">
+              <div className="vh-empty">
                 <p>No assessments assigned yet for this filter.</p>
               </div>
             ) : (
@@ -462,14 +468,14 @@ const AssignTestToClassroom = () => {
                         {item.duration != null && <span>{item.duration} min</span>}
                       </div>
                       {assignment?.assignedAt && (
-                        <p className="va-cell-muted">
+                        <p className="vh-cell-muted">
                           Assigned {new Date(assignment.assignedAt).toLocaleDateString()}
                         </p>
                       )}
                     </div>
                     <button
                       type="button"
-                      className="va-btn va-btn--danger va-btn--sm"
+                      className="vh-btn vh-btn--danger vh-btn--sm"
                       onClick={() => handleRemove(item)}
                       title="Remove from classroom"
                     >
@@ -482,7 +488,7 @@ const AssignTestToClassroom = () => {
           </div>
         </div>
       </div>
-    </VendorAssessPage>
+    </VendorHubPage>
   );
 };
 
