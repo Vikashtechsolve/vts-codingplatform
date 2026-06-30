@@ -1,6 +1,69 @@
-.interview-question-list .question-table-card {
-  background: var(--bg-secondary);
-  border: 2px solid var(--border-color);
-  border-radius: 16px;
-  padding: 16px;
+/* Interview question pool — hub list extension */
+.viq-page {
+  --vh-accent: #c026d3;
+  max-width: 1180px;
+}
+
+.viq-stats {
+  margin-bottom: 20px;
+}
+
+.viq-source-tabs .veq-source-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viq-toolbar {
+  margin-bottom: 16px;
+}
+
+.viq-type-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--vh-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--vh-surface, #fff);
+  color: var(--vh-muted, #64748b);
+  min-height: 42px;
+}
+
+.viq-type-filter select {
+  border: none;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--vh-text, #0f172a);
+  cursor: pointer;
+  padding: 8px 4px 8px 0;
+  outline: none;
+}
+
+.viq-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--vh-accent) 12%, transparent);
+  color: var(--vh-accent);
+  font-size: 1.5rem;
+}
+
+.viq-empty .vh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme='dark'] .viq-type-filter {
+  background: var(--vh-surface);
+  border-color: var(--vh-border);
+}
+
+[data-theme='dark'] .viq-empty-icon {
+  background: color-mix(in srgb, var(--vh-accent) 18%, transparent);
 }

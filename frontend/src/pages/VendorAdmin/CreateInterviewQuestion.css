@@ -12,37 +12,152 @@
 }
 
 .create-interview-question .section-title {
-  margin: 0 0 12px;
+  font-size: 18px;
+  margin: 0 0 4px;
+  color: var(--text-primary);
+}
+
+.create-interview-question .section-hint {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.create-interview-question .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.create-interview-question .section-header .section-title {
+  margin-bottom: 4px;
+}
+
+.create-interview-question .section-header .section-hint {
+  margin-bottom: 0;
 }
 
 .create-interview-question .form-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.create-interview-question .form-row:last-child {
+  margin-bottom: 0;
+}
+
+.create-interview-question .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.create-interview-question .form-group.full-width {
+  grid-column: 1 / -1;
+  margin-bottom: 16px;
+}
+
+.create-interview-question .form-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.create-interview-question .form-input,
+.create-interview-question .form-select,
+.create-interview-question .form-textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.create-interview-question .form-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.create-interview-question .viq-custom-type {
+  margin-top: 8px;
+}
+
+.create-interview-question .viq-nested-list {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.create-interview-question input,
-.create-interview-question textarea,
-.create-interview-question select {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  color: var(--text-primary);
+.create-interview-question .viq-rubric-card {
+  margin-bottom: 0;
 }
 
-.rubric-card {
-  display: grid;
-  grid-template-columns: 2fr 3fr 1fr auto;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.section-header {
+.create-interview-question .viq-nested-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.create-interview-question .viq-nested-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.create-interview-question .viq-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.create-interview-question .viq-hint-row .form-input {
+  flex: 1;
+}
+
+.create-interview-question .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.create-interview-question .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.create-interview-question .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.create-interview-question .btn-icon.btn-danger:hover:not(:disabled) {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: color-mix(in srgb, #ef4444 8%, transparent);
+}
+
+.create-interview-question .btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

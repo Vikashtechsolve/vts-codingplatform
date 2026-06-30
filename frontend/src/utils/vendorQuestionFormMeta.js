@@ -41,6 +41,14 @@ export const QUESTION_FORM_META = {
     subtitle: 'Verbal assessment content with type-specific fields.',
     back: '/vendor-admin/english-questions',
   },
+  interview: {
+    accent: '#c026d3',
+    label: 'Mock interview',
+    createTitle: 'Create interview question',
+    editTitle: 'Edit interview question',
+    subtitle: 'Add questions to your pool and pin them when building an interview.',
+    back: '/vendor-admin/interview-questions',
+  },
 };
 
 export function getQuestionFormPaths(isGlobal) {
