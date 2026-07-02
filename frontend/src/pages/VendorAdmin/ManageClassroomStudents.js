@@ -15,10 +15,13 @@ import {
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
+import {
+  parseBulkStudentText,
+  matchesStudentSearch,
+  BULK_STUDENT_FORMAT_HINT,
+  BULK_STUDENT_SAMPLE,
+} from '../../utils/studentBulkImport';
 import './ManageClassroomStudents.css';
-
-const BULK_SAMPLE = `John Doe,john@example.com,student123
-Jane Smith,jane@example.com`;
 
 const getInitials = (name) =>
   (name || '?')
@@ -84,24 +87,13 @@ const ManageClassroomStudents = () => {
     const list = classroom?.students || [];
     const q = searchCurrent.trim().toLowerCase();
     if (!q) return list;
-    return list.filter(
-      (s) =>
-        s.name?.toLowerCase().includes(q) ||
-        s.email?.toLowerCase().includes(q)
-    );
+    return list.filter((s) => matchesStudentSearch(s, q));
   }, [classroom, searchCurrent]);
 
   const availableStudents = useMemo(() => {
-    const q = searchAvailable.trim().toLowerCase();
     return allStudents
       .filter((s) => !classroomStudentIds.has(normalizeId(s._id)))
-      .filter((s) => {
-        if (!q) return true;
-        return (
-          s.name?.toLowerCase().includes(q) ||
-          s.email?.toLowerCase().includes(q)
-        );
-      });
+      .filter((s) => matchesStudentSearch(s, searchAvailable));
   }, [allStudents, classroomStudentIds, searchAvailable]);
 
   const handleStudentToggle = (studentId) => {
@@ -149,24 +141,11 @@ const ManageClassroomStudents = () => {
   };
 
   const parseBulkLines = (raw) => {
-    const lines = raw.split('\n').filter((line) => line.trim());
-    const students = [];
-    const invalidLines = [];
-
-    lines.forEach((line, index) => {
-      const parts = line.split(',').map((s) => s.trim());
-      if (parts.length >= 2 && parts[0] && parts[1]) {
-        students.push({
-          name: parts[0],
-          email: parts[1],
-          password: parts[2] || 'student123',
-        });
-        return;
-      }
-      invalidLines.push(index + 1);
-    });
-
-    return { students, invalidLines };
+    const { students, invalidLines } = parseBulkStudentText(raw);
+    return {
+      students,
+      invalidLines: invalidLines.map((item) => item.line),
+    };
   };
 
   const handleBulkAdd = async () => {
@@ -182,7 +161,7 @@ const ManageClassroomStudents = () => {
     if (students.length === 0) {
       setBulkFeedback({
         type: 'error',
-        message: 'Invalid format. Use Name,Email,Password — one student per line.',
+        message: 'Invalid format. Use Name,Email,EnrollmentNumber,Password — one student per line.',
       });
       return;
     }
@@ -380,7 +359,7 @@ const ManageClassroomStudents = () => {
               <FiSearch />
               <input
                 type="search"
-                placeholder="Search by name or email…"
+                placeholder="Search by name, email, or enrollment number…"
                 value={searchCurrent}
                 onChange={(e) => setSearchCurrent(e.target.value)}
               />
@@ -426,7 +405,11 @@ const ManageClassroomStudents = () => {
                         <span className="vh-avatar mcs-avatar">{getInitials(student.name)}</span>
                         <div>
                           <div className="vh-person-name">{student.name || 'Student'}</div>
-                          <div className="vh-person-email">{student.email || ''}</div>
+                          <div className="vh-person-email">
+                            {student.enrollmentNumber
+                              ? `${student.enrollmentNumber} · ${student.email || ''}`
+                              : student.email || ''}
+                          </div>
                         </div>
                       </div>
                       <button
@@ -491,7 +474,7 @@ const ManageClassroomStudents = () => {
               <FiSearch />
               <input
                 type="search"
-                placeholder="Search available students…"
+                placeholder="Search by name, email, or enrollment number…"
                 value={searchAvailable}
                 onChange={(e) => setSearchAvailable(e.target.value)}
               />
@@ -554,7 +537,11 @@ const ManageClassroomStudents = () => {
                         </span>
                         <div>
                           <div className="vh-person-name">{student.name}</div>
-                          <div className="vh-person-email">{student.email}</div>
+                          <div className="vh-person-email">
+                            {student.enrollmentNumber
+                              ? `${student.enrollmentNumber} · ${student.email || ''}`
+                              : student.email || ''}
+                          </div>
                         </div>
                       </div>
                     </label>
@@ -598,12 +585,11 @@ const ManageClassroomStudents = () => {
                         setBulkFeedback({ type: '', message: '' });
                       }
                     }}
-                    placeholder={BULK_SAMPLE}
+                    placeholder={BULK_STUDENT_SAMPLE}
                     spellCheck={false}
                   />
                   <span className="vh-field-hint">
-                    Format: <strong>Name,Email,Password</strong> — password is optional (defaults to
-                    student123).
+                    Format: <strong>{BULK_STUDENT_FORMAT_HINT}</strong>
                   </span>
                 </div>
                 <div className="vh-form-actions mcs-bulk-actions">
@@ -618,7 +604,7 @@ const ManageClassroomStudents = () => {
                   <button
                     type="button"
                     className="vh-btn vh-btn--secondary"
-                    onClick={() => setBulkData(BULK_SAMPLE)}
+                    onClick={() => setBulkData(BULK_STUDENT_SAMPLE)}
                     disabled={bulkImporting}
                   >
                     Insert sample
@@ -644,7 +630,7 @@ const ManageClassroomStudents = () => {
                 </ol>
                 <div className="mcs-bulk-example">
                   <span className="mcs-bulk-example-label">Example</span>
-                  <pre>{BULK_SAMPLE}</pre>
+                  <pre>{BULK_STUDENT_SAMPLE}</pre>
                 </div>
               </aside>
             </div>

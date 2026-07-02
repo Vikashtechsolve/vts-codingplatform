@@ -921,7 +921,11 @@ const Analytics = () => {
                         <div key={String(student.studentId)} className="vanalytics-attention-item">
                           <div>
                             <strong>{student.name}</strong>
-                            <span>{student.email}</span>
+                            <span>
+                              {student.enrollmentNumber
+                                ? `${student.enrollmentNumber} · ${student.email}`
+                                : student.email}
+                            </span>
                           </div>
                           <div className="vanalytics-attention-meta">
                             <span className={`vanalytics-status vanalytics-status--${status.tone}`}>
@@ -948,7 +952,7 @@ const Analytics = () => {
                     <FiSearch />
                     <input
                       type="search"
-                      placeholder="Search students…"
+                      placeholder="Search by name, email, or enrollment number…"
                       value={classroomSearch}
                       onChange={(e) => setClassroomSearch(e.target.value)}
                     />
@@ -981,7 +985,11 @@ const Analytics = () => {
                                 <td>
                                   <div className="vanalytics-student-cell">
                                     <strong>{student.name}</strong>
-                                    <span>{student.email}</span>
+                                    <span>
+                                      {student.enrollmentNumber
+                                        ? `${student.enrollmentNumber} · ${student.email}`
+                                        : student.email}
+                                    </span>
                                   </div>
                                 </td>
                                 <td>

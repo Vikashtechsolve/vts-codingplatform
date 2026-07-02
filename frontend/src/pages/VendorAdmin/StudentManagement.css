@@ -1,1 +1,400 @@
-/* Styles live in vendor-hub-pages.css */
+/* Students hub + edit modal */
+.vh-students-page {
+  --vh-accent: #059669;
+  max-width: 1180px;
+}
+
+.vh-students-page .vh-cell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* —— Edit student modal —— */
+.vsm-edit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: vsm-fade-in 0.2s ease;
+}
+
+@keyframes vsm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.vsm-edit-modal {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: min(92vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--vh-surface, #fff);
+  border: 1px solid var(--vh-border, #e5e7eb);
+  border-radius: 18px;
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  overflow: hidden;
+  animation: vsm-slide-up 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes vsm-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.vsm-edit-accent {
+  height: 4px;
+  background: var(--vh-accent, #059669);
+  flex-shrink: 0;
+}
+
+.vsm-edit-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid var(--vh-border, #e5e7eb);
+  background: var(--vh-surface-2, #f8fafc);
+}
+
+.vsm-edit-header-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.vsm-edit-avatar {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--vh-accent, #059669);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--vh-accent, #059669) 35%, transparent);
+}
+
+.vsm-edit-header-text {
+  min-width: 0;
+}
+
+.vsm-edit-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vh-muted, #64748b);
+}
+
+.vsm-edit-header h2 {
+  margin: 0 0 4px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--vh-text, #0f172a);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vsm-edit-subtitle {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--vh-muted, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vsm-edit-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--vh-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--vh-surface, #fff);
+  color: var(--vh-muted, #64748b);
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.vsm-edit-close:hover {
+  color: var(--vh-text, #0f172a);
+  border-color: color-mix(in srgb, var(--vh-accent) 30%, var(--vh-border));
+  background: color-mix(in srgb, var(--vh-accent) 6%, var(--vh-surface));
+}
+
+.vsm-edit-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.vsm-edit-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 8px;
+}
+
+.vsm-edit-alert {
+  margin-bottom: 16px;
+}
+
+.vsm-edit-section {
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--vh-border, #e5e7eb);
+  background: var(--vh-surface-2, #f8fafc);
+}
+
+.vsm-edit-section--status {
+  padding: 14px;
+  background: transparent;
+  border: none;
+}
+
+.vsm-edit-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.vsm-edit-section-head > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-size: 1.1rem;
+  color: var(--vh-accent, #059669);
+}
+
+.vsm-edit-section-head h3 {
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--vh-text, #0f172a);
+}
+
+.vsm-edit-section-head p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--vh-muted, #64748b);
+}
+
+.vsm-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.vsm-edit-field-full {
+  grid-column: 1 / -1;
+}
+
+.vsm-edit-section .vh-field {
+  margin: 0;
+}
+
+.vsm-edit-section .vh-field label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vh-muted, #64748b);
+}
+
+.vsm-edit-section .vh-field input {
+  margin-top: 6px;
+}
+
+.vsm-status-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--vh-border, #e5e7eb);
+  background: var(--vh-surface, #fff);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.vsm-status-card:hover {
+  border-color: color-mix(in srgb, var(--vh-accent) 35%, var(--vh-border));
+}
+
+.vsm-status-card.is-active {
+  border-color: color-mix(in srgb, #10b981 40%, var(--vh-border));
+  background: color-mix(in srgb, #10b981 6%, var(--vh-surface));
+}
+
+.vsm-status-card.is-inactive {
+  border-color: color-mix(in srgb, #94a3b8 35%, var(--vh-border));
+  background: color-mix(in srgb, #94a3b8 6%, var(--vh-surface));
+}
+
+.vsm-status-indicator {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #94a3b8;
+  box-shadow: 0 0 0 4px color-mix(in srgb, #94a3b8 20%, transparent);
+}
+
+.vsm-status-card.is-active .vsm-status-indicator {
+  background: #10b981;
+  box-shadow: 0 0 0 4px color-mix(in srgb, #10b981 22%, transparent);
+}
+
+.vsm-status-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vsm-status-copy strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--vh-text, #0f172a);
+}
+
+.vsm-status-copy span {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--vh-muted, #64748b);
+}
+
+.vsm-status-pill {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vsm-status-card.is-active .vsm-status-pill {
+  color: #059669;
+  background: color-mix(in srgb, #10b981 14%, transparent);
+  border: 1px solid color-mix(in srgb, #10b981 28%, transparent);
+}
+
+.vsm-status-card.is-inactive .vsm-status-pill {
+  color: var(--vh-muted, #64748b);
+  background: var(--vh-surface-2, #f1f5f9);
+  border: 1px solid var(--vh-border, #e5e7eb);
+}
+
+.vsm-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid var(--vh-border, #e5e7eb);
+  background: var(--vh-surface-2, #f8fafc);
+}
+
+/* Dark mode */
+[data-theme='dark'] .vsm-edit-overlay {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+[data-theme='dark'] .vsm-edit-modal {
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .vsm-edit-header,
+[data-theme='dark'] .vsm-edit-footer {
+  background: #222222;
+}
+
+[data-theme='dark'] .vsm-edit-section {
+  background: #1a1a1a;
+}
+
+[data-theme='dark'] .vsm-status-card {
+  background: #1a1a1a;
+}
+
+[data-theme='dark'] .vsm-status-card.is-active {
+  background: color-mix(in srgb, #10b981 10%, #1a1a1a);
+}
+
+[data-theme='dark'] .vsm-status-card.is-inactive {
+  background: color-mix(in srgb, #64748b 10%, #1a1a1a);
+}
+
+[data-theme='dark'] .vsm-edit-close {
+  background: #1a1a1a;
+}
+
+@media (max-width: 560px) {
+  .vsm-edit-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .vsm-edit-modal {
+    max-height: 94vh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .vsm-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vsm-edit-header h2,
+  .vsm-edit-subtitle {
+    white-space: normal;
+  }
+
+  .vsm-edit-footer {
+    flex-direction: column-reverse;
+  }
+
+  .vsm-edit-footer .vh-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -7,6 +7,7 @@ import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
 import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
 import { computeResultStats, formatDateTime, scoreTone } from '../../utils/vendorAssessmentUi';
+import { matchesNestedStudentSearch } from '../../utils/studentBulkImport';
 
 const SECTION_LABELS = {
   english_grammar: 'Grammar',
@@ -80,11 +81,7 @@ const TestResults = () => {
   const filteredResults = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return results;
-    return results.filter(
-      (r) =>
-        r.studentId?.name?.toLowerCase().includes(q) ||
-        r.studentId?.email?.toLowerCase().includes(q)
-    );
+    return results.filter((r) => matchesNestedStudentSearch(r, q));
   }, [results, search]);
 
   const sectionAnalytics = useMemo(() => {
@@ -182,7 +179,7 @@ const TestResults = () => {
               <div className="va-search">
                 <input
                   type="search"
-                  placeholder="Search students…"
+                  placeholder="Search by name, email, or enrollment number…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -218,7 +215,11 @@ const TestResults = () => {
                     <tr key={result._id}>
                       <td>
                         <strong>{result.studentId?.name || 'N/A'}</strong>
-                        <div className="va-cell-muted">{result.studentId?.email}</div>
+                        <div className="va-cell-muted">
+                          {result.studentId?.enrollmentNumber
+                            ? `${result.studentId.enrollmentNumber} · ${result.studentId.email}`
+                            : result.studentId?.email}
+                        </div>
                       </td>
                       <td>
                         <strong>

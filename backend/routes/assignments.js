@@ -511,7 +511,7 @@ router.get('/:id/students', authenticateToken, authorizeRoles('vendor_admin'), a
       role: 'student',
       vendorId: req.user.vendorId,
       'enrolledAssignments.assignmentId': assignment._id
-    }).select('name email enrolledAssignments');
+    }).select('name email enrollmentNumber enrolledAssignments');
 
     // Map student data with assignment status
     const studentData = students.map(student => {
@@ -523,6 +523,7 @@ router.get('/:id/students', authenticateToken, authorizeRoles('vendor_admin'), a
         _id: student._id,
         name: student.name,
         email: student.email,
+        enrollmentNumber: student.enrollmentNumber || '',
         assignedAt: enrollment.assignedAt,
         status: enrollment.status,
         startedAt: enrollment.startedAt,

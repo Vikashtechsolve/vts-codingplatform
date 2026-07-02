@@ -604,7 +604,7 @@ router.get('/interview/:interviewId', auth, authorize('vendor_admin'), async (re
       interviewId: req.params.interviewId,
       vendorId: req.user.vendorId
     })
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .sort({ createdAt: -1 });
     res.json(sessions);
   } catch (error) {
@@ -635,7 +635,7 @@ router.get('/:sessionId', auth, async (req, res) => {
   try {
     const session = await InterviewSession.findById(req.params.sessionId)
       .populate('interviewId', 'title interviewType topic difficulty duration')
-      .populate('studentId', 'name email');
+      .populate('studentId', 'name email enrollmentNumber');
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }

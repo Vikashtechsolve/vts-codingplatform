@@ -55,7 +55,8 @@ const ContestParticipants = () => {
       (p) =>
         p.name?.toLowerCase().includes(q) ||
         p.email?.toLowerCase().includes(q) ||
-        p.registrationMeta?.college?.toLowerCase().includes(q)
+        p.registrationMeta?.college?.toLowerCase().includes(q) ||
+        p.registrationMeta?.rollNumber?.toLowerCase().includes(q)
     );
   }, [participants, search]);
 
@@ -145,7 +146,7 @@ const ContestParticipants = () => {
             <FiSearch />
             <input
               type="search"
-              placeholder="Search name or email…"
+              placeholder="Search name, email, college, or roll number…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />

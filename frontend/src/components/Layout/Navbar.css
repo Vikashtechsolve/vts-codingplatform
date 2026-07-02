@@ -22,21 +22,25 @@
 }
 
 .navbar-student,
-.navbar-vendor {
+.navbar-vendor,
+.navbar-super-admin {
   border-bottom: 1px solid var(--border-color);
 }
 
-.navbar-vendor .navbar-menu {
+.navbar-vendor .navbar-menu,
+.navbar-super-admin .navbar-menu {
   justify-content: flex-end;
   align-items: center;
   gap: 16px;
 }
 
-.navbar-vendor .navbar-brand {
+.navbar-vendor .navbar-brand,
+.navbar-super-admin .navbar-brand {
   margin-right: auto;
 }
 
-.navbar-vendor .navbar-user {
+.navbar-vendor .navbar-user,
+.navbar-super-admin .navbar-user {
   margin-left: 0;
   padding-left: 12px;
   border-left: 1px solid var(--border-color);

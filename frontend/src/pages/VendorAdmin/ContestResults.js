@@ -83,7 +83,8 @@ const ContestResults = () => {
           (r) =>
             r.studentId?.name?.toLowerCase().includes(q) ||
             r.studentId?.email?.toLowerCase().includes(q) ||
-            r.registrationMeta?.college?.toLowerCase().includes(q)
+            r.registrationMeta?.college?.toLowerCase().includes(q) ||
+            r.registrationMeta?.rollNumber?.toLowerCase().includes(q)
         )
       : rows;
     return sortByRank(list);
@@ -235,7 +236,7 @@ const ContestResults = () => {
               <div className="va-search">
                 <input
                   type="search"
-                  placeholder="Search participants…"
+                  placeholder="Search name, email, college, or roll number…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />

@@ -1,16 +1,17 @@
 const User = require('../../models/User');
 const InterviewSession = require('../../models/InterviewSession');
 const { formatDate, formatMinutes, truncate, safeNum } = require('./formatters');
+const { studentReportFields } = require('../studentEnrollment');
 
 async function fetchEnrolledStudents(interviewId, vendorId, studentIds) {
   if (studentIds?.length) {
-    return User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email enrolledInterviews');
+    return User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email enrollmentNumber enrolledInterviews');
   }
   return User.find({
     vendorId,
     role: 'student',
     'enrolledInterviews.interviewId': interviewId,
-  }).select('name email enrolledInterviews');
+  }).select('name email enrollmentNumber enrolledInterviews');
 }
 
 function getEnrollment(student, interviewId) {
@@ -39,7 +40,7 @@ async function buildInterviewReport(interview, vendorId, options = {}) {
   const [students, sessions] = await Promise.all([
     fetchEnrolledStudents(interviewId, vendorId, studentIds),
     InterviewSession.find(sessionQuery)
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .lean(),
   ]);
 
@@ -62,8 +63,7 @@ async function buildInterviewReport(interview, vendorId, options = {}) {
 
     const fb = session?.finalFeedback || {};
     summaryRows.push({
-      studentName: student.name || '',
-      studentEmail: student.email || '',
+      ...studentReportFields(student),
       enrollmentStatus: enrollment?.status || participant?.status || 'registered',
       attemptStatus: session?.status || 'not_started',
       startedAt: formatDate(session?.startedAt),
@@ -83,8 +83,7 @@ async function buildInterviewReport(interview, vendorId, options = {}) {
       session.answers.forEach((ans, idx) => {
         const ev = ans.evaluation || {};
         detailRows.push({
-          studentName: student.name || '',
-          studentEmail: student.email || '',
+          ...studentReportFields(student),
           questionIndex: idx + 1,
           questionText: truncate(ans.questionText, 300),
           transcript: truncate(ans.transcript, 800),

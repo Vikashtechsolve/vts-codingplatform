@@ -547,7 +547,7 @@ router.get('/:submissionId', authenticateToken, async (req, res) => {
 
     const submission = await SystemDesignSubmission.findOne(query)
       .populate('problemId')
-      .populate('studentId', 'name email');
+      .populate('studentId', 'name email enrollmentNumber');
 
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Submission not found' });

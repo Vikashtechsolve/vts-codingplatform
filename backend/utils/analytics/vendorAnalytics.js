@@ -69,7 +69,7 @@ async function loadBaseData(vendorId) {
     Result.find({ vendorId: vendorObjectId }).select('studentId').lean(),
     Test.find({ vendorId: vendorObjectId }).select('title type duration').sort({ createdAt: -1 }).lean(),
     User.find({ vendorId: vendorObjectId, role: 'student', isActive: { $ne: false } })
-      .select('name email')
+      .select('name email enrollmentNumber')
       .lean(),
     Classroom.find({ vendorId: vendorObjectId, isActive: true })
       .select('name description students assignedTests')
@@ -303,6 +303,7 @@ function buildClassroomStudentRows(
         studentId: student._id,
         name: student.name,
         email: student.email,
+        enrollmentNumber: student.enrollmentNumber || '',
         status,
         assignedTotal,
         assignedCompleted,
@@ -513,7 +514,8 @@ async function getClassroomAnalytics(vendorId, classroomId, { page = 1, limit = 
     students = students.filter(
       (student) =>
         student.name?.toLowerCase().includes(q) ||
-        student.email?.toLowerCase().includes(q)
+        student.email?.toLowerCase().includes(q) ||
+        student.enrollmentNumber?.toLowerCase().includes(q)
     );
   }
 

@@ -7,6 +7,7 @@ import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
 import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
 import { formatDateTime } from '../../utils/vendorAssessmentUi';
+import { matchesNestedStudentSearch } from '../../utils/studentBulkImport';
 
 const InterviewResults = () => {
   const { interviewId } = useParams();
@@ -45,11 +46,7 @@ const InterviewResults = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return sessions;
-    return sessions.filter(
-      (s) =>
-        s.studentId?.name?.toLowerCase().includes(q) ||
-        s.studentId?.email?.toLowerCase().includes(q)
-    );
+    return sessions.filter((s) => matchesNestedStudentSearch(s, q));
   }, [sessions, search]);
 
   const accent = '#c026d3';
@@ -109,7 +106,7 @@ const InterviewResults = () => {
               <div className="va-search">
                 <input
                   type="search"
-                  placeholder="Search students…"
+                  placeholder="Search by name, email, or enrollment number…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -141,7 +138,11 @@ const InterviewResults = () => {
                     <tr key={session._id}>
                       <td>
                         <strong>{session.studentId?.name}</strong>
-                        <div className="va-cell-muted">{session.studentId?.email}</div>
+                        <div className="va-cell-muted">
+                          {session.studentId?.enrollmentNumber
+                            ? `${session.studentId.enrollmentNumber} · ${session.studentId.email}`
+                            : session.studentId?.email}
+                        </div>
                       </td>
                       <td>
                         <VendorStatusBadge status={session.status} />

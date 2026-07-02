@@ -17,23 +17,15 @@ import ResetPassword from './pages/Auth/ResetPassword';
 import JoinAttempt from './pages/JoinAttempt';
 import ContestLanding from './pages/Contest/ContestLanding';
 
-// Super Admin
-import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
-import VendorManagement from './pages/SuperAdmin/VendorManagement';
-import GlobalQuestions from './pages/SuperAdmin/GlobalQuestions';
-import InterviewQuestions from './pages/SuperAdmin/InterviewQuestions';
-import InterviewCredits from './pages/SuperAdmin/InterviewCredits';
-import InterviewAISettings from './pages/SuperAdmin/InterviewAISettings';
+// Super Admin (routes in routes/SuperAdminRoutes.js)
+import SuperAdminShell from './components/Layout/SuperAdminShell';
+import SuperAdminRoutes from './routes/SuperAdminRoutes';
 
 // Vendor Admin (routes in routes/VendorAdminRoutes.js)
 import VendorShell from './components/Layout/VendorShell';
 import VendorAdminRoutes from './routes/VendorAdminRoutes';
 
-// Reused by super-admin global question routes
-import CreateCodingQuestion from './pages/VendorAdmin/CreateCodingQuestion';
-import CreateMCQQuestion from './pages/VendorAdmin/CreateMCQQuestion';
-import CreateAptitudeQuestion from './pages/VendorAdmin/CreateAptitudeQuestion';
-import CreateInterviewQuestion from './pages/VendorAdmin/CreateInterviewQuestion';
+// Reused by super-admin global question routes (also routed via SuperAdminRoutes)
 
 // Student
 import StudentDashboard from './pages/Student/Dashboard';
@@ -57,14 +49,9 @@ import './App.css';
 import './styles/student-panel-dark.css';
 import './styles/vendor-assessment-pages.css';
 import './styles/vendor-hub-pages.css';
+import './styles/super-admin-pages.css';
 import './styles/vendor-question-form.css';
 import './styles/vendor-test-form.css';
-
-// Reuse same components for global questions (they detect route automatically)
-const CreateGlobalCodingQuestion = CreateCodingQuestion;
-const CreateGlobalMCQQuestion = CreateMCQQuestion;
-const CreateGlobalAptitudeQuestion = CreateAptitudeQuestion;
-const CreateGlobalInterviewQuestion = CreateInterviewQuestion;
 
 // Root route component that redirects based on authentication
 const RootRedirect = () => {
@@ -113,119 +100,10 @@ function App() {
               <Route path="/join/assignment/:assignmentId" element={<JoinAttempt kind="assignment" />} />
               <Route path="/join/system-design/:problemId" element={<JoinAttempt kind="system-design" />} />
               
-              {/* Super Admin Routes */}
-              <Route
-                path="/super-admin/dashboard"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <SuperAdminDashboard />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/vendors"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <VendorManagement />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/global-questions"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <GlobalQuestions />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/global-questions/coding/create"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalCodingQuestion />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/global-questions/coding/edit/:id"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalCodingQuestion />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/global-questions/mcq/create"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalMCQQuestion />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/global-questions/mcq/edit/:id"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalMCQQuestion />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/interview-questions"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <InterviewQuestions />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/interview-questions/create"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalInterviewQuestion />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/interview-questions/edit/:id"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalInterviewQuestion />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/interview-credits"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <InterviewCredits />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/interview-ai-settings"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <InterviewAISettings />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/global-questions/aptitude/create"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalAptitudeQuestion />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/super-admin/global-questions/aptitude/edit/:id"
-                element={
-                  <PrivateRoute allowedRoles={['super_admin']}>
-                    <CreateGlobalAptitudeQuestion />
-                  </PrivateRoute>
-                }
-              />
+              {/* Super Admin — sidebar layout */}
+              <Route path="/super-admin" element={<SuperAdminShell />}>
+                {SuperAdminRoutes}
+              </Route>
 
               {/* Vendor Admin — sidebar layout */}
               <Route path="/vendor-admin" element={<VendorShell />}>

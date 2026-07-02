@@ -7,6 +7,7 @@ import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
 import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
 import { formatDateTime } from '../../utils/vendorAssessmentUi';
+import { matchesNestedStudentSearch } from '../../utils/studentBulkImport';
 
 const AssignmentSubmissions = () => {
   const { id: assignmentId } = useParams();
@@ -62,11 +63,7 @@ const AssignmentSubmissions = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return submissions;
-    return submissions.filter(
-      (s) =>
-        s.studentId?.name?.toLowerCase().includes(q) ||
-        s.studentId?.email?.toLowerCase().includes(q)
-    );
+    return submissions.filter((s) => matchesNestedStudentSearch(s, q));
   }, [submissions, search]);
 
   const accent = '#6366f1';
@@ -125,7 +122,7 @@ const AssignmentSubmissions = () => {
               <div className="va-search">
                 <input
                   type="search"
-                  placeholder="Search students…"
+                  placeholder="Search by name, email, or enrollment number…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -157,7 +154,11 @@ const AssignmentSubmissions = () => {
                     <tr key={sub._id}>
                       <td>
                         <strong>{sub.studentId?.name || 'N/A'}</strong>
-                        <div className="va-cell-muted">{sub.studentId?.email}</div>
+                        <div className="va-cell-muted">
+                          {sub.studentId?.enrollmentNumber
+                            ? `${sub.studentId.enrollmentNumber} · ${sub.studentId.email}`
+                            : sub.studentId?.email}
+                        </div>
                       </td>
                       <td>
                         {sub.evaluationResult ? (

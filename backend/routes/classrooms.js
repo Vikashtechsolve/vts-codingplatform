@@ -7,6 +7,12 @@ const Classroom = require('../models/Classroom');
 const User = require('../models/User');
 const Test = require('../models/Test');
 const Interview = require('../models/Interview');
+const {
+  normalizeEnrollmentNumber,
+  findEnrollmentConflict,
+  applyEnrollmentNumberToExisting,
+  studentResponseFields,
+} = require('../utils/studentEnrollment');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -17,7 +23,7 @@ router.get('/', async (req, res) => {
   try {
     console.log('📥 Fetching classrooms for vendor:', req.vendorId);
     const classrooms = await Classroom.find({ vendorId: req.vendorId, isActive: true })
-      .populate('students', 'name email')
+      .populate('students', 'name email enrollmentNumber')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
     
@@ -36,7 +42,7 @@ router.get('/:id', async (req, res) => {
       _id: req.params.id,
       vendorId: req.vendorId
     })
-      .populate('students', 'name email')
+      .populate('students', 'name email enrollmentNumber')
       .populate('assignedTests.testId', 'title type duration')
       .populate('assignedTests.assignedBy', 'name email')
       .populate('assignedInterviews.interviewId', 'title interviewType topic duration')
@@ -147,7 +153,7 @@ router.put('/:id', [
     console.log(`✅ Classroom updated: ${classroom.name}`);
 
     const updatedClassroom = await Classroom.findById(classroom._id)
-      .populate('students', 'name email')
+      .populate('students', 'name email enrollmentNumber')
       .populate('createdBy', 'name email');
 
     res.json(updatedClassroom);
@@ -184,7 +190,8 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/students/bulk', [
   body('students').isArray().withMessage('students must be an array'),
   body('students.*.name').optional().trim(),
-  body('students.*.email').isEmail().withMessage('Invalid email format')
+  body('students.*.email').isEmail().withMessage('Invalid email format'),
+  body('students.*.enrollmentNumber').optional().trim(),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -208,6 +215,7 @@ router.post('/:id/students/bulk', [
 
     for (const studentData of students) {
       const normalizedEmail = studentData.email.toLowerCase().trim();
+      const enrollmentNumber = normalizeEnrollmentNumber(studentData.enrollmentNumber);
       
       // Check if student exists (by email — ensure vendorId is set)
       let student = await User.findOne({
@@ -238,6 +246,17 @@ router.post('/:id/students/bulk', [
           continue;
         }
 
+        if (enrollmentNumber) {
+          const conflict = await findEnrollmentConflict(req.vendorId, enrollmentNumber);
+          if (conflict) {
+            skippedStudents.push({
+              email: normalizedEmail,
+              reason: `Enrollment number "${enrollmentNumber}" is already used by ${conflict.email}`,
+            });
+            continue;
+          }
+        }
+
         student = new User({
           name: studentData.name.trim(),
           email: normalizedEmail,
@@ -245,10 +264,21 @@ router.post('/:id/students/bulk', [
           role: 'student',
           vendorId: req.vendorId,
           accountOrigin: 'vendor_enrolled',
-          isActive: true
+          isActive: true,
+          ...(enrollmentNumber ? { enrollmentNumber } : {}),
         });
         await student.save();
-        createdStudents.push({ id: student._id, name: student.name, email: student.email });
+        createdStudents.push(studentResponseFields(student));
+      } else if (enrollmentNumber) {
+        const applied = await applyEnrollmentNumberToExisting(
+          student,
+          enrollmentNumber,
+          req.vendorId
+        );
+        if (!applied.ok) {
+          skippedStudents.push({ email: normalizedEmail, reason: applied.reason });
+          continue;
+        }
       }
 
       // Check if already in classroom
@@ -263,7 +293,7 @@ router.post('/:id/students/bulk', [
 
       // Add to classroom
       classroom.students.push(student._id);
-      addedStudents.push({ id: student._id, name: student.name, email: student.email });
+      addedStudents.push(studentResponseFields(student));
     }
 
     await classroom.save();
@@ -271,7 +301,7 @@ router.post('/:id/students/bulk', [
     console.log(`✅ Bulk added ${addedStudents.length} students to classroom: ${classroom.name}`);
 
     const updatedClassroom = await Classroom.findById(classroom._id)
-      .populate('students', 'name email');
+      .populate('students', 'name email enrollmentNumber');
 
     res.json({
       message: `${addedStudents.length} student(s) added successfully`,
@@ -282,6 +312,11 @@ router.post('/:id/students/bulk', [
     });
   } catch (error) {
     console.error('❌ Error bulk adding students to classroom:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: 'An enrollment number in this batch is already used by another student in your organization.',
+      });
+    }
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -333,7 +368,7 @@ router.post('/:id/students', [
     console.log(`✅ Added ${newStudentIds.length} students to classroom: ${classroom.name}`);
 
     const updatedClassroom = await Classroom.findById(classroom._id)
-      .populate('students', 'name email');
+      .populate('students', 'name email enrollmentNumber');
 
     res.json({
       message: `${newStudentIds.length} student(s) added successfully`,
@@ -365,7 +400,7 @@ router.delete('/:id/students/:studentId', async (req, res) => {
     console.log(`✅ Removed student from classroom: ${classroom.name}`);
 
     const updatedClassroom = await Classroom.findById(classroom._id)
-      .populate('students', 'name email');
+      .populate('students', 'name email enrollmentNumber');
 
     res.json({
       message: 'Student removed successfully',

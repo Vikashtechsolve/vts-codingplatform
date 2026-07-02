@@ -17,6 +17,7 @@ const col = (key, label, opts = {}) => ({
 const TEST_SUMMARY_COLUMNS = [
   col('studentName', 'Student Name', { default: true, width: 22 }),
   col('studentEmail', 'Email', { default: true, width: 28 }),
+  col('enrollmentNumber', 'Enrollment Number', { default: true, width: 18 }),
   col('enrollmentStatus', 'Enrollment Status', { default: true }),
   col('assignedAt', 'Assigned At', { default: false }),
   col('attemptStatus', 'Attempt Status', { default: true }),
@@ -35,6 +36,7 @@ const TEST_SUMMARY_COLUMNS = [
 const TEST_DETAIL_BASE = [
   col('studentName', 'Student Name', { sheet: 'detail', default: true, width: 20 }),
   col('studentEmail', 'Email', { sheet: 'detail', default: true, width: 24 }),
+  col('enrollmentNumber', 'Enrollment Number', { sheet: 'detail', default: true, width: 18 }),
   col('questionOrder', 'Q#', { sheet: 'detail', default: true, width: 6 }),
   col('questionType', 'Question Type', { sheet: 'detail', default: true }),
   col('questionTitle', 'Question', { sheet: 'detail', default: true, width: 36 }),
@@ -71,6 +73,7 @@ const TEST_DETAIL_ENGLISH = [
 const TEST_SECTION_COLUMNS = [
   col('studentName', 'Student Name', { sheet: 'sections', default: true, width: 20 }),
   col('studentEmail', 'Email', { sheet: 'sections', default: true, width: 24 }),
+  col('enrollmentNumber', 'Enrollment Number', { sheet: 'sections', default: true, width: 18 }),
   col('sectionType', 'Section', { sheet: 'sections', default: true }),
   col('sectionScore', 'Section Score', { sheet: 'sections', default: true }),
   col('sectionMaxScore', 'Section Max', { sheet: 'sections', default: true }),
@@ -81,6 +84,7 @@ const TEST_SECTION_COLUMNS = [
 const INTERVIEW_SUMMARY_COLUMNS = [
   col('studentName', 'Student Name', { default: true, width: 22 }),
   col('studentEmail', 'Email', { default: true, width: 28 }),
+  col('enrollmentNumber', 'Enrollment Number', { default: true, width: 18 }),
   col('enrollmentStatus', 'Enrollment Status', { default: true }),
   col('attemptStatus', 'Session Status', { default: true }),
   col('startedAt', 'Started At', { default: true }),
@@ -94,6 +98,7 @@ const INTERVIEW_SUMMARY_COLUMNS = [
 const INTERVIEW_DETAIL_COLUMNS = [
   col('studentName', 'Student Name', { sheet: 'detail', default: true, width: 20 }),
   col('studentEmail', 'Email', { sheet: 'detail', default: true, width: 24 }),
+  col('enrollmentNumber', 'Enrollment Number', { sheet: 'detail', default: true, width: 18 }),
   col('questionIndex', 'Q#', { sheet: 'detail', default: true, width: 6 }),
   col('questionText', 'Question', { sheet: 'detail', default: true, width: 36 }),
   col('transcript', 'Transcript', { sheet: 'detail', default: true, width: 40 }),
@@ -110,6 +115,7 @@ const INTERVIEW_DETAIL_COLUMNS = [
 const ASSIGNMENT_SUMMARY_COLUMNS = [
   col('studentName', 'Student Name', { default: true, width: 22 }),
   col('studentEmail', 'Email', { default: true, width: 28 }),
+  col('enrollmentNumber', 'Enrollment Number', { default: true, width: 18 }),
   col('enrollmentStatus', 'Enrollment Status', { default: true }),
   col('submissionStatus', 'Submission Status', { default: true }),
   col('submittedAt', 'Submitted At', { default: true }),
@@ -127,6 +133,7 @@ const ASSIGNMENT_SUMMARY_COLUMNS = [
 const ASSIGNMENT_DETAIL_COLUMNS = [
   col('studentName', 'Student Name', { sheet: 'detail', default: true, width: 20 }),
   col('studentEmail', 'Email', { sheet: 'detail', default: true, width: 24 }),
+  col('enrollmentNumber', 'Enrollment Number', { sheet: 'detail', default: true, width: 18 }),
   col('featureName', 'Feature', { sheet: 'detail', default: true, width: 28 }),
   col('featureStatus', 'Status', { sheet: 'detail', default: true }),
   col('featureScore', 'Score', { sheet: 'detail', default: true }),
@@ -138,6 +145,7 @@ const ASSIGNMENT_DETAIL_COLUMNS = [
 const SYSTEM_DESIGN_SUMMARY_COLUMNS = [
   col('studentName', 'Student Name', { default: true, width: 22 }),
   col('studentEmail', 'Email', { default: true, width: 28 }),
+  col('enrollmentNumber', 'Enrollment Number', { default: true, width: 18 }),
   col('assignmentStatus', 'Assignment Status', { default: true }),
   col('submissionStatus', 'Submission Status', { default: true }),
   col('startedAt', 'Started At', { default: true }),
@@ -153,6 +161,7 @@ const SYSTEM_DESIGN_SUMMARY_COLUMNS = [
 const SYSTEM_DESIGN_DETAIL_COLUMNS = [
   col('studentName', 'Student Name', { sheet: 'detail', default: true, width: 20 }),
   col('studentEmail', 'Email', { sheet: 'detail', default: true, width: 24 }),
+  col('enrollmentNumber', 'Enrollment Number', { sheet: 'detail', default: true, width: 18 }),
   col('sectionName', 'Section', { sheet: 'detail', default: true, width: 22 }),
   col('sectionScore', 'Score', { sheet: 'detail', default: true }),
   col('sectionMaxScore', 'Max Score', { sheet: 'detail', default: true }),

@@ -96,7 +96,7 @@ const Navbar = () => {
   const brandClassName = `navbar-brand${isExamLocked ? ' navbar-brand--exam-locked' : ''}`;
 
   return (
-    <nav className={`navbar${user?.role === 'student' ? ' navbar-student' : ''}${user?.role === 'vendor_admin' ? ' navbar-vendor' : ''}`}>
+    <nav className={`navbar${user?.role === 'student' ? ' navbar-student' : ''}${user?.role === 'vendor_admin' ? ' navbar-vendor' : ''}${user?.role === 'super_admin' ? ' navbar-super-admin' : ''}`}>
       <div className="navbar-container">
         {isExamLocked ? (
           <button
@@ -116,20 +116,11 @@ const Navbar = () => {
         <div className="navbar-menu">
           {isAuthenticated && user && (
             <>
-              {user.role === 'super_admin' && (
-                <>
-                  <Link to="/super-admin/dashboard" className="navbar-link">Dashboard</Link>
-                  <Link to="/super-admin/vendors" className="navbar-link">Vendors</Link>
-                  <Link to="/super-admin/interview-credits" className="navbar-link">Interview Credits</Link>
-                </>
-              )}
-
               {user.role === 'student' && (
                 <div className="navbar-student-actions">
                   <AnnouncementBell />
                 </div>
               )}
-
               <div className="navbar-user">
                 <span className="user-name">
                   <FiUser /> {user.name}

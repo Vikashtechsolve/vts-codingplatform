@@ -313,6 +313,86 @@ router.get('/students/:studentId', async (req, res) => {
   }
 });
 
+// Update student details
+router.put('/students/:studentId', async (req, res) => {
+  try {
+    const student = await User.findOne({
+      _id: req.params.studentId,
+      vendorId: req.vendorId,
+      role: 'student',
+      accountOrigin: { $ne: 'contest' },
+    });
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    const { name, email, enrollmentNumber, password, isActive } = req.body;
+
+    if (name != null) {
+      const trimmedName = String(name).trim();
+      if (!trimmedName) {
+        return res.status(400).json({ message: 'Name is required' });
+      }
+      student.name = trimmedName;
+    }
+
+    if (email != null) {
+      const normalizedEmail = String(email).toLowerCase().trim();
+      if (!normalizedEmail || !normalizedEmail.includes('@')) {
+        return res.status(400).json({ message: 'A valid email is required' });
+      }
+      if (normalizedEmail !== student.email) {
+        const emailTaken = await User.findOne({ email: normalizedEmail });
+        if (emailTaken && emailTaken._id.toString() !== student._id.toString()) {
+          return res.status(400).json({ message: 'Email is already in use' });
+        }
+        student.email = normalizedEmail;
+      }
+    }
+
+    if (enrollmentNumber !== undefined) {
+      const resolved = await resolveEnrollmentNumberForUpdate(
+        student,
+        enrollmentNumber,
+        req.vendorId
+      );
+      if (!resolved.ok) {
+        return res.status(400).json({ message: resolved.reason });
+      }
+    }
+
+    if (password != null && String(password).trim()) {
+      if (String(password).trim().length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters' });
+      }
+      student.password = String(password).trim();
+    }
+
+    if (typeof isActive === 'boolean') {
+      student.isActive = isActive;
+    }
+
+    await student.save();
+
+    const studentObj = student.toObject();
+    delete studentObj.password;
+
+    res.json({
+      message: 'Student updated successfully',
+      student: studentObj,
+    });
+  } catch (error) {
+    console.error('❌ Error updating student:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: 'Enrollment number is already used by another student in your organization.',
+      });
+    }
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Enroll students (bulk)
 router.post('/students/enroll', async (req, res) => {
   try {
@@ -329,6 +409,7 @@ router.post('/students/enroll', async (req, res) => {
     for (const studentData of students) {
       // Normalize email
       const normalizedEmail = studentData.email.toLowerCase().trim();
+      const enrollmentNumber = normalizeEnrollmentNumber(studentData.enrollmentNumber);
       
       console.log(`🔍 Checking student: ${normalizedEmail}`);
       
@@ -361,12 +442,31 @@ router.post('/students/enroll', async (req, res) => {
           console.log(`✅ Assigned vendorId to existing student: ${normalizedEmail}`);
         }
 
-        enrolledStudents.push({
-          id: existingUser._id,
-          name: existingUser.name,
-          email: existingUser.email,
-        });
+        if (enrollmentNumber) {
+          const applied = await applyEnrollmentNumberToExisting(
+            existingUser,
+            enrollmentNumber,
+            req.vendorId
+          );
+          if (!applied.ok) {
+            skippedStudents.push({ email: normalizedEmail, reason: applied.reason });
+            continue;
+          }
+        }
+
+        enrolledStudents.push(studentResponseFields(existingUser));
         continue;
+      }
+
+      if (enrollmentNumber) {
+        const conflict = await findEnrollmentConflict(req.vendorId, enrollmentNumber);
+        if (conflict) {
+          skippedStudents.push({
+            email: normalizedEmail,
+            reason: `Enrollment number "${enrollmentNumber}" is already used by ${conflict.email}`,
+          });
+          continue;
+        }
       }
 
       const student = new User({
@@ -376,17 +476,14 @@ router.post('/students/enroll', async (req, res) => {
         role: 'student',
         vendorId: req.vendorId,
         accountOrigin: 'vendor_enrolled',
-        isActive: true
+        isActive: true,
+        ...(enrollmentNumber ? { enrollmentNumber } : {}),
       });
 
       await student.save();
       console.log(`✅ Student created: ${student.name} (${student.email})`);
       
-      enrolledStudents.push({
-        id: student._id,
-        name: student.name,
-        email: student.email
-      });
+      enrolledStudents.push(studentResponseFields(student));
     }
 
     console.log(`✅ Enrollment complete: ${enrolledStudents.length} enrolled, ${skippedStudents.length} skipped`);
@@ -404,6 +501,11 @@ router.post('/students/enroll', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error enrolling students:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: 'An enrollment number in this batch is already used by another student in your organization.',
+      });
+    }
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -427,7 +529,7 @@ router.get('/tests/:testId/results', async (req, res) => {
       testId: req.params.testId,
       vendorId: req.vendorId
     })
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .sort({ submittedAt: -1 });
     res.json(results);
   } catch (error) {
@@ -440,6 +542,13 @@ const {
   getAnalyticsTests,
   getClassroomAnalytics,
 } = require('../utils/analytics/vendorAnalytics');
+const {
+  normalizeEnrollmentNumber,
+  findEnrollmentConflict,
+  applyEnrollmentNumberToExisting,
+  resolveEnrollmentNumberForUpdate,
+  studentResponseFields,
+} = require('../utils/studentEnrollment');
 
 // Lightweight overview — fast initial load
 router.get('/analytics/overview', async (req, res) => {
@@ -505,7 +614,7 @@ router.get('/tests/:testId/speaking-analytics', async (req, res) => {
       testId: req.params.testId,
       vendorId: req.vendorId,
       status: 'completed'
-    }).populate('studentId', 'name email');
+    }).populate('studentId', 'name email enrollmentNumber');
 
     const speakingAnswers = [];
     results.forEach(r => {

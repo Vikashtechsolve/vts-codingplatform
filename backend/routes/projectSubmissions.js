@@ -338,7 +338,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const submission = await ProjectSubmission.findById(req.params.id)
       .populate('assignmentId')
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .populate('evaluationJobId');
 
     if (!submission) {
@@ -423,7 +423,7 @@ router.get('/:id/result', authenticateToken, async (req, res) => {
     // Get evaluation result
     const result = await EvaluationResult.findOne({ submissionId: req.params.id })
       .populate('assignmentId', 'title category difficulty totalMarks')
-      .populate('studentId', 'name email');
+      .populate('studentId', 'name email enrollmentNumber');
 
     if (!result) {
       return res.status(404).json({
@@ -528,7 +528,7 @@ router.get('/assignment/:assignmentId', authenticateToken, authorizeRoles('vendo
     const submissions = await ProjectSubmission.find({
       assignmentId: req.params.assignmentId
     })
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .populate('evaluationJobId')
       .sort({ submittedAt: -1 });
 

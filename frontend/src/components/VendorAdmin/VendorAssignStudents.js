@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiSearch, FiUsers, FiCheck, FiGrid } from 'react-icons/fi';
+import { matchesStudentSearch } from '../../utils/studentBulkImport';
 
 const VendorAssignStudents = ({
   students = [],
@@ -54,11 +55,7 @@ const VendorAssignStudents = ({
     const q = search.trim().toLowerCase();
     let list = students;
     if (!q) return list;
-    return list.filter(
-      (s) =>
-        s.name?.toLowerCase().includes(q) ||
-        s.email?.toLowerCase().includes(q)
-    );
+    return list.filter((s) => matchesStudentSearch(s, q));
   }, [students, search]);
 
   const allStudentsSelected =
@@ -248,7 +245,7 @@ const VendorAssignStudents = ({
                 <FiSearch />
                 <input
                   type="search"
-                  placeholder="Search by name or email…"
+                  placeholder="Search by name, email, or enrollment number…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -287,7 +284,11 @@ const VendorAssignStudents = ({
                       />
                       <span>
                         <span className="va-student-name">{student.name}</span>
-                        <span className="va-student-email">{student.email}</span>
+                        <span className="va-student-email">
+                          {student.enrollmentNumber
+                            ? `${student.enrollmentNumber} · ${student.email}`
+                            : student.email}
+                        </span>
                       </span>
                     </button>
                   );

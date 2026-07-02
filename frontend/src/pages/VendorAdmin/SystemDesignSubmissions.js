@@ -7,6 +7,7 @@ import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
 import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
 import { formatDateTime } from '../../utils/vendorAssessmentUi';
+import { matchesNestedStudentSearch } from '../../utils/studentBulkImport';
 
 const SystemDesignSubmissions = () => {
   const { id: problemId } = useParams();
@@ -54,11 +55,7 @@ const SystemDesignSubmissions = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return submissions;
-    return submissions.filter(
-      (s) =>
-        s.studentId?.name?.toLowerCase().includes(q) ||
-        s.studentId?.email?.toLowerCase().includes(q)
-    );
+    return submissions.filter((s) => matchesNestedStudentSearch(s, q));
   }, [submissions, search]);
 
   const accent = '#ea580c';
@@ -117,7 +114,7 @@ const SystemDesignSubmissions = () => {
               <div className="va-search">
                 <input
                   type="search"
-                  placeholder="Search students…"
+                  placeholder="Search by name, email, or enrollment number…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -151,7 +148,11 @@ const SystemDesignSubmissions = () => {
                     <tr key={s._id}>
                       <td>
                         <strong>{s.studentId?.name || 'Unknown'}</strong>
-                        <div className="va-cell-muted">{s.studentId?.email}</div>
+                        <div className="va-cell-muted">
+                          {s.studentId?.enrollmentNumber
+                            ? `${s.studentId.enrollmentNumber} · ${s.studentId.email}`
+                            : s.studentId?.email}
+                        </div>
                       </td>
                       <td>
                         <VendorStatusBadge status={s.status} />

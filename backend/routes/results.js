@@ -947,7 +947,7 @@ router.get('/test/:testId', auth, async (req, res) => {
       status: 'completed'
     })
       .populate('testId', 'title type')
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .sort({ submittedAt: -1 }); // Get the most recent completed result
 
     if (!result) {
@@ -969,7 +969,7 @@ router.get('/:resultId/questions', auth, async (req, res) => {
   try {
     const result = await Result.findById(req.params.resultId)
       .populate('testId', 'title type')
-      .populate('studentId', 'name email');
+      .populate('studentId', 'name email enrollmentNumber');
 
     if (!result) {
       return res.status(404).json({ message: 'Result not found' });
@@ -1045,7 +1045,7 @@ router.get('/:resultId', auth, async (req, res) => {
 
     const result = await Result.findById(req.params.resultId)
       .populate('testId', 'title type')
-      .populate('studentId', 'name email');
+      .populate('studentId', 'name email enrollmentNumber');
 
     if (!result) {
       console.log('❌ Result not found:', req.params.resultId);

@@ -1,6 +1,7 @@
 const User = require('../../models/User');
 const SystemDesignSubmission = require('../../models/SystemDesignSubmission');
 const { formatDate, formatMinutes, truncate, safeNum } = require('./formatters');
+const { studentReportFields } = require('../studentEnrollment');
 
 const SECTION_KEYS = [
   'requirements',
@@ -48,7 +49,7 @@ async function fetchAssignedStudents(problem, vendorId) {
     _id: { $in: [...ids] },
     vendorId,
     role: 'student',
-  }).select('name email');
+  }).select('name email enrollmentNumber');
 }
 
 async function buildSystemDesignReport(problem, vendorId, options = {}) {
@@ -59,10 +60,10 @@ async function buildSystemDesignReport(problem, vendorId, options = {}) {
     submissionQuery.studentId = { $in: studentIds };
   }
   const students = studentIds?.length
-    ? await User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email')
+    ? await User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email enrollmentNumber')
     : await fetchAssignedStudents(problem, vendorId);
   const submissions = await SystemDesignSubmission.find(submissionQuery)
-    .populate('studentId', 'name email')
+    .populate('studentId', 'name email enrollmentNumber')
     .lean();
 
   const submissionByStudent = new Map();
@@ -83,8 +84,7 @@ async function buildSystemDesignReport(problem, vendorId, options = {}) {
     );
 
     summaryRows.push({
-      studentName: student.name || '',
-      studentEmail: student.email || '',
+      ...studentReportFields(student),
       assignmentStatus: isAssigned ? 'assigned' : (participant ? 'contest' : 'classroom'),
       submissionStatus: submission?.status || 'not_started',
       startedAt: formatDate(submission?.startedAt),
@@ -102,8 +102,7 @@ async function buildSystemDesignReport(problem, vendorId, options = {}) {
         const sec = submission.evaluation[key];
         if (!sec) return;
         detailRows.push({
-          studentName: student.name || '',
-          studentEmail: student.email || '',
+          ...studentReportFields(student),
           sectionName: SECTION_LABELS[key] || key,
           sectionScore: sec.score ?? '',
           sectionMaxScore: sec.maxScore ?? '',

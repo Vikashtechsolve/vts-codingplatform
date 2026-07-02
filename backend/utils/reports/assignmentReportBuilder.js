@@ -2,16 +2,17 @@ const User = require('../../models/User');
 const ProjectSubmission = require('../../models/ProjectSubmission');
 const EvaluationResult = require('../../models/EvaluationResult');
 const { formatDate, formatBool, truncate, safeNum } = require('./formatters');
+const { studentReportFields } = require('../studentEnrollment');
 
 async function fetchEnrolledStudents(assignmentId, vendorId, studentIds) {
   if (studentIds?.length) {
-    return User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email enrolledAssignments');
+    return User.find({ _id: { $in: studentIds }, role: 'student' }).select('name email enrollmentNumber enrolledAssignments');
   }
   return User.find({
     vendorId,
     role: 'student',
     'enrolledAssignments.assignmentId': assignmentId,
-  }).select('name email enrolledAssignments');
+  }).select('name email enrollmentNumber enrolledAssignments');
 }
 
 function getEnrollment(student, assignmentId) {
@@ -30,7 +31,7 @@ async function buildAssignmentReport(assignment, vendorId, options = {}) {
   const [students, submissions] = await Promise.all([
     fetchEnrolledStudents(assignmentId, vendorId, studentIds),
     ProjectSubmission.find(submissionQuery)
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .lean(),
   ]);
 
@@ -63,8 +64,7 @@ async function buildAssignmentReport(assignment, vendorId, options = {}) {
       : null;
 
     summaryRows.push({
-      studentName: student.name || '',
-      studentEmail: student.email || '',
+      ...studentReportFields(student),
       enrollmentStatus: enrollment?.status || participant?.status || 'registered',
       submissionStatus: submission?.status || 'not_submitted',
       submittedAt: formatDate(submission?.submittedAt),
@@ -82,8 +82,7 @@ async function buildAssignmentReport(assignment, vendorId, options = {}) {
     if (evaluation?.featureEvaluation?.length) {
       evaluation.featureEvaluation.forEach((feat) => {
         detailRows.push({
-          studentName: student.name || '',
-          studentEmail: student.email || '',
+          ...studentReportFields(student),
           featureName: feat.feature || '',
           featureStatus: feat.status || '',
           featureScore: feat.scoredMarks ?? '',

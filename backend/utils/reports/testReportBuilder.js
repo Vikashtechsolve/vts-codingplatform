@@ -3,6 +3,7 @@ const Result = require('../../models/Result');
 const { loadQuestionsForTest } = require('./questionLoader');
 const { truncate, formatDate, formatMinutes, formatBool, formatArray, safeNum } = require('./formatters');
 const { compareContestRanking } = require('../contestRanking');
+const { studentReportFields } = require('../studentEnrollment');
 
 const SECTION_LABELS = {
   english_grammar: 'Grammar',
@@ -33,13 +34,13 @@ async function fetchEnrolledStudents(testId, vendorId, studentIds) {
     return User.find({
       _id: { $in: studentIds },
       role: 'student',
-    }).select('name email enrolledTests');
+    }).select('name email enrollmentNumber enrolledTests');
   }
   return User.find({
     vendorId,
     role: 'student',
     'enrolledTests.testId': testId,
-  }).select('name email enrolledTests');
+  }).select('name email enrollmentNumber enrolledTests');
 }
 
 function getEnrollment(student, testId) {
@@ -60,8 +61,7 @@ function pickLatestResult(resultsByStudent, studentId) {
 
 function buildSummaryRow(student, enrollment, result, rank) {
   return {
-    studentName: student.name || '',
-    studentEmail: student.email || '',
+    ...studentReportFields(student),
     enrollmentStatus: enrollment?.status || 'assigned',
     assignedAt: formatDate(enrollment?.assignedAt),
     attemptStatus: result?.status || 'not_started',
@@ -82,8 +82,7 @@ function buildDetailRow(student, answer, qMeta, order) {
   const ev = answer.englishEvaluation || {};
   const evalTheory = answer.evaluation || {};
   const row = {
-    studentName: student.name || '',
-    studentEmail: student.email || '',
+    ...studentReportFields(student),
     questionOrder: order ?? qMeta?.order ?? '',
     questionType: answer.questionType || qMeta?.type || '',
     questionTitle: qMeta?.title || '',
@@ -112,8 +111,7 @@ function buildDetailRow(student, answer, qMeta, order) {
 
 function buildSectionRow(student, section) {
   return {
-    studentName: student.name || '',
-    studentEmail: student.email || '',
+    ...studentReportFields(student),
     sectionType: SECTION_LABELS[section.sectionType] || section.sectionType || '',
     sectionScore: section.score ?? '',
     sectionMaxScore: section.maxScore ?? '',
@@ -133,7 +131,7 @@ async function buildTestReport(test, vendorId, options = {}) {
   }
   const [students, results, questionMap] = await Promise.all([
     fetchEnrolledStudents(testId, vendorId, studentIds),
-    Result.find(resultQuery).populate('studentId', 'name email').lean(),
+    Result.find(resultQuery).populate('studentId', 'name email enrollmentNumber').lean(),
     loadQuestionsForTest(test),
   ]);
 
@@ -200,8 +198,7 @@ async function buildTestReport(test, vendorId, options = {}) {
       test.questions.forEach((tq) => {
         const qMeta = questionMap.get(tq.questionId?.toString());
         detailRows.push({
-          studentName: student.name || '',
-          studentEmail: student.email || '',
+          ...studentReportFields(student),
           questionOrder: tq.order,
           questionType: tq.type,
           questionTitle: qMeta?.title || '',

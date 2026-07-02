@@ -14,6 +14,11 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  enrollmentNumber: {
+    type: String,
+    trim: true,
+    default: null,
+  },
   password: {
     type: String,
     required: true,
@@ -105,6 +110,15 @@ const userSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+userSchema.index(
+  { vendorId: 1, enrollmentNumber: 1 },
+  {
+    unique: true,
+    sparse: true,
+    collation: { locale: 'en', strength: 2 },
+  }
+);
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {

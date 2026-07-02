@@ -7,10 +7,20 @@ import {
   FiUpload,
   FiRefreshCw,
   FiBarChart2,
+  FiEdit2,
+  FiUser,
+  FiLock,
   FiX,
 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
+import {
+  parseBulkStudentText,
+  matchesStudentSearch,
+  BULK_STUDENT_FORMAT_HINT,
+  BULK_STUDENT_SAMPLE,
+} from '../../utils/studentBulkImport';
+import './StudentManagement.css';
 
 const getInitials = (name) => {
   if (!name) return '?';
@@ -31,10 +41,25 @@ const StudentManagement = () => {
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [bulkData, setBulkData] = useState('');
-  const [formData, setFormData] = useState({ name: '', email: '', password: 'student123' });
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    enrollmentNumber: '',
+    password: 'student123',
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    enrollmentNumber: '',
+    password: '',
+    isActive: true,
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const fetchStudents = async () => {
     try {
@@ -57,6 +82,24 @@ const StudentManagement = () => {
     fetchStudents();
   }, []);
 
+  useEffect(() => {
+    if (!editingStudent) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape' && !editSubmitting) {
+        closeEditStudent();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [editingStudent, editSubmitting]);
+
   const classroomFiltered = useMemo(() => {
     if (selectedClassroom === 'all') return allStudents;
     return allStudents.filter((student) =>
@@ -70,11 +113,7 @@ const StudentManagement = () => {
   const students = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return classroomFiltered;
-    return classroomFiltered.filter(
-      (s) =>
-        s.name?.toLowerCase().includes(q) ||
-        s.email?.toLowerCase().includes(q)
-    );
+    return classroomFiltered.filter((s) => matchesStudentSearch(s, q));
   }, [classroomFiltered, search]);
 
   const stats = useMemo(() => {
@@ -93,6 +132,7 @@ const StudentManagement = () => {
       const trimmedData = {
         name: formData.name.trim(),
         email: formData.email.trim(),
+        enrollmentNumber: formData.enrollmentNumber.trim(),
         password: formData.password.trim() || 'student123',
       };
 
@@ -103,12 +143,17 @@ const StudentManagement = () => {
       }
 
       const response = await axiosInstance.post('/vendor-admin/students/enroll', {
-        students: [trimmedData],
+        students: [
+          {
+            ...trimmedData,
+            enrollmentNumber: trimmedData.enrollmentNumber || undefined,
+          },
+        ],
       });
 
       if (response.data.enrolled?.length > 0) {
         setSuccess(`Student "${trimmedData.name}" enrolled successfully.`);
-        setFormData({ name: '', email: '', password: 'student123' });
+        setFormData({ name: '', email: '', enrollmentNumber: '', password: 'student123' });
         await fetchStudents();
         setTimeout(() => {
           setShowAddForm(false);
@@ -130,17 +175,24 @@ const StudentManagement = () => {
     setError('');
     setSuccess('');
     try {
-      const lines = bulkData.split('\n').filter((line) => line.trim());
-      const payload = lines.map((line) => {
-        const [name, email, password] = line.split(',').map((s) => s.trim());
-        return { name, email, password: password || 'student123' };
-      });
+      const { students: payload, invalidLines } = parseBulkStudentText(bulkData);
+      if (!payload.length) {
+        setError(
+          invalidLines.length
+            ? `No valid rows. ${invalidLines[0].error} (line ${invalidLines[0].line})`
+            : 'Paste at least one student row.'
+        );
+        return;
+      }
 
       const response = await axiosInstance.post('/vendor-admin/students/enroll', {
         students: payload,
       });
-      const n = response.data.enrolled?.length || payload.length;
-      setSuccess(`${n} student(s) enrolled.`);
+      const n = response.data.enrolled?.length || 0;
+      const skipped = response.data.skipped?.length || 0;
+      setSuccess(
+        `${n} student(s) enrolled${skipped ? ` · ${skipped} skipped` : ''}.`
+      );
       setShowBulkForm(false);
       setBulkData('');
       await fetchStudents();
@@ -153,6 +205,69 @@ const StudentManagement = () => {
     allStudents.filter((s) =>
       (s.classrooms || []).some((c) => String(c.id || c._id || c) === String(classroomId))
     ).length;
+
+  const openEditStudent = (student) => {
+    setEditingStudent(student);
+    setEditForm({
+      name: student.name || '',
+      email: student.email || '',
+      enrollmentNumber: student.enrollmentNumber || '',
+      password: '',
+      isActive: student.isActive !== false,
+    });
+    setEditError('');
+    setShowAddForm(false);
+    setShowBulkForm(false);
+  };
+
+  const closeEditStudent = () => {
+    setEditingStudent(null);
+    setEditError('');
+    setEditForm({
+      name: '',
+      email: '',
+      enrollmentNumber: '',
+      password: '',
+      isActive: true,
+    });
+  };
+
+  const handleEditStudent = async (e) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+
+    setEditError('');
+    setEditSubmitting(true);
+
+    try {
+      const payload = {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        enrollmentNumber: editForm.enrollmentNumber.trim(),
+        isActive: editForm.isActive,
+      };
+
+      if (!payload.name || !payload.email) {
+        setEditError('Name and email are required');
+        setEditSubmitting(false);
+        return;
+      }
+
+      if (editForm.password.trim()) {
+        payload.password = editForm.password.trim();
+      }
+
+      await axiosInstance.put(`/vendor-admin/students/${editingStudent._id}`, payload);
+      await fetchStudents();
+      closeEditStudent();
+      setSuccess(`Student "${payload.name}" updated successfully.`);
+      setTimeout(() => setSuccess(''), 2500);
+    } catch (err) {
+      setEditError(err.response?.data?.message || 'Failed to update student');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
 
   return (
     <VendorHubPage
@@ -194,6 +309,169 @@ const StudentManagement = () => {
         </>
       }
     >
+      {success && !showAddForm && !showBulkForm && !editingStudent && (
+        <div className="vh-alert vh-alert--success" style={{ marginBottom: 16 }}>
+          {success}
+        </div>
+      )}
+
+      {editingStudent && (
+        <div
+          className="vsm-edit-overlay"
+          onClick={closeEditStudent}
+          role="presentation"
+        >
+          <div
+            className="vsm-edit-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vsm-edit-title"
+          >
+            <div className="vsm-edit-accent" aria-hidden />
+
+            <header className="vsm-edit-header">
+              <div className="vsm-edit-header-main">
+                <span className="vsm-edit-avatar">
+                  {getInitials(editForm.name || editingStudent.name)}
+                </span>
+                <div className="vsm-edit-header-text">
+                  <p className="vsm-edit-eyebrow">Edit student</p>
+                  <h2 id="vsm-edit-title">{editForm.name || editingStudent.name}</h2>
+                  <p className="vsm-edit-subtitle">
+                    {editForm.enrollmentNumber
+                      ? `${editForm.enrollmentNumber} · ${editForm.email || editingStudent.email}`
+                      : editForm.email || editingStudent.email}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="vsm-edit-close"
+                onClick={closeEditStudent}
+                aria-label="Close edit form"
+              >
+                <FiX />
+              </button>
+            </header>
+
+            <form className="vsm-edit-form" onSubmit={handleEditStudent}>
+              <div className="vsm-edit-body">
+                {editError && (
+                  <div className="vh-alert vh-alert--error vsm-edit-alert">{editError}</div>
+                )}
+
+                <section className="vsm-edit-section">
+                  <div className="vsm-edit-section-head">
+                    <FiUser aria-hidden />
+                    <div>
+                      <h3>Profile</h3>
+                      <p>Basic identity shown across tests, classrooms, and reports.</p>
+                    </div>
+                  </div>
+                  <div className="vsm-edit-grid">
+                    <div className="vh-field">
+                      <label htmlFor="edit-student-name">Full name *</label>
+                      <input
+                        id="edit-student-name"
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                        required
+                        placeholder="Student name"
+                      />
+                    </div>
+                    <div className="vh-field">
+                      <label htmlFor="edit-student-email">Email *</label>
+                      <input
+                        id="edit-student-email"
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        required
+                        placeholder="student@example.com"
+                      />
+                    </div>
+                    <div className="vh-field vsm-edit-field-full">
+                      <label htmlFor="edit-student-enrollment">Enrollment number</label>
+                      <input
+                        id="edit-student-enrollment"
+                        type="text"
+                        value={editForm.enrollmentNumber}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, enrollmentNumber: e.target.value })
+                        }
+                        placeholder="e.g. ENR-2024-001"
+                      />
+                      <span className="vh-field-hint">
+                        Unique in your organization. Clear the field to remove it.
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="vsm-edit-section">
+                  <div className="vsm-edit-section-head">
+                    <FiLock aria-hidden />
+                    <div>
+                      <h3>Security</h3>
+                      <p>Reset login credentials for this student.</p>
+                    </div>
+                  </div>
+                  <div className="vh-field">
+                    <label htmlFor="edit-student-password">New password</label>
+                    <input
+                      id="edit-student-password"
+                      type="password"
+                      value={editForm.password}
+                      onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                      placeholder="Leave blank to keep current password"
+                      autoComplete="new-password"
+                    />
+                    <span className="vh-field-hint">Minimum 6 characters when changing.</span>
+                  </div>
+                </section>
+
+                <section className="vsm-edit-section vsm-edit-section--status">
+                  <button
+                    type="button"
+                    className={`vsm-status-card ${editForm.isActive ? 'is-active' : 'is-inactive'}`}
+                    onClick={() => setEditForm({ ...editForm, isActive: !editForm.isActive })}
+                  >
+                    <span className="vsm-status-indicator" aria-hidden />
+                    <span className="vsm-status-copy">
+                      <strong>{editForm.isActive ? 'Active account' : 'Inactive account'}</strong>
+                      <span>
+                        {editForm.isActive
+                          ? 'Student can sign in and take assigned assessments.'
+                          : 'Sign-in is blocked; past results and history are kept.'}
+                      </span>
+                    </span>
+                    <span className="vsm-status-pill">
+                      {editForm.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </button>
+                </section>
+              </div>
+
+              <footer className="vsm-edit-footer">
+                <button
+                  type="button"
+                  className="vh-btn vh-btn--secondary"
+                  onClick={closeEditStudent}
+                  disabled={editSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="vh-btn vh-btn--primary" disabled={editSubmitting}>
+                  {editSubmitting ? 'Saving…' : 'Save changes'}
+                </button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="vh-stats">
         <div className="vh-stat vh-stat--accent">
           <span className="vh-stat-label">Total students</span>
@@ -260,6 +538,19 @@ const StudentManagement = () => {
                   />
                 </div>
                 <div className="vh-field">
+                  <label htmlFor="student-enrollment">Enrollment number</label>
+                  <input
+                    id="student-enrollment"
+                    type="text"
+                    value={formData.enrollmentNumber}
+                    onChange={(e) =>
+                      setFormData({ ...formData, enrollmentNumber: e.target.value })
+                    }
+                    placeholder="e.g. ENR-2024-001"
+                  />
+                  <span className="vh-field-hint">Optional. Unique per student in your organization.</span>
+                </div>
+                <div className="vh-field">
                   <label htmlFor="student-password">Password</label>
                   <input
                     id="student-password"
@@ -281,14 +572,14 @@ const StudentManagement = () => {
             {showBulkForm && (
               <>
                 <p className="vh-panel-desc" style={{ marginTop: 0 }}>
-                  One student per line: <strong>Name,Email,Password</strong> (password optional)
+                  One student per line: <strong>{BULK_STUDENT_FORMAT_HINT}</strong>
                 </p>
                 <div className="vh-field">
                   <textarea
                     rows={8}
                     value={bulkData}
                     onChange={(e) => setBulkData(e.target.value)}
-                    placeholder={'John Doe,john@example.com\nJane Smith,jane@example.com'}
+                    placeholder={BULK_STUDENT_SAMPLE}
                   />
                 </div>
                 <div className="vh-form-actions">
@@ -312,7 +603,7 @@ const StudentManagement = () => {
           <FiSearch />
           <input
             type="search"
-            placeholder="Search by name or email…"
+            placeholder="Search by name, email, or enrollment number…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -368,6 +659,7 @@ const StudentManagement = () => {
                 <thead>
                   <tr>
                     <th>Student</th>
+                    <th>Enrollment #</th>
                     <th>Classrooms</th>
                     <th>Tests</th>
                     <th>Status</th>
@@ -387,6 +679,13 @@ const StudentManagement = () => {
                             <div className="vh-person-email">{student.email}</div>
                           </div>
                         </div>
+                      </td>
+                      <td>
+                        {student.enrollmentNumber ? (
+                          <span className="vh-badge vh-badge--global">{student.enrollmentNumber}</span>
+                        ) : (
+                          <span className="vh-cell-muted">—</span>
+                        )}
                       </td>
                       <td>
                         {(student.classrooms || []).length > 0 ? (
@@ -414,6 +713,13 @@ const StudentManagement = () => {
                         </span>
                       </td>
                       <td className="vh-cell-actions">
+                        <button
+                          type="button"
+                          className="vh-btn vh-btn--ghost vh-btn--sm"
+                          onClick={() => openEditStudent(student)}
+                        >
+                          <FiEdit2 /> Edit
+                        </button>
                         <Link
                           to={`/vendor-admin/students/${student._id}/analysis`}
                           className="vh-btn vh-btn--secondary vh-btn--sm"

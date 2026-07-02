@@ -337,7 +337,7 @@ router.get('/:id/submissions', authenticateToken, authorizeRoles('vendor_admin')
     }
 
     const submissions = await SystemDesignSubmission.find({ problemId: req.params.id })
-      .populate('studentId', 'name email')
+      .populate('studentId', 'name email enrollmentNumber')
       .select('-sections -followUpQuestions')
       .sort({ submittedAt: -1 });
 
