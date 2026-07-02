@@ -1,5 +1,14 @@
 import React from 'react';
+import { htmlToListPreview } from '../RichTextDisplay';
 import QuestionTagList from './QuestionTagList';
+
+const looksLikeHtml = (text) =>
+  typeof text === 'string' && /<[a-z][\s\S]*>/i.test(text);
+
+const getRowTitlePreview = (title) => {
+  if (typeof title !== 'string') return title;
+  return looksLikeHtml(title) ? htmlToListPreview(title) : title;
+};
 
 /** Horizontal question row for vendor question bank lists. */
 const QuestionHubRow = ({
@@ -15,6 +24,9 @@ const QuestionHubRow = ({
   tagMax = 4,
 }) => {
   const metaItems = (meta || []).filter(Boolean);
+  const titleText = typeof title === 'string' ? title : '';
+  const titlePreview = getRowTitlePreview(titleText);
+  const titleTooltip = titleText ? htmlToListPreview(titleText) : undefined;
 
   return (
     <li className="vh-question-row" style={{ '--row-accent': accent }}>
@@ -28,8 +40,8 @@ const QuestionHubRow = ({
 
       <div className="vh-question-row-main">
         <div className="vh-question-row-title-line">
-          <h3 className="vh-question-row-title" title={typeof title === 'string' ? title : undefined}>
-            {title}
+          <h3 className="vh-question-row-title" title={titleTooltip}>
+            {titlePreview}
           </h3>
           {badges?.length > 0 && (
             <div className="vh-question-row-badges">

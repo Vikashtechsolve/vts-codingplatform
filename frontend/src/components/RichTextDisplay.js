@@ -37,6 +37,13 @@ export const truncateForPreview = (content, maxLength = 150) => {
   return text.substring(0, maxLength).trim() + '...';
 };
 
+/** Single-line friendly preview for list rows (strips tags, collapses whitespace). */
+export const htmlToListPreview = (content) => {
+  if (!content || typeof content !== 'string') return '';
+  const text = content.includes('<') ? stripHtml(content) : content;
+  return text.replace(/\s+/g, ' ').trim();
+};
+
 /** Decode entity-encoded HTML (e.g. &lt;p&gt;) saved or transported as plain text. */
 const normalizeHtmlContent = (html) => {
   if (!html || typeof html !== 'string') return '';

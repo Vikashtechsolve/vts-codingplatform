@@ -18,6 +18,7 @@ import QuestionHubRow from '../../components/VendorAdmin/QuestionHubRow';
 import QuestionTagFilters from '../../components/VendorAdmin/QuestionTagFilters';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import { htmlToListPreview } from '../../components/RichTextDisplay';
 
 const QUESTION_TYPES = [
   { id: 'coding', label: 'Coding', accent: '#2563eb', icon: FiCode, create: '/vendor-admin/questions/coding/create', edit: (id) => `/vendor-admin/questions/coding/edit/${id}` },
@@ -111,11 +112,11 @@ const QuestionList = () => {
         case 'coding':
           return [item.title, item.description, item.difficulty];
         case 'mcq':
-          return [item.question, item.category, item.difficulty];
+          return [htmlToListPreview(item.question), item.category, item.difficulty];
         case 'aptitude':
-          return [item.question, item.section, item.subCategory, item.questionType];
+          return [htmlToListPreview(item.question), item.section, item.subCategory, item.questionType];
         case 'theory':
-          return [item.questionText, item.subjectId?.name, item.topicId?.name];
+          return [htmlToListPreview(item.questionText), item.subjectId?.name, item.topicId?.name];
         default:
           return [item.title, item.question, item.questionText];
       }

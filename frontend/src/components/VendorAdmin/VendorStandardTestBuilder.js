@@ -2,11 +2,13 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { FiSearch } from 'react-icons/fi';
 import VendorTestSelectedPanel from './VendorTestSelectedPanel';
+import { htmlToListPreview } from '../RichTextDisplay';
 
-function stripHtml(html) {
-  if (!html || typeof html !== 'string') return '';
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-}
+const previewText = (html, max = 80) => {
+  const text = htmlToListPreview(html);
+  if (!text) return '';
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+};
 
 const CREATE_LINKS = {
   coding: '/vendor-admin/questions/coding/create',
@@ -169,7 +171,7 @@ const VendorStandardTestBuilder = ({
             </span>
           </div>
           {q.description && (
-            <p className="vtf-q-preview">{stripHtml(q.description).slice(0, 120)}</p>
+            <p className="vtf-q-preview">{previewText(q.description, 120)}</p>
           )}
           <div className="vtf-q-meta">
             <span>{q.allowedLanguages?.join(', ') || 'Any language'}</span>
@@ -187,7 +189,7 @@ const VendorStandardTestBuilder = ({
       return (
         <div key={q._id} className="vtf-q-card">
           <div className="vtf-q-card-top">
-            <h4>{stripHtml(q.question).slice(0, 80) || 'MCQ'}</h4>
+            <h4>{previewText(q.question, 80) || 'MCQ'}</h4>
             <span className={`vtf-badge vtf-badge--${q.difficulty || 'medium'}`}>
               {q.difficulty || 'medium'}
             </span>
@@ -207,7 +209,7 @@ const VendorStandardTestBuilder = ({
       return (
         <div key={q._id} className="vtf-q-card">
           <div className="vtf-q-card-top">
-            <h4>{stripHtml(q.question).slice(0, 80)}</h4>
+            <h4>{previewText(q.question, 80)}</h4>
             <span className={`vtf-badge vtf-badge--${q.difficulty || 'medium'}`}>
               {q.difficulty || 'medium'}
             </span>
@@ -228,7 +230,7 @@ const VendorStandardTestBuilder = ({
       return (
         <div key={q._id} className="vtf-q-card">
           <div className="vtf-q-card-top">
-            <h4>{stripHtml(q.questionText).slice(0, 80)}</h4>
+            <h4>{previewText(q.questionText, 80)}</h4>
             <span className={`vtf-badge vtf-badge--${q.difficulty || 'medium'}`}>
               {q.difficulty || 'medium'}
             </span>
