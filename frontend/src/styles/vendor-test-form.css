@@ -186,6 +186,13 @@
   color: var(--vtf-text);
 }
 
+.vtf-subsection-title {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--vtf-text);
+}
+
 .vtf-section-hint {
   margin: -10px 0 16px;
   font-size: 0.85rem;

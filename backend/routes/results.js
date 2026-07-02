@@ -28,6 +28,10 @@ const {
   isTestAttemptExpired,
   finalizeInProgressTestResult,
 } = require('../utils/contestService');
+const {
+  assertCanStartScheduledTest,
+  getAttemptWindowEndForClient,
+} = require('../utils/testSchedule');
 const Contest = require('../models/Contest');
 
 const sanitizeCodingQuestionForStudent = (q) => {
@@ -287,11 +291,39 @@ router.post('/start/:testId', auth, async (req, res) => {
         });
       }
 
+      if (!contestForResume) {
+        const scheduleResumeCheck = assertCanStartScheduledTest(test, 'in_progress');
+        if (!scheduleResumeCheck.ok) {
+          await finalizeInProgressTestResult(result, req.user._id, {
+            autoSubmitted: true,
+          });
+          return res.status(400).json({
+            message: scheduleResumeCheck.message || 'The scheduled attempt window has ended',
+            resultId: result._id,
+            autoSubmitted: true,
+          });
+        }
+      }
+
+      if (!contestForResume && isTestAttemptExpired(result, test, null)) {
+        await finalizeInProgressTestResult(result, req.user._id, {
+          autoSubmitted: true,
+        });
+        return res.status(400).json({
+          message: 'Time expired — your test was submitted automatically',
+          resultId: result._id,
+          autoSubmitted: true,
+        });
+      }
+
       console.log('✅ Returning existing in-progress result');
       const payload = result.toObject();
       if (contestForResume) {
         payload.contestId = contestForResume._id;
         payload.attemptWindowEnd = contestForResume.attemptWindowEnd;
+      } else {
+        const windowEnd = getAttemptWindowEndForClient(test, null);
+        if (windowEnd) payload.attemptWindowEnd = windowEnd;
       }
       return res.json(payload);
     }
@@ -308,6 +340,22 @@ router.post('/start/:testId', auth, async (req, res) => {
         message: 'Test already completed',
         resultId: completedResult._id
       });
+    }
+
+    if (!activeContest) {
+      const scheduleCheck = assertCanStartScheduledTest(test, enrollment.status);
+      if (!scheduleCheck.ok) {
+        return res.status(scheduleCheck.status).json({
+          message: scheduleCheck.message,
+          code: scheduleCheck.code,
+          schedule: {
+            phase: scheduleCheck.schedule.phase,
+            windowStart: scheduleCheck.schedule.windowStart,
+            windowEnd: scheduleCheck.schedule.windowEnd,
+            autoSubmitAtWindowEnd: scheduleCheck.schedule.autoSubmitAtWindowEnd,
+          },
+        });
+      }
     }
 
     // Validate test has questions
@@ -352,6 +400,9 @@ router.post('/start/:testId', auth, async (req, res) => {
     if (activeContest) {
       payload.contestId = activeContest._id;
       payload.attemptWindowEnd = activeContest.attemptWindowEnd;
+    } else {
+      const windowEnd = getAttemptWindowEndForClient(test, null);
+      if (windowEnd) payload.attemptWindowEnd = windowEnd;
     }
     res.status(201).json(payload);
   } catch (error) {

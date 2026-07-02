@@ -9,6 +9,8 @@ import { FiChevronUp, FiChevronDown, FiTrash2 } from 'react-icons/fi';
 import { FiSearch } from 'react-icons/fi';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag, tagSlug } from '../../utils/tagUtils';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
+import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
+import '../../components/VendorAdmin/TestScheduleFields.css';
 
 const SECTION_TYPES = [
   { key: 'grammar', label: 'Grammar', qType: 'english_grammar', modelType: 'EnglishGrammarQuestion' },
@@ -31,6 +33,7 @@ const CreateEnglishTest = () => {
     duration: 60,
     startDate: '',
     endDate: '',
+    autoSubmitAtWindowEnd: true,
     shuffleQuestions: false,
     showResults: true,
     practiceMode: false
@@ -76,6 +79,7 @@ const CreateEnglishTest = () => {
         duration: test.duration || 60,
         startDate: test.startDate ? new Date(test.startDate).toISOString().slice(0, 16) : '',
         endDate: test.endDate ? new Date(test.endDate).toISOString().slice(0, 16) : '',
+        autoSubmitAtWindowEnd: test.settings?.autoSubmitAtWindowEnd !== false,
         shuffleQuestions: test.settings?.shuffleQuestions ?? false,
         showResults: test.settings?.showResults ?? true,
         practiceMode: test.settings?.practiceMode ?? false
@@ -306,7 +310,8 @@ const CreateEnglishTest = () => {
         settings: {
           shuffleQuestions: testInfo.shuffleQuestions,
           showResults: testInfo.showResults,
-          practiceMode: testInfo.practiceMode
+          practiceMode: testInfo.practiceMode,
+          autoSubmitAtWindowEnd: testInfo.autoSubmitAtWindowEnd,
         }
       };
 
@@ -403,26 +408,22 @@ const CreateEnglishTest = () => {
                   placeholder="Brief description for students…"
                 />
               </div>
-              <div className="vtf-row">
-                <div className="vtf-field">
-                  <label htmlFor="en-start">Start (optional)</label>
-                  <input
-                    id="en-start"
-                    type="datetime-local"
-                    value={testInfo.startDate}
-                    onChange={(e) => setTestInfo({ ...testInfo, startDate: e.target.value })}
-                  />
-                </div>
-                <div className="vtf-field">
-                  <label htmlFor="en-end">End (optional)</label>
-                  <input
-                    id="en-end"
-                    type="datetime-local"
-                    value={testInfo.endDate}
-                    onChange={(e) => setTestInfo({ ...testInfo, endDate: e.target.value })}
-                  />
-                </div>
-              </div>
+              <section className="vtf-section vtf-section--compact">
+                <h2 className="vtf-section-title">Schedule (optional)</h2>
+                <p className="vtf-section-hint">Leave blank for an always-available test.</p>
+                <TestScheduleFields
+                startDate={testInfo.startDate}
+                endDate={testInfo.endDate}
+                autoSubmitAtWindowEnd={testInfo.autoSubmitAtWindowEnd}
+                onStartDateChange={(e) => setTestInfo({ ...testInfo, startDate: e.target.value })}
+                onEndDateChange={(e) => setTestInfo({ ...testInfo, endDate: e.target.value })}
+                onAutoSubmitChange={(checked) =>
+                  setTestInfo({ ...testInfo, autoSubmitAtWindowEnd: checked })
+                }
+                startId="en-start"
+                endId="en-end"
+              />
+              </section>
               <div className="vtf-checks">
                 <label className="vtf-check">
                   <input

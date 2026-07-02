@@ -55,7 +55,9 @@ function mapTestStatus(enrollmentStatus) {
 
 function getTestAction(test) {
   const isEnglish = test.type === 'english' || test.type === 'verbal';
-  const base = isEnglish ? `/student/english-test/${test._id}` : `/student/test/${test._id}`;
+  const basePath = isEnglish ? `/student/english-test/${test._id}` : `/student/test/${test._id}`;
+  const contestQuery = test.contestId ? `?contestId=${test.contestId}` : '';
+  const base = `${basePath}${contestQuery}`;
   const resultBase = isEnglish
     ? (test.resultId
         ? `/student/english-result/${test.resultId}`
@@ -67,18 +69,65 @@ function getTestAction(test) {
   if (test.enrollmentStatus === 'completed') {
     return { primary: { label: 'View result', link: resultBase, variant: 'secondary' } };
   }
+
   if (test.enrollmentStatus === 'in_progress') {
+    if (test.canContinueAttempt === false) {
+      return {
+        primary: {
+          label: 'Window closed',
+          disabled: true,
+          hint: test.scheduleMessage || 'The attempt window has ended.',
+        },
+      };
+    }
     return { primary: { label: 'Continue test', link: base, variant: 'primary' } };
   }
+
+  if (test.schedulePhase === 'upcoming') {
+    return {
+      primary: {
+        label: test.scheduleWindowStart
+          ? `Opens ${formatDate(test.scheduleWindowStart)}`
+          : 'Not open yet',
+        disabled: true,
+        hint: test.scheduleMessage || 'This test is not open yet.',
+      },
+    };
+  }
+
+  if (test.schedulePhase === 'ended' || test.canStartAttempt === false) {
+    return {
+      primary: {
+        label: 'Window closed',
+        disabled: true,
+        hint: test.scheduleMessage || 'The scheduled attempt window has ended.',
+      },
+    };
+  }
+
   return { primary: { label: 'Start test', link: base, variant: 'primary' } };
 }
 
 export function normalizeTestItem(test) {
-  const st = mapTestStatus(test.enrollmentStatus || 'assigned');
+  let st = mapTestStatus(test.enrollmentStatus || 'assigned');
+  if (test.schedulePhase === 'upcoming' && test.enrollmentStatus !== 'completed') {
+    st = { group: STATUS_GROUPS.TODO, key: 'upcoming', label: 'Opens soon' };
+  } else if (
+    test.schedulePhase === 'ended' &&
+    test.enrollmentStatus !== 'completed' &&
+    test.enrollmentStatus !== 'in_progress'
+  ) {
+    st = { group: STATUS_GROUPS.OVERDUE, key: 'window_closed', label: 'Window closed' };
+  }
+
   const meta = [];
   if (test.duration) meta.push({ label: 'Duration', value: `${test.duration} min` });
-  if (test.startDate) meta.push({ label: 'Starts', value: formatDate(test.startDate) });
-  if (test.endDate) meta.push({ label: 'Ends', value: formatDate(test.endDate) });
+  if (test.scheduleWindowStart || test.startDate) {
+    meta.push({ label: 'Starts', value: formatDate(test.scheduleWindowStart || test.startDate) });
+  }
+  if (test.scheduleWindowEnd || test.endDate) {
+    meta.push({ label: 'Ends', value: formatDate(test.scheduleWindowEnd || test.endDate) });
+  }
   if (test.assignedAt) meta.push({ label: 'Assigned', value: formatDate(test.assignedAt) });
   if (test.submittedAt && st.group === STATUS_GROUPS.COMPLETED) {
     meta.push({ label: 'Submitted', value: formatDate(test.submittedAt) });

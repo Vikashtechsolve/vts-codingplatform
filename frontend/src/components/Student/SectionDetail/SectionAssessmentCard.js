@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiArrowRight, FiPlay, FiAward, FiClock, FiLayers, FiTrendingUp } from 'react-icons/fi';
 import { STATUS_GROUPS } from '../../../utils/studentSectionItems';
 
-const HIDDEN_META_LABELS = new Set(['Starts', 'Ends', 'Topic']);
+const HIDDEN_META_LABELS = new Set(['Topic']);
 
 const META_ICONS = {
   Duration: FiClock,
@@ -63,15 +63,30 @@ const SectionAssessmentCard = ({ item, sectionId, sectionIcon: SectionIcon, sect
       )}
 
       <div className="assessment-card-foot">
-        {item.primary && (
-          <Link
-            to={item.primary.link}
-            className={`assessment-btn assessment-btn--${item.primary.variant || 'primary'}`}
-          >
-            {item.primary.variant === 'secondary' ? <FiAward /> : <FiPlay />}
-            {item.primary.label}
-            <FiArrowRight />
-          </Link>
+        {item.primary?.disabled ? (
+          <div className="assessment-disabled-action">
+            <span
+              className="assessment-btn assessment-btn--disabled"
+              title={item.primary.hint || ''}
+            >
+              <FiClock />
+              {item.primary.label}
+            </span>
+            {item.primary.hint && (
+              <span className="assessment-disabled-hint">{item.primary.hint}</span>
+            )}
+          </div>
+        ) : (
+          item.primary && (
+            <Link
+              to={item.primary.link}
+              className={`assessment-btn assessment-btn--${item.primary.variant || 'primary'}`}
+            >
+              {item.primary.variant === 'secondary' ? <FiAward /> : <FiPlay />}
+              {item.primary.label}
+              <FiArrowRight />
+            </Link>
+          )
         )}
         {item.secondary && (
           <Link to={item.secondary.link} className="assessment-btn assessment-btn--ghost">

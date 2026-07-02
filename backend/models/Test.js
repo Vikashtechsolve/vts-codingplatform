@@ -100,6 +100,10 @@ const testSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
+    autoSubmitAtWindowEnd: {
+      type: Boolean,
+      default: true,
+    },
     showResults: {
       type: Boolean,
       default: true

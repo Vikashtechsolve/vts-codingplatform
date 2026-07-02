@@ -6,6 +6,10 @@ const User = require('../models/User');
 const Test = require('../models/Test');
 const Result = require('../models/Result');
 const {
+  attachScheduleToTest,
+} = require('../utils/testSchedule');
+const { findPublishedContestByAssessment } = require('../utils/contestService');
+const {
   loadBrandingForUser,
   resolveVendorIdForUser,
 } = require('../utils/vendorBranding');
@@ -97,14 +101,28 @@ router.get('/tests', auth, async (req, res) => {
       }
       delete testObj.questions;
 
-      return {
+      const activeContest = await findPublishedContestByAssessment(
+        'test',
+        test._id,
+        student._id
+      );
+
+      const basePayload = {
         ...testObj,
         enrollmentStatus: enrollment ? enrollment.status : 'assigned',
         assignedAt: enrollment ? enrollment.assignedAt : null,
         resultId,
         percentage,
-        submittedAt
+        submittedAt,
+        ...(activeContest ? { contestId: activeContest._id } : {}),
       };
+
+      return attachScheduleToTest(
+        basePayload,
+        enrollment ? enrollment.status : 'assigned',
+        undefined,
+        { skipSchedule: Boolean(activeContest) }
+      );
     }));
 
     res.json(testsWithStatus);

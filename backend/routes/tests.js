@@ -20,6 +20,8 @@ const {
   enrollStudentsInTest,
   assignTestToClassrooms,
 } = require('../utils/assignToClassroom');
+const { attachScheduleToTest } = require('../utils/testSchedule');
+const { findPublishedContestByAssessment } = require('../utils/contestService');
 
 const ENGLISH_QUESTION_MODELS = {
   english_grammar: EnglishGrammarQuestion,
@@ -337,7 +339,32 @@ router.get('/:id', auth, async (req, res) => {
     if (populatedQuestions.length === 0) {
       console.log('⚠️  Warning: Test has no valid questions');
     }
-    
+
+    if (req.user.role === 'student') {
+      const student = await User.findById(req.user._id).select('enrolledTests');
+      const enrollment = student?.enrolledTests?.find(
+        (et) => et.testId.toString() === test._id.toString()
+      );
+      const enrollmentStatus = enrollment?.status || 'assigned';
+      const activeContest = await findPublishedContestByAssessment(
+        'test',
+        test._id,
+        req.user._id
+      );
+      return res.json(
+        attachScheduleToTest(
+          {
+            ...testObj,
+            enrollmentStatus,
+            ...(activeContest ? { contestId: activeContest._id } : {}),
+          },
+          enrollmentStatus,
+          undefined,
+          { skipSchedule: Boolean(activeContest) }
+        )
+      );
+    }
+
     res.json(testObj);
   } catch (error) {
     console.error('❌ Error fetching test:', error);

@@ -42,10 +42,20 @@
 }
 
 .join-attempt-meta,
-.join-attempt-duration {
+.join-attempt-duration,
+.join-attempt-schedule {
   margin: 0 0 6px;
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+.join-attempt-schedule-notice {
+  margin-top: 12px;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(185, 28, 28, 0.08);
+  border: 1px solid rgba(185, 28, 28, 0.2);
 }
 
 .join-attempt-rules {

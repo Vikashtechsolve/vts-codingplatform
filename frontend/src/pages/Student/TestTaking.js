@@ -580,7 +580,9 @@ const TestTaking = () => {
               title: 'Time\'s up',
               message: contestId
                 ? 'The contest attempt window has ended. Your test will be submitted automatically.'
-                : 'Your test time has ended. Your test will be submitted automatically.',
+                : attemptWindowEndRef.current
+                  ? 'The scheduled attempt window has ended. Your test will be submitted automatically.'
+                  : 'Your test time has ended. Your test will be submitted automatically.',
               type: 'warning',
             });
             setTimeout(() => {

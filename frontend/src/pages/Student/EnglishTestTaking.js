@@ -39,6 +39,7 @@ const EnglishTestTaking = () => {
   const [sectionStarted, setSectionStarted] = useState({});
   const [showSectionTransition, setShowSectionTransition] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
@@ -167,6 +168,7 @@ const EnglishTestTaking = () => {
 
   const fetchTestAndStart = useCallback(async () => {
     try {
+      setLoadError(null);
       const testRes = await axiosInstance.get(`/tests/${testId}`);
       setTest(testRes.data);
 
@@ -229,6 +231,14 @@ const EnglishTestTaking = () => {
         return;
       }
 
+      const scheduleCode = error.response?.data?.code;
+      if (scheduleCode === 'NOT_YET_OPEN' || scheduleCode === 'WINDOW_ENDED') {
+        setTest(null);
+        setResult(null);
+        setLoadError(serverMsg || 'This test is not available right now.');
+        return;
+      }
+
       setModal({ isOpen: true, title: 'Error', message: serverMsg || 'Failed to start test', type: 'error' });
     } finally {
       setLoading(false);
@@ -271,7 +281,9 @@ const EnglishTestTaking = () => {
         title: 'Time\'s up',
         message: contestId
           ? 'The contest attempt window has ended. Your test will be submitted automatically.'
-          : 'Your test time has ended. Your test will be submitted automatically.',
+          : attemptWindowEndRef.current
+            ? 'The scheduled attempt window has ended. Your test will be submitted automatically.'
+            : 'Your test time has ended. Your test will be submitted automatically.',
         type: 'warning',
       });
       setTimeout(() => {
@@ -1088,6 +1100,24 @@ const EnglishTestTaking = () => {
   };
 
   if (loading) return <div className="english-test-loading">Loading test...</div>;
+
+  if (loadError) {
+    return (
+      <div className="english-test-loading english-test-loading--error">
+        <h3>Could not start test</h3>
+        <p>{loadError}</p>
+        <div className="english-test-loading-actions">
+          <button type="button" className="btn btn-primary" onClick={() => fetchTestAndStart()}>
+            Try again
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => navigate('/student/dashboard')}>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!test) return <div className="english-test-loading">Test not found.</div>;
 
   const showFullscreenGate = result && !fullscreenReady && !isFullscreen;

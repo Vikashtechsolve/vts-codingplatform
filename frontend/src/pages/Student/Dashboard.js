@@ -42,14 +42,16 @@ const StudentDashboard = () => {
     const items = [];
 
     tests
-      .filter((t) => t.enrollmentStatus === 'in_progress')
+      .filter((t) => t.enrollmentStatus === 'in_progress' && t.canContinueAttempt !== false)
       .forEach((t) => {
         items.push({
           id: `test-${t._id}`,
           title: t.title,
           type: t.type === 'english' ? 'english' : t.type,
           status: 'in_progress',
-          link: t.type === 'english' ? `/student/english-test/${t._id}` : `/student/test/${t._id}`,
+          link: `${t.type === 'english' ? `/student/english-test/${t._id}` : `/student/test/${t._id}`}${
+            t.contestId ? `?contestId=${t.contestId}` : ''
+          }`,
           label: 'Continue test',
         });
       });

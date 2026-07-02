@@ -89,20 +89,13 @@ function isAttemptWindowOpen(contest, now = getNow()) {
 }
 
 function getTestAttemptDeadlineMs(test, contest, startedAt, now = getNow()) {
-  const started = new Date(startedAt).getTime();
-  if (!Number.isFinite(started)) return null;
-  const durationMs = test?.duration ? test.duration * 60 * 1000 : Infinity;
-  const durationDeadline = started + durationMs;
-  const windowDeadline = contest ? new Date(contest.attemptWindowEnd).getTime() : Infinity;
-  if (!Number.isFinite(windowDeadline)) return durationDeadline;
-  return Math.min(durationDeadline, windowDeadline);
+  const { getTestAttemptDeadlineMs: resolveDeadline } = require('./testSchedule');
+  return resolveDeadline(test, contest, startedAt, now);
 }
 
 function isTestAttemptExpired(result, test, contest, now = getNow()) {
-  if (!result?.startedAt || result.status !== 'in_progress') return false;
-  const deadline = getTestAttemptDeadlineMs(test, contest, result.startedAt, now);
-  if (deadline == null || !Number.isFinite(deadline)) return false;
-  return now.getTime() >= deadline;
+  const { isTestAttemptExpired: checkExpired } = require('./testSchedule');
+  return checkExpired(result, test, contest, now);
 }
 
 async function finalizeInProgressTestResult(result, userId, { autoSubmitted = true, contestId } = {}) {

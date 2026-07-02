@@ -332,10 +332,14 @@ mongoose.connect(mongoURI)
   require('./utils/initSuperAdmin')();
 
   const { sweepExpiredContestTestAttempts } = require('./utils/contestService');
+  const { sweepExpiredScheduledTestAttempts } = require('./utils/testSchedule');
   const sweepMs = parseInt(process.env.CONTEST_AUTO_SUBMIT_SWEEP_MS || '60000', 10);
   setInterval(() => {
     sweepExpiredContestTestAttempts().catch((err) => {
       console.error('Contest auto-submit sweep error:', err.message || err);
+    });
+    sweepExpiredScheduledTestAttempts().catch((err) => {
+      console.error('Scheduled test auto-submit sweep error:', err.message || err);
     });
   }, sweepMs);
 })

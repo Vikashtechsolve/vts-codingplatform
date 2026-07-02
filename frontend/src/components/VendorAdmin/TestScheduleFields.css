@@ -1,0 +1,15 @@
+.test-schedule-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--vh-text, var(--text-primary));
+  cursor: pointer;
+}
+
+.test-schedule-checkbox input {
+  margin-top: 3px;
+  width: auto;
+  flex-shrink: 0;
+}

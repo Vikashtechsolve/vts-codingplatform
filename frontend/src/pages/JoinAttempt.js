@@ -6,6 +6,15 @@ import { markShareLinkAttempt } from '../utils/examShareLink';
 import axiosInstance from '../utils/axios';
 import './JoinAttempt.css';
 
+function formatScheduleDate(d) {
+  if (!d) return null;
+  try {
+    return new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return null;
+  }
+}
+
 const KIND_LABELS = {
   test: 'Test',
   interview: 'Mock interview',
@@ -58,6 +67,14 @@ const JoinAttempt = ({ kind }) => {
           title: data.title,
           subtitle: `${data.type} · ${data.duration} min`,
           duration: data.duration,
+          contestId: data.contestId,
+          schedulePhase: data.schedulePhase,
+          scheduleMessage: data.scheduleMessage,
+          scheduleWindowStart: data.scheduleWindowStart,
+          scheduleWindowEnd: data.scheduleWindowEnd,
+          canStartAttempt: data.canStartAttempt,
+          canContinueAttempt: data.canContinueAttempt,
+          enrollmentStatus: data.enrollmentStatus,
         });
       } else if (kind === 'interview') {
         const { data } = await axiosInstance.get(`/interviews/${id}`);
@@ -103,7 +120,11 @@ const JoinAttempt = ({ kind }) => {
     markShareLinkAttempt();
 
     const target = resolveJoinTarget({ kind, id, searchParams });
-    navigate(target, {
+    const contestQuery = kind === 'test' && meta?.contestId ? `?contestId=${meta.contestId}` : '';
+    const destination = kind === 'test' && meta?.contestId && !target.includes('contestId=')
+      ? `${target}${contestQuery}`
+      : target;
+    navigate(destination, {
       replace: true,
       state: { fromShareLink: true },
     });
@@ -142,6 +163,20 @@ const JoinAttempt = ({ kind }) => {
             {meta.duration && (
               <p className="join-attempt-duration">Duration: {meta.duration} minutes</p>
             )}
+            {kind === 'test' && (meta.scheduleWindowStart || meta.scheduleWindowEnd) && (
+              <p className="join-attempt-schedule">
+                {meta.scheduleWindowStart && (
+                  <span>Opens: {formatScheduleDate(meta.scheduleWindowStart)}</span>
+                )}
+                {meta.scheduleWindowStart && meta.scheduleWindowEnd && ' · '}
+                {meta.scheduleWindowEnd && (
+                  <span>Closes: {formatScheduleDate(meta.scheduleWindowEnd)}</span>
+                )}
+              </p>
+            )}
+            {kind === 'test' && meta.scheduleMessage && meta.canStartAttempt === false && meta.enrollmentStatus !== 'in_progress' && (
+              <p className="join-attempt-error join-attempt-schedule-notice">{meta.scheduleMessage}</p>
+            )}
 
             <ul className="join-attempt-rules">
               <li>On the next screen you will enter fullscreen (required for exam security)</li>
@@ -154,9 +189,27 @@ const JoinAttempt = ({ kind }) => {
               type="button"
               className="btn btn-primary join-attempt-start-btn"
               onClick={handleStart}
-              disabled={starting}
+              disabled={
+                starting ||
+                (kind === 'test' &&
+                  meta.canStartAttempt === false &&
+                  meta.canContinueAttempt !== true)
+              }
             >
-              {starting ? 'Starting…' : 'Start assessment'}
+              {starting
+                ? 'Starting…'
+                : kind === 'test' && meta.schedulePhase === 'upcoming'
+                  ? 'Not open yet'
+                  : kind === 'test' &&
+                      meta.canStartAttempt === false &&
+                      meta.enrollmentStatus === 'in_progress' &&
+                      meta.canContinueAttempt
+                    ? 'Continue assessment'
+                    : kind === 'test' && meta.canStartAttempt === false
+                      ? 'Window closed'
+                      : meta.enrollmentStatus === 'in_progress'
+                        ? 'Continue assessment'
+                        : 'Start assessment'}
             </button>
           </>
         )}

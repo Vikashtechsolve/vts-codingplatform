@@ -3,6 +3,8 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
 import VendorStandardTestBuilder from '../../components/VendorAdmin/VendorStandardTestBuilder';
+import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
+import '../../components/VendorAdmin/TestScheduleFields.css';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
@@ -17,7 +19,8 @@ const CreateTest = () => {
     duration: 60,
     questions: [],
     startDate: '',
-    endDate: ''
+    endDate: '',
+    autoSubmitAtWindowEnd: true,
   });
   const [codingQuestions, setCodingQuestions] = useState([]);
   const [mcqQuestions, setMcqQuestions] = useState([]);
@@ -103,6 +106,7 @@ const CreateTest = () => {
         duration: test.duration ?? 60,
         startDate: toLocalDateTime(test.startDate),
         endDate: toLocalDateTime(test.endDate),
+        autoSubmitAtWindowEnd: test.settings?.autoSubmitAtWindowEnd !== false,
         questions: mappedQuestions,
       });
       setSelectedTab(nextType === 'mixed' ? 'coding' : nextType);
@@ -362,8 +366,12 @@ const CreateTest = () => {
       // Prepare data for API (remove questionData)
       const submitData = {
         ...formData,
-        questions: formData.questions.map(({ questionData, ...q }) => q)
+        questions: formData.questions.map(({ questionData, ...q }) => q),
+        settings: {
+          autoSubmitAtWindowEnd: formData.autoSubmitAtWindowEnd,
+        },
       };
+      delete submitData.autoSubmitAtWindowEnd;
 
       if (isEditMode) {
         console.log('📤 Updating test:', submitData);
@@ -543,28 +551,22 @@ const CreateTest = () => {
               placeholder="Instructions and context for students…"
             />
           </div>
-          <div className="vtf-row">
-            <div className="vtf-field">
-              <label htmlFor="test-start">Start (optional)</label>
-              <input
-                id="test-start"
-                type="datetime-local"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="vtf-field">
-              <label htmlFor="test-end">End (optional)</label>
-              <input
-                id="test-end"
-                type="datetime-local"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
+          <h3 className="vtf-subsection-title">Schedule (optional)</h3>
+          <p className="vtf-section-hint">Leave blank for an always-available test.</p>
+          <TestScheduleFields
+            startDate={formData.startDate}
+            endDate={formData.endDate}
+            autoSubmitAtWindowEnd={formData.autoSubmitAtWindowEnd}
+            onStartDateChange={handleChange}
+            onEndDateChange={handleChange}
+            onAutoSubmitChange={(checked) =>
+              setFormData((prev) => ({ ...prev, autoSubmitAtWindowEnd: checked }))
+            }
+            startId="test-start"
+            endId="test-end"
+            fieldClassName="vtf-field"
+            rowClassName="vtf-row"
+          />
         </section>
 
 

@@ -580,6 +580,29 @@
   border-color: var(--text-secondary);
 }
 
+.assessment-btn--disabled {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-color);
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+.assessment-disabled-action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.assessment-disabled-hint {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0 4px;
+}
+
 .assessment-muted {
   display: block;
   text-align: center;

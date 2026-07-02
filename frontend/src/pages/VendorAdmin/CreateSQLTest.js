@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
+import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
+import '../../components/VendorAdmin/TestScheduleFields.css';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
 
 const CreateSQLTest = () => {
@@ -17,6 +19,7 @@ const CreateSQLTest = () => {
     duration: 60,
     startDate: '',
     endDate: '',
+    autoSubmitAtWindowEnd: true,
     datasetTemplateId: '',
   });
   const [loading, setLoading] = useState(false);
@@ -62,6 +65,7 @@ const CreateSQLTest = () => {
           duration: test.duration ?? 60,
           startDate: toLocalDateTime(test.startDate),
           endDate: toLocalDateTime(test.endDate),
+          autoSubmitAtWindowEnd: test.settings?.autoSubmitAtWindowEnd !== false,
           datasetTemplateId: test.datasetTemplateId || test.datasetTemplate?._id || '',
         });
       } catch (err) {
@@ -110,6 +114,9 @@ const CreateSQLTest = () => {
         startDate: formData.startDate || undefined,
         endDate: formData.endDate || undefined,
         datasetTemplateId: formData.datasetTemplateId,
+        settings: {
+          autoSubmitAtWindowEnd: formData.autoSubmitAtWindowEnd,
+        },
       };
 
       if (isEditMode) {
@@ -250,28 +257,18 @@ const CreateSQLTest = () => {
         <section className="vtf-section">
           <h2 className="vtf-section-title">Schedule (optional)</h2>
           <p className="vtf-section-hint">Leave blank for an always-available test.</p>
-          <div className="vtf-row">
-            <div className="vtf-field">
-              <label htmlFor="sql-start">Start</label>
-              <input
-                id="sql-start"
-                type="datetime-local"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="vtf-field">
-              <label htmlFor="sql-end">End</label>
-              <input
-                id="sql-end"
-                type="datetime-local"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
+          <TestScheduleFields
+            startDate={formData.startDate}
+            endDate={formData.endDate}
+            autoSubmitAtWindowEnd={formData.autoSubmitAtWindowEnd}
+            onStartDateChange={handleChange}
+            onEndDateChange={handleChange}
+            onAutoSubmitChange={(checked) =>
+              setFormData((prev) => ({ ...prev, autoSubmitAtWindowEnd: checked }))
+            }
+            startId="sql-start"
+            endId="sql-end"
+          />
         </section>
       </form>
     </VendorTestFormPage>
