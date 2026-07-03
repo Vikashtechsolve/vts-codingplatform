@@ -11,6 +11,11 @@ import { buildTagFilterOptions, filterQuestionsBySearchAndTag, tagSlug } from '.
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
 import '../../components/VendorAdmin/TestScheduleFields.css';
+import {
+  toLocalDateTimeInput,
+  buildTestSchedulePayload,
+  validateLocalScheduleRange,
+} from '../../utils/datetimeLocal';
 
 const SECTION_TYPES = [
   { key: 'grammar', label: 'Grammar', qType: 'english_grammar', modelType: 'EnglishGrammarQuestion' },
@@ -77,8 +82,8 @@ const CreateEnglishTest = () => {
         title: test.title || '',
         description: test.description || '',
         duration: test.duration || 60,
-        startDate: test.startDate ? new Date(test.startDate).toISOString().slice(0, 16) : '',
-        endDate: test.endDate ? new Date(test.endDate).toISOString().slice(0, 16) : '',
+        startDate: toLocalDateTimeInput(test.startDate),
+        endDate: toLocalDateTimeInput(test.endDate),
         autoSubmitAtWindowEnd: test.settings?.autoSubmitAtWindowEnd !== false,
         shuffleQuestions: test.settings?.shuffleQuestions ?? false,
         showResults: test.settings?.showResults ?? true,
@@ -265,8 +270,9 @@ const CreateEnglishTest = () => {
         return;
       }
     }
-    if (testInfo.startDate && testInfo.endDate && new Date(testInfo.endDate) <= new Date(testInfo.startDate)) {
-      setError('End date must be after the start date.');
+    const scheduleError = validateLocalScheduleRange(testInfo.startDate, testInfo.endDate);
+    if (scheduleError) {
+      setError(scheduleError);
       return;
     }
 
@@ -298,6 +304,11 @@ const CreateEnglishTest = () => {
         });
       });
 
+      const schedulePayload = buildTestSchedulePayload({
+        startDate: testInfo.startDate,
+        endDate: testInfo.endDate,
+      });
+
       const testData = {
         title: testInfo.title.trim(),
         description: testInfo.description.trim(),
@@ -305,8 +316,7 @@ const CreateEnglishTest = () => {
         duration: totalDuration || parseInt(testInfo.duration) || 60,
         questions,
         englishSections,
-        startDate: testInfo.startDate || undefined,
-        endDate: testInfo.endDate || undefined,
+        ...schedulePayload,
         settings: {
           shuffleQuestions: testInfo.shuffleQuestions,
           showResults: testInfo.showResults,

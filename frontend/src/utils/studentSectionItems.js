@@ -2,6 +2,8 @@
  * Normalize assessments from different APIs into a unified shape for section detail UI.
  */
 
+import { formatScheduleDateTime } from './datetimeLocal';
+
 export const STATUS_GROUPS = {
   TODO: 'todo',
   IN_PROGRESS: 'in_progress',
@@ -39,12 +41,7 @@ const STATUS_ORDER = {
 };
 
 function formatDate(d) {
-  if (!d) return null;
-  try {
-    return new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  } catch {
-    return null;
-  }
+  return formatScheduleDateTime(d);
 }
 
 function mapTestStatus(enrollmentStatus) {

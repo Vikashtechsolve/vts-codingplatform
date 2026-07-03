@@ -161,6 +161,13 @@ function validateScheduleInput({ startDate, endDate }) {
   return null;
 }
 
+function parseScheduleDateInput(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
 function assertCanStartScheduledTest(test, enrollmentStatus, now = getNow()) {
   const schedule = getTestSchedulePhase(test, now);
   const inProgress = enrollmentStatus === 'in_progress';
@@ -258,6 +265,7 @@ module.exports = {
   isTestAttemptExpired,
   getAttemptWindowEndForClient,
   validateScheduleInput,
+  parseScheduleDateInput,
   assertCanStartScheduledTest,
   sweepExpiredScheduledTestAttempts,
 };

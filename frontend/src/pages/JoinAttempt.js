@@ -3,17 +3,9 @@ import { useNavigate, useParams, useSearchParams, useLocation } from 'react-rout
 import { useAuth } from '../context/AuthContext';
 import { resolveJoinTarget } from '../utils/shareLinks';
 import { markShareLinkAttempt } from '../utils/examShareLink';
+import { formatScheduleDateTime } from '../utils/datetimeLocal';
 import axiosInstance from '../utils/axios';
 import './JoinAttempt.css';
-
-function formatScheduleDate(d) {
-  if (!d) return null;
-  try {
-    return new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  } catch {
-    return null;
-  }
-}
 
 const KIND_LABELS = {
   test: 'Test',
@@ -166,11 +158,11 @@ const JoinAttempt = ({ kind }) => {
             {kind === 'test' && (meta.scheduleWindowStart || meta.scheduleWindowEnd) && (
               <p className="join-attempt-schedule">
                 {meta.scheduleWindowStart && (
-                  <span>Opens: {formatScheduleDate(meta.scheduleWindowStart)}</span>
+                  <span>Opens: {formatScheduleDateTime(meta.scheduleWindowStart)}</span>
                 )}
                 {meta.scheduleWindowStart && meta.scheduleWindowEnd && ' · '}
                 {meta.scheduleWindowEnd && (
-                  <span>Closes: {formatScheduleDate(meta.scheduleWindowEnd)}</span>
+                  <span>Closes: {formatScheduleDateTime(meta.scheduleWindowEnd)}</span>
                 )}
               </p>
             )}

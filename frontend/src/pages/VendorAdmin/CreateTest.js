@@ -5,6 +5,11 @@ import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage'
 import VendorStandardTestBuilder from '../../components/VendorAdmin/VendorStandardTestBuilder';
 import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
 import '../../components/VendorAdmin/TestScheduleFields.css';
+import {
+  toLocalDateTimeInput,
+  buildTestSchedulePayload,
+  validateLocalScheduleRange,
+} from '../../utils/datetimeLocal';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
@@ -62,15 +67,6 @@ const CreateTest = () => {
     }
   }, [formData.type, selectedTab]);
 
-  const toLocalDateTime = (v) => {
-    if (!v) return '';
-    try {
-      return new Date(v).toISOString().slice(0, 16);
-    } catch {
-      return '';
-    }
-  };
-
   const fetchTest = async () => {
     if (!isEditMode || !testId) return;
     setTestLoading(true);
@@ -104,8 +100,8 @@ const CreateTest = () => {
         description: test.description || '',
         type: nextType,
         duration: test.duration ?? 60,
-        startDate: toLocalDateTime(test.startDate),
-        endDate: toLocalDateTime(test.endDate),
+        startDate: toLocalDateTimeInput(test.startDate),
+        endDate: toLocalDateTimeInput(test.endDate),
         autoSubmitAtWindowEnd: test.settings?.autoSubmitAtWindowEnd !== false,
         questions: mappedQuestions,
       });
@@ -354,18 +350,22 @@ const CreateTest = () => {
       return;
     }
 
-    if (formData.startDate && formData.endDate) {
-      if (new Date(formData.endDate) <= new Date(formData.startDate)) {
-        setError('End date must be after the start date.');
-        setSubmitting(false);
-        return;
-      }
+    const scheduleError = validateLocalScheduleRange(formData.startDate, formData.endDate);
+    if (scheduleError) {
+      setError(scheduleError);
+      setSubmitting(false);
+      return;
     }
 
     try {
+      const schedulePayload = buildTestSchedulePayload({
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+      });
       // Prepare data for API (remove questionData)
       const submitData = {
         ...formData,
+        ...schedulePayload,
         questions: formData.questions.map(({ questionData, ...q }) => q),
         settings: {
           autoSubmitAtWindowEnd: formData.autoSubmitAtWindowEnd,

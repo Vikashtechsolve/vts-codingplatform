@@ -20,7 +20,11 @@ const {
   enrollStudentsInTest,
   assignTestToClassrooms,
 } = require('../utils/assignToClassroom');
-const { attachScheduleToTest } = require('../utils/testSchedule');
+const {
+  attachScheduleToTest,
+  validateScheduleInput,
+  parseScheduleDateInput,
+} = require('../utils/testSchedule');
 const { findPublishedContestByAssessment } = require('../utils/contestService');
 
 const ENGLISH_QUESTION_MODELS = {
@@ -51,6 +55,16 @@ router.post('/', [
 
     const { title, description, type, duration, questions, startDate, endDate, settings, datasetTemplateId } = req.body;
 
+    const parsedStartDate = parseScheduleDateInput(startDate);
+    const parsedEndDate = parseScheduleDateInput(endDate);
+    const scheduleError = validateScheduleInput({
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+    });
+    if (scheduleError) {
+      return res.status(400).json({ message: scheduleError });
+    }
+
     console.log('📋 Test details:', { title, type, duration, questionsCount: questions?.length });
 
     if (type === 'sql') {
@@ -71,8 +85,8 @@ router.post('/', [
         datasetTemplateId,
         duration,
         questions: [],
-        startDate: startDate || null,
-        endDate: endDate || null,
+        startDate: parsedStartDate,
+        endDate: parsedEndDate,
         settings: settings || {}
       });
       await test.save();
@@ -202,8 +216,8 @@ router.post('/', [
         sectionId: q.sectionId || undefined
       })),
       englishSections: req.body.englishSections || [],
-      startDate,
-      endDate,
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
       settings: settings || {}
     });
 
@@ -386,12 +400,24 @@ router.put('/:id', [
 
     const { title, description, duration, questions, startDate, endDate, isActive, settings, englishSections, datasetTemplateId } = req.body;
 
+    const hasStartDate = Object.prototype.hasOwnProperty.call(req.body, 'startDate');
+    const hasEndDate = Object.prototype.hasOwnProperty.call(req.body, 'endDate');
+    const parsedStartDate = hasStartDate ? parseScheduleDateInput(startDate) : test.startDate;
+    const parsedEndDate = hasEndDate ? parseScheduleDateInput(endDate) : test.endDate;
+    const scheduleError = validateScheduleInput({
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+    });
+    if (scheduleError) {
+      return res.status(400).json({ message: scheduleError });
+    }
+
     if (title) test.title = title;
     if (description !== undefined) test.description = description;
     if (duration) test.duration = duration;
     if (questions) test.questions = questions;
-    if (startDate) test.startDate = startDate;
-    if (endDate) test.endDate = endDate;
+    if (hasStartDate) test.startDate = parsedStartDate;
+    if (hasEndDate) test.endDate = parsedEndDate;
     if (isActive !== undefined) test.isActive = isActive;
     if (settings) test.settings = { ...test.settings, ...settings };
     if (englishSections !== undefined) test.englishSections = englishSections;

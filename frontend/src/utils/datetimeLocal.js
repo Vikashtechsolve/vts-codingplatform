@@ -24,6 +24,34 @@ export function fromLocalDateTimeInput(value) {
   return d.toISOString();
 }
 
+/** Format stored ISO date for display in the user's local timezone. */
+export function formatScheduleDateTime(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/** Convert test schedule form fields to API payload (ISO UTC instants). */
+export function buildTestSchedulePayload({ startDate = '', endDate = '' } = {}) {
+  return {
+    startDate: startDate ? fromLocalDateTimeInput(startDate) : null,
+    endDate: endDate ? fromLocalDateTimeInput(endDate) : null,
+  };
+}
+
+/** Validate local datetime-local inputs before submit. */
+export function validateLocalScheduleRange(startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 'Invalid schedule date or time.';
+  }
+  if (end <= start) return 'End date must be after the start date.';
+  return null;
+}
+
 export function formatCountdownShort(parts) {
   if (!parts || parts.totalMs <= 0) return '';
   const chunks = [];

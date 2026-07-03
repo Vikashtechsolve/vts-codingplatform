@@ -4,6 +4,11 @@ import axiosInstance from '../../utils/axios';
 import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
 import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
 import '../../components/VendorAdmin/TestScheduleFields.css';
+import {
+  toLocalDateTimeInput,
+  buildTestSchedulePayload,
+  validateLocalScheduleRange,
+} from '../../utils/datetimeLocal';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
 
 const CreateSQLTest = () => {
@@ -39,15 +44,6 @@ const CreateSQLTest = () => {
     })();
   }, []);
 
-  const toLocalDateTime = (v) => {
-    if (!v) return '';
-    try {
-      return new Date(v).toISOString().slice(0, 16);
-    } catch {
-      return '';
-    }
-  };
-
   useEffect(() => {
     if (!isEditMode || !testId) return;
     (async () => {
@@ -63,8 +59,8 @@ const CreateSQLTest = () => {
           title: test.title || '',
           description: test.description || '',
           duration: test.duration ?? 60,
-          startDate: toLocalDateTime(test.startDate),
-          endDate: toLocalDateTime(test.endDate),
+          startDate: toLocalDateTimeInput(test.startDate),
+          endDate: toLocalDateTimeInput(test.endDate),
           autoSubmitAtWindowEnd: test.settings?.autoSubmitAtWindowEnd !== false,
           datasetTemplateId: test.datasetTemplateId || test.datasetTemplate?._id || '',
         });
@@ -82,11 +78,10 @@ const CreateSQLTest = () => {
   };
 
   const validateSchedule = () => {
-    if (formData.startDate && formData.endDate) {
-      if (new Date(formData.endDate) <= new Date(formData.startDate)) {
-        setError('End date must be after the start date.');
-        return false;
-      }
+    const scheduleError = validateLocalScheduleRange(formData.startDate, formData.endDate);
+    if (scheduleError) {
+      setError(scheduleError);
+      return false;
     }
     return true;
   };
@@ -106,13 +101,16 @@ const CreateSQLTest = () => {
 
     setLoading(true);
     try {
+      const schedulePayload = buildTestSchedulePayload({
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+      });
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         type: 'sql',
         duration: Number(formData.duration) || 60,
-        startDate: formData.startDate || undefined,
-        endDate: formData.endDate || undefined,
+        ...schedulePayload,
         datasetTemplateId: formData.datasetTemplateId,
         settings: {
           autoSubmitAtWindowEnd: formData.autoSubmitAtWindowEnd,
