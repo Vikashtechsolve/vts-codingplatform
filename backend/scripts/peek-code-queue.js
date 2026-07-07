@@ -9,6 +9,12 @@ const {
   CODE_EXECUTION_SINGLE,
   CODE_EXECUTION_BATCH
 } = require('../config/bullQueueNames');
+const {
+  MAX_QUEUE_WAITING_SINGLE,
+  MAX_QUEUE_WAITING_BATCH,
+  WORKER_SINGLE_CONCURRENCY,
+  WORKER_BATCH_CONCURRENCY,
+} = require('../config/codeExecution');
 
 async function main() {
   const opts = getBullQueueOptions();
@@ -26,6 +32,12 @@ async function main() {
     batch.getFailedCount()
   ]);
   console.log('Queue names:', CODE_EXECUTION_SINGLE, '|', CODE_EXECUTION_BATCH);
+  console.log('limits:', {
+    maxWaitingSingle: MAX_QUEUE_WAITING_SINGLE,
+    maxWaitingBatch: MAX_QUEUE_WAITING_BATCH,
+    workerSingleConcurrency: WORKER_SINGLE_CONCURRENCY,
+    workerBatchConcurrency: WORKER_BATCH_CONCURRENCY,
+  });
   console.log('single:', { waiting: sw, active: sa, completed: sc, failed: sf });
   console.log('batch: ', { waiting: bw, active: ba, completed: bc, failed: bf });
   if (bw > 0 || sw > 0) {

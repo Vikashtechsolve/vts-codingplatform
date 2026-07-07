@@ -14,9 +14,11 @@ import {
   getPasteTextFromEvent,
   allowsEditorMetaShortcut,
   isSilentBlockMetaShortcut,
-  isClipboardShortcut,
   isBlockedBrowserShortcut,
   allowsDragInExam,
+  shouldAllowTypingInExamContext,
+  shouldSilentlyBlockClipboardShortcut,
+  isComposingKeyEvent,
 } from '../utils/examSecurityDom';
 import {
   MAX_EXAM_VIOLATIONS,
@@ -218,13 +220,16 @@ export const useExamSecurity = (
       trackViolationRef.current?.(type, details);
     };
 
+    const blockOnly = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
     const handleCopyBlock = (e) => {
       if (isSecurityPaused()) return;
       if (isInternalEditableZone(e.target)) return;
 
-      e.preventDefault();
-      e.stopPropagation();
-      blockAndViolate('copy_paste', 'Copy blocked outside the code editor');
+      blockOnly(e);
     };
 
     const handleCopyRecord = (e) => {
@@ -244,9 +249,7 @@ export const useExamSecurity = (
       if (isSecurityPaused()) return;
       if (isInternalEditableZone(e.target)) return;
 
-      e.preventDefault();
-      e.stopPropagation();
-      blockAndViolate('copy_paste', 'Cut blocked outside the code editor');
+      blockOnly(e);
     };
 
     const handleCutRecord = (e) => {
@@ -266,9 +269,7 @@ export const useExamSecurity = (
       if (isSecurityPaused()) return;
 
       if (!isInternalEditableZone(e.target)) {
-        e.preventDefault();
-        e.stopPropagation();
-        blockAndViolate('copy_paste', 'Paste blocked outside the code editor');
+        blockOnly(e);
         return;
       }
 
@@ -277,9 +278,7 @@ export const useExamSecurity = (
         return;
       }
 
-      e.preventDefault();
-      e.stopPropagation();
-      blockAndViolate('copy_paste', 'External paste blocked — only copy/paste within the editor is allowed');
+      blockOnly(e);
     };
 
     const handleContextMenu = (e) => {
@@ -289,13 +288,18 @@ export const useExamSecurity = (
         return;
       }
 
-      e.preventDefault();
-      e.stopPropagation();
-      blockAndViolate('copy_paste', 'Right-click blocked during exam');
+      blockOnly(e);
     };
 
     const handleKeyDown = (e) => {
       if (isSecurityPaused()) return;
+
+      if (isComposingKeyEvent(e)) return;
+
+      // Never intercept normal typing inside Monaco / text editors (incl. sticky Alt).
+      if (shouldAllowTypingInExamContext(e)) {
+        return;
+      }
 
       const allowedTypingKeys = [
         'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
@@ -311,12 +315,10 @@ export const useExamSecurity = (
         return;
       }
 
-      // Clipboard shortcuts outside editor — copy/cut/paste handlers record violations
-      if (
-        isClipboardShortcut(e) &&
-        !isInternalEditableZone(e.target) &&
-        !isActiveElementInInternalZone()
-      ) {
+      // Copy/cut/paste outside editor — block only, never count as violation
+      if (shouldSilentlyBlockClipboardShortcut(e)) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
 
@@ -400,7 +402,6 @@ export const useExamSecurity = (
     const handleDragStart = (e) => {
       if (allowsDragInExam(e.target)) return;
       e.preventDefault();
-      blockAndViolate('copy_paste', 'Drag blocked during exam');
     };
 
     const handleDrop = (e) => {
@@ -409,12 +410,10 @@ export const useExamSecurity = (
       }
       if (e.dataTransfer?.files?.length > 0) {
         e.preventDefault();
-        blockAndViolate('copy_paste', 'File drag and drop blocked');
         return;
       }
       if (!isInternalEditableZone(e.target)) {
         e.preventDefault();
-        blockAndViolate('copy_paste', 'Drop blocked during exam');
       }
     };
 

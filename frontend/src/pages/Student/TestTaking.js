@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import MonacoCodeEditor from '../../components/MonacoCodeEditor';
+import { preloadMonacoEditor } from '../../utils/monacoLoader';
 import axiosInstance from '../../utils/axios';
 import {
   CODE_REQUEST_TIMEOUT_BATCH_MS,
   CODE_REQUEST_TIMEOUT_EXECUTE_MS
 } from '../../config/codeExecution';
+import {
+  postCodeExecution,
+  formatCodeExecutionError,
+} from '../../utils/codeExecutionClient';
 import Modal from '../../components/Modal';
 import { useToast } from '../../context/ToastContext';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
@@ -654,6 +659,12 @@ const TestTaking = () => {
 
       setTest(testRes.data);
       setResult(resultRes.data);
+
+      if (testRes.data?.questions?.some((q) => q.type === 'coding')) {
+        preloadMonacoEditor().catch(() => {
+          /* MonacoCodeEditor shows retry UI if preload fails */
+        });
+      }
       
       // Initialize answers with starter code for coding questions and previous answers if continuing
       const initialAnswers = {};
@@ -1056,11 +1067,20 @@ const TestTaking = () => {
 
     try {
       setIsRunningTests(true);
-      const response = await axiosInstance.post('/code-execution/execute', {
-        code,
-        language: selectedLanguage,
-        input: customTestCase.input
-      }, { timeout: CODE_REQUEST_TIMEOUT_EXECUTE_MS });
+      const response = await postCodeExecution(
+        '/code-execution/execute',
+        {
+          code,
+          language: selectedLanguage,
+          input: customTestCase.input
+        },
+        { timeout: CODE_REQUEST_TIMEOUT_EXECUTE_MS },
+        {
+          onRetry: () => {
+            showToast('Run queue is busy — retrying automatically…', 'info', { duration: 2500 });
+          },
+        }
+      );
 
       const expectedNormalized = normalizeOutput(customTestCase.expectedOutput);
       const actualNormalized = normalizeOutput(response.data.output || '');
@@ -1078,10 +1098,7 @@ const TestTaking = () => {
     } catch (error) {
       setIsRunningTests(false);
       console.error('❌ Error executing custom test case:', error);
-      let errorMsg = error.response?.data?.error || error.message || 'Error executing code';
-      if (error.code === 'ECONNABORTED') {
-        errorMsg = 'Request timed out. Is the code-worker running with the same Redis URL as the API?';
-      }
+      const errorMsg = formatCodeExecutionError(error, 'Error executing code');
       setCustomTestResult({
         input: customTestCase.input,
         expectedOutput: customTestCase.expectedOutput,
@@ -1121,11 +1138,20 @@ const TestTaking = () => {
         return;
       }
 
-      const response = await axiosInstance.post('/code-execution/execute-batch', {
-        code,
-        language: selectedLanguage,
-        testCases: visibleTestCases.map(tc => ({ input: tc.input, expectedOutput: tc.expectedOutput }))
-      }, { timeout: CODE_REQUEST_TIMEOUT_BATCH_MS });
+      const response = await postCodeExecution(
+        '/code-execution/execute-batch',
+        {
+          code,
+          language: selectedLanguage,
+          testCases: visibleTestCases.map(tc => ({ input: tc.input, expectedOutput: tc.expectedOutput }))
+        },
+        { timeout: CODE_REQUEST_TIMEOUT_BATCH_MS },
+        {
+          onRetry: () => {
+            showToast('Run queue is busy — retrying automatically…', 'info', { duration: 2500 });
+          },
+        }
+      );
 
       const batchResults = response.data.results || [];
       const results = batchResults.map((r, i) => ({
@@ -1152,13 +1178,10 @@ const TestTaking = () => {
     } catch (error) {
       setIsRunningTests(false);
       console.error('Error executing code:', error);
-      let errorMsg = error.response?.data?.error ||
-                      error.response?.data?.message ||
-                      error.message ||
-                      'Error executing code. Please check your code and try again.';
-      if (error.code === 'ECONNABORTED') {
-        errorMsg = 'Request timed out. Is the code-worker running with the same Redis URL and app version as the API?';
-      }
+      const errorMsg = formatCodeExecutionError(
+        error,
+        'Error executing code. Please check your code and try again.'
+      );
       showToast(errorMsg, 'error', { title: 'Code execution error' });
     }
   };
@@ -1190,11 +1213,20 @@ const TestTaking = () => {
         const hiddenTestCases = allTestCases.filter(tc => tc.isHidden);
 
         const batchPayload = allTestCases.map(tc => ({ input: tc.input, expectedOutput: tc.expectedOutput }));
-        const batchResponse = await axiosInstance.post('/code-execution/execute-batch', {
-          code,
-          language: selectedLanguage,
-          testCases: batchPayload
-        }, { timeout: CODE_REQUEST_TIMEOUT_BATCH_MS });
+        const batchResponse = await postCodeExecution(
+          '/code-execution/execute-batch',
+          {
+            code,
+            language: selectedLanguage,
+            testCases: batchPayload
+          },
+          { timeout: CODE_REQUEST_TIMEOUT_BATCH_MS },
+          {
+            onRetry: () => {
+              showToast('Submit queue is busy — retrying automatically…', 'info', { duration: 2500 });
+            },
+          }
+        );
 
         const batchResults = batchResponse.data.results || [];
         let testCasesPassed = 0;
@@ -1743,6 +1775,7 @@ const TestTaking = () => {
                     language={selectedLanguage}
                     value={getCodingCode(answers, questionKey(questionData._id), selectedLanguage, questionData)}
                     onChange={handleCodeChange}
+                    examMode
                   />
                 </div>
               </div>
@@ -1917,6 +1950,7 @@ const TestTaking = () => {
                       language="sql"
                       value={answerFor(answers, questionData._id).sql ?? ''}
                       onChange={handleSqlChange}
+                      examMode
                       options={{ fontSize: 13 }}
                     />
                   </div>

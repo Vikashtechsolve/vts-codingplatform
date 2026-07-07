@@ -26,6 +26,7 @@ const {
   parseScheduleDateInput,
 } = require('../utils/testSchedule');
 const { findPublishedContestByAssessment } = require('../utils/contestService');
+const { getEffectiveAllowedLanguages } = require('../utils/codingQuestion');
 
 const ENGLISH_QUESTION_MODELS = {
   english_grammar: EnglishGrammarQuestion,
@@ -302,7 +303,11 @@ router.get('/:id', auth, async (req, res) => {
       let questionData;
       try {
         if (q.type === 'coding') {
-          questionData = await CodingQuestion.findById(q.questionId);
+          const codingDoc = await CodingQuestion.findById(q.questionId);
+          if (codingDoc) {
+            questionData = codingDoc.toObject();
+            questionData.allowedLanguages = getEffectiveAllowedLanguages(questionData);
+          }
         } else if (q.type === 'mcq') {
           questionData = await MCQQuestion.findById(q.questionId);
         } else if (q.type === 'aptitude') {

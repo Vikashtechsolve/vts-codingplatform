@@ -2,18 +2,18 @@
   width: 100%;
   min-height: 120px;
   isolation: isolate;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   /* Stop .App { color: var(--text-primary) } from cascading into the editor */
   color: initial;
 }
 
 .monaco-code-editor-root > section {
   min-height: inherit;
+  flex: 1;
+  min-height: 0;
 }
-
-/*
- * Do NOT set color on .view-line or span — that overrides Monaco .mtk* token rules.
- * Syntax colors come from platform-dark / platform-light themes only.
- */
 
 .monaco-code-editor-root--dark .monaco-editor {
   color-scheme: dark;
@@ -21,4 +21,89 @@
 
 .monaco-code-editor-root--light .monaco-editor {
   color-scheme: light;
+}
+
+.monaco-code-editor-status {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 20px;
+  text-align: center;
+  min-height: 180px;
+  border-radius: 8px;
+  border: 1px dashed var(--border-color, #cbd5e1);
+  background: var(--bg-secondary, #f8fafc);
+}
+
+.monaco-code-editor-status--error {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(254, 242, 242, 0.6);
+}
+
+.monaco-code-editor-status-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+
+.monaco-code-editor-status-detail {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #64748b);
+  max-width: 320px;
+}
+
+.monaco-code-editor-status-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-secondary, #64748b);
+  max-width: 280px;
+}
+
+.monaco-code-editor-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color, #e2e8f0);
+  border-top-color: var(--primary-color, #ed0331);
+  border-radius: 50%;
+  animation: monaco-editor-spin 0.75s linear infinite;
+}
+
+@keyframes monaco-editor-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.monaco-code-editor-retry-btn {
+  margin-top: 4px;
+  padding: 8px 18px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: var(--primary-color, #ed0331);
+}
+
+.monaco-code-editor-retry-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+[data-theme='dark'] .monaco-code-editor-status {
+  background: var(--bg-secondary, #1e1e1e);
+  border-color: var(--border-color, #333);
+}
+
+[data-theme='dark'] .monaco-code-editor-status--error {
+  background: rgba(127, 29, 29, 0.25);
+  border-color: rgba(248, 113, 113, 0.35);
 }

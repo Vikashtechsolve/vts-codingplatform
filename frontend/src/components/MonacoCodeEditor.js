@@ -1,19 +1,13 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import Editor, { loader } from '@monaco-editor/react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Editor from '@monaco-editor/react';
 import { useTheme } from '../context/ThemeContext';
 import { monacoThemeForApp, setupMonacoThemes } from '../utils/monacoThemes';
+import {
+  EXAM_MONACO_OPTIONS,
+  preloadMonacoEditor,
+  retryMonacoEditor,
+} from '../utils/monacoLoader';
 import './MonacoCodeEditor.css';
-
-const DEFAULT_OPTIONS = {
-  minimap: { enabled: false },
-  fontSize: 14,
-  wordWrap: 'on',
-  lineNumbers: 'on',
-  scrollBeyondLastLine: false,
-  automaticLayout: true,
-  tabSize: 2,
-  'bracketPairColorization.enabled': true,
-};
 
 let themesRegistered = false;
 
@@ -23,8 +17,33 @@ const ensureThemes = (monaco) => {
   themesRegistered = true;
 };
 
+const MonacoEditorStatus = ({ variant, message, onRetry, retrying }) => (
+  <div className={`monaco-code-editor-status monaco-code-editor-status--${variant}`} role="status">
+    {variant === 'loading' && <div className="monaco-code-editor-spinner" aria-hidden />}
+    <p className="monaco-code-editor-status-title">
+      {variant === 'loading' ? 'Loading code editor…' : 'Code editor could not load'}
+    </p>
+    {message && <p className="monaco-code-editor-status-detail">{message}</p>}
+    {variant === 'error' && onRetry && (
+      <button
+        type="button"
+        className="monaco-code-editor-retry-btn"
+        onClick={onRetry}
+        disabled={retrying}
+      >
+        {retrying ? 'Retrying…' : 'Retry'}
+      </button>
+    )}
+    {variant === 'loading' && (
+      <p className="monaco-code-editor-status-hint">
+        First load may take a moment on slow networks. Please stay on this tab.
+      </p>
+    )}
+  </div>
+);
+
 /**
- * Monaco wrapper — custom themes + no CSS overrides on token spans (mtk*).
+ * Monaco wrapper — self-hosted assets, loading/error UI, exam-friendly defaults.
  */
 const MonacoCodeEditor = ({
   height = '100%',
@@ -35,61 +54,128 @@ const MonacoCodeEditor = ({
   editorKey,
   className = '',
   options = {},
+  examMode = false,
 }) => {
   const { isDark } = useTheme();
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const themeName = monacoThemeForApp(isDark);
 
-  const handleBeforeMount = useCallback((monaco) => {
-    monacoRef.current = monaco;
-    ensureThemes(monaco);
-    monaco.editor.setTheme(themeName);
-  }, [themeName]);
+  const [loadState, setLoadState] = useState('loading');
+  const [loadError, setLoadError] = useState('');
+  const [retrying, setRetrying] = useState(false);
 
-  const handleMount = useCallback((editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
-    ensureThemes(monaco);
-    monaco.editor.setTheme(themeName);
+  const runPreload = useCallback((isRetry = false) => {
+    setLoadState('loading');
+    setLoadError('');
+    const promise = isRetry ? retryMonacoEditor() : preloadMonacoEditor();
+    return promise
+      .then((monaco) => {
+        monacoRef.current = monaco;
+        ensureThemes(monaco);
+        monaco.editor.setTheme(themeName);
+        setLoadState('ready');
+      })
+      .catch((err) => {
+        setLoadState('error');
+        setLoadError(err?.message || 'Failed to load the code editor.');
+      });
   }, [themeName]);
 
   useEffect(() => {
-    const monaco = monacoRef.current;
-    if (!monaco) {
-      loader.init().then((m) => {
-        monacoRef.current = m;
-        ensureThemes(m);
-        m.editor.setTheme(themeName);
+    let cancelled = false;
+    preloadMonacoEditor()
+      .then((monaco) => {
+        if (cancelled) return;
+        monacoRef.current = monaco;
+        ensureThemes(monaco);
+        monaco.editor.setTheme(themeName);
+        setLoadState('ready');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadState('error');
+        setLoadError(err?.message || 'Failed to load the code editor.');
       });
-      return;
-    }
-    ensureThemes(monaco);
-    monaco.editor.setTheme(themeName);
+    return () => {
+      cancelled = true;
+    };
   }, [themeName]);
 
+  const handleRetry = () => {
+    setRetrying(true);
+    runPreload(true).finally(() => setRetrying(false));
+  };
+
+  const handleBeforeMount = useCallback(
+    (monaco) => {
+      monacoRef.current = monaco;
+      ensureThemes(monaco);
+      monaco.editor.setTheme(themeName);
+    },
+    [themeName]
+  );
+
+  const handleMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
+      ensureThemes(monaco);
+      monaco.editor.setTheme(themeName);
+      requestAnimationFrame(() => {
+        editor.layout();
+        if (examMode && !readOnly) {
+          editor.focus();
+        }
+      });
+    },
+    [themeName, examMode, readOnly]
+  );
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco || loadState !== 'ready') return;
+    ensureThemes(monaco);
+    monaco.editor.setTheme(themeName);
+  }, [themeName, loadState]);
+
   const containerHeight = typeof height === 'number' ? `${height}px` : height;
+  const mergedOptions = {
+    ...(examMode ? EXAM_MONACO_OPTIONS : {}),
+    ...options,
+    readOnly,
+  };
 
   return (
     <div
       className={`monaco-code-editor-root ${isDark ? 'monaco-code-editor-root--dark' : 'monaco-code-editor-root--light'} ${className}`.trim()}
-      style={{ height: containerHeight }}
+      style={{ height: containerHeight, minHeight: containerHeight === '100%' ? 200 : undefined }}
     >
-      <Editor
-        key={editorKey}
-        height={height}
-        language={language}
-        value={value ?? ''}
-        onChange={onChange}
-        theme={themeName}
-        beforeMount={handleBeforeMount}
-        onMount={handleMount}
-        options={{
-          ...DEFAULT_OPTIONS,
-          readOnly,
-          ...options,
-        }}
-      />
+      {loadState === 'loading' && (
+        <MonacoEditorStatus variant="loading" />
+      )}
+      {loadState === 'error' && (
+        <MonacoEditorStatus
+          variant="error"
+          message={loadError}
+          onRetry={handleRetry}
+          retrying={retrying}
+        />
+      )}
+      {loadState === 'ready' && (
+        <Editor
+          key={editorKey}
+          height={height}
+          language={language}
+          value={value ?? ''}
+          onChange={onChange}
+          theme={themeName}
+          beforeMount={handleBeforeMount}
+          onMount={handleMount}
+          loading={<MonacoEditorStatus variant="loading" />}
+          options={mergedOptions}
+        />
+      )}
     </div>
   );
 };

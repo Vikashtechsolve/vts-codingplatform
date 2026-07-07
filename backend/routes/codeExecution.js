@@ -8,26 +8,19 @@ const {
   CODE_EXECUTION_SINGLE,
   CODE_EXECUTION_BATCH
 } = require('../config/bullQueueNames');
+const {
+  MAX_QUEUE_WAITING_SINGLE,
+  MAX_QUEUE_WAITING_BATCH,
+  JOB_TIMEOUT,
+  HTTP_WAIT_EXECUTE_MS,
+  HTTP_WAIT_BATCH_MS,
+  HTTP_WAIT_BATCH_MAX_MS,
+  CODE_JOB_POLL_MS,
+  JOB_ATTEMPTS,
+  JOB_RETRY_DELAY_MS,
+} = require('../config/codeExecution');
 
-const MAX_QUEUE_SIZE = parseInt(process.env.MAX_QUEUE_SIZE || '100', 10);
-const JOB_TIMEOUT = parseInt(process.env.CODE_JOB_TIMEOUT || '60000', 10);
-
-/** Wall-clock cap for HTTP handler when no worker or job hangs. */
-const HTTP_WAIT_EXECUTE_MS = parseInt(process.env.CODE_HTTP_WAIT_EXECUTE_MS || '120000', 10);
-const HTTP_WAIT_BATCH_MS = parseInt(process.env.CODE_HTTP_WAIT_BATCH_MS || '300000', 10);
-const HTTP_WAIT_BATCH_MAX_MS = parseInt(process.env.CODE_HTTP_WAIT_BATCH_MAX_MS || '600000', 10);
 /** Poll Redis for job state (avoids Bull pub/sub, unreliable on ElastiCache Serverless). */
-const CODE_JOB_POLL_MS = parseInt(process.env.CODE_JOB_POLL_MS || '1500', 10);
-
-/**
- * Wait until job completes or fails by polling Redis — NOT job.finished(), which
- * depends on global:completed pub/sub and often never fires on ElastiCache Serverless.
- *
- * @param {import('bull').Queue} queue
- * @param {object} job Bull job (must have .id)
- * @param {number} httpMs max wall time
- * @param {string} label
- */
 async function awaitJobResultPolled(queue, job, httpMs, label) {
   const id = job.id;
   const deadline = Date.now() + httpMs;
@@ -49,6 +42,14 @@ async function awaitJobResultPolled(queue, job, httpMs, label) {
       `REDIS_URL and the same app version (queue names in config/bullQueueNames.js) as this API.`
   );
 }
+
+const JOB_ADD_OPTS = {
+  timeout: JOB_TIMEOUT,
+  attempts: JOB_ATTEMPTS,
+  backoff: { type: 'fixed', delay: JOB_RETRY_DELAY_MS },
+  removeOnComplete: { age: 300, count: 1000 },
+  removeOnFail: { age: 600, count: 300 },
+};
 
 let singleQueue = null;
 let batchQueue = null;
@@ -95,10 +96,17 @@ async function ensureQueues(res) {
   }
 }
 
-async function isQueueFull(queue, res) {
+async function isQueueFull(queue, maxWaiting, res, label) {
   const waiting = await queue.getWaitingCount();
-  if (waiting >= MAX_QUEUE_SIZE) {
-    res.status(429).json({ success: false, output: '', error: 'Server busy. Too many executions queued. Please try again in a moment.', executionTime: 0 });
+  if (waiting >= maxWaiting) {
+    res.set('Retry-After', '5');
+    res.status(429).json({
+      success: false,
+      output: '',
+      error: `Server busy (${label} queue). Your run is queued — please wait a moment and try again.`,
+      executionTime: 0,
+      retryable: true,
+    });
     return true;
   }
   return false;
@@ -123,7 +131,11 @@ async function getCodeQueueStats() {
     single: { waiting: sWait, active: sActive, completed: sCompleted, failed: sFailed },
     batch: { waiting: bWait, active: bActive, completed: bCompleted, failed: bFailed },
     totalWaiting: sWait + bWait,
-    totalActive: sActive + bActive
+    totalActive: sActive + bActive,
+    limits: {
+      maxWaitingSingle: MAX_QUEUE_WAITING_SINGLE,
+      maxWaitingBatch: MAX_QUEUE_WAITING_BATCH,
+    },
   };
 }
 
@@ -146,14 +158,11 @@ router.post('/execute', [
     return res.status(400).json({ success: false, output: '', error: 'Code cannot be empty', executionTime: 0 });
   }
 
-  if (await isQueueFull(singleQueue, res)) return;
+  if (await isQueueFull(singleQueue, MAX_QUEUE_WAITING_SINGLE, res, 'single')) return;
 
   let job;
   try {
-    job = await singleQueue.add(
-      { code, language, input: input || '' },
-      { timeout: JOB_TIMEOUT, removeOnComplete: { age: 300, count: 500 }, removeOnFail: { age: 600, count: 200 } }
-    );
+    job = await singleQueue.add({ code, language, input: input || '' }, JOB_ADD_OPTS);
 
     const httpMs = Math.max(HTTP_WAIT_EXECUTE_MS, JOB_TIMEOUT + 15000);
     const result = await awaitJobResultPolled(singleQueue, job, httpMs, 'execute');
@@ -168,7 +177,8 @@ router.post('/execute', [
       success: false,
       output: '',
       error: stalled ? msg : isJobTimeout ? 'Execution timed out. Please simplify your code.' : msg,
-      executionTime: 0
+      executionTime: 0,
+      retryable: stalled,
     });
   }
 });
@@ -192,20 +202,17 @@ router.post('/execute-batch', [
     return res.status(400).json({ success: false, error: 'Code cannot be empty', results: [] });
   }
 
-  if (await isQueueFull(batchQueue, res)) return;
+  if (await isQueueFull(batchQueue, MAX_QUEUE_WAITING_BATCH, res, 'batch')) return;
 
   const n = testCases.length;
   const batchHttpMs = Math.min(
     HTTP_WAIT_BATCH_MAX_MS,
-    Math.max(HTTP_WAIT_BATCH_MS, JOB_TIMEOUT + 30000, n * 25000)
+    Math.max(HTTP_WAIT_BATCH_MS, JOB_TIMEOUT + 30000, n * 20000)
   );
 
   let job;
   try {
-    job = await batchQueue.add(
-      { code, language, testCases },
-      { timeout: JOB_TIMEOUT, removeOnComplete: { age: 300, count: 500 }, removeOnFail: { age: 600, count: 200 } }
-    );
+    job = await batchQueue.add({ code, language, testCases }, JOB_ADD_OPTS);
 
     const result = await awaitJobResultPolled(batchQueue, job, batchHttpMs, 'execute-batch');
     res.json(result);
@@ -218,7 +225,8 @@ router.post('/execute-batch', [
     res.status(stalled ? 503 : isJobTimeout ? 408 : 500).json({
       success: false,
       error: stalled ? msg : isJobTimeout ? 'Execution timed out. Please simplify your code.' : msg,
-      results: []
+      results: [],
+      retryable: stalled,
     });
   }
 });
@@ -236,10 +244,9 @@ router.get('/health', async (req, res) => {
     ]);
     res.json({
       status: 'ok',
-      single: { waiting: sWait, active: sActive },
-      batch: { waiting: bWait, active: bActive },
-      maxQueueSize: MAX_QUEUE_SIZE,
-      jobTimeout: JOB_TIMEOUT
+      single: { waiting: sWait, active: sActive, maxWaiting: MAX_QUEUE_WAITING_SINGLE },
+      batch: { waiting: bWait, active: bActive, maxWaiting: MAX_QUEUE_WAITING_BATCH },
+      jobTimeout: JOB_TIMEOUT,
     });
   } catch (err) {
     res.status(503).json({ status: 'error', message: err.message });

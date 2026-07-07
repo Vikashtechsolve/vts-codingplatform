@@ -11,7 +11,10 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: process.env.PORT || 5500
+        PORT: process.env.PORT || 5500,
+        CODE_WORKER_STANDALONE: 'true',
+        MAX_QUEUE_WAITING_SINGLE: '200',
+        MAX_QUEUE_WAITING_BATCH: '400',
       },
       error_file: './logs/backend-error.log',
       out_file: './logs/backend-out.log',
@@ -34,7 +37,11 @@ module.exports = {
         NODE_ENV: 'development'
       },
       env_production: {
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        CODE_WORKER_SINGLE_CONCURRENCY: '12',
+        CODE_WORKER_BATCH_CONCURRENCY: '10',
+        CODE_BATCH_CASE_PARALLELISM: '4',
+        CODE_EXECUTION_TIMEOUT: '5000',
       },
       error_file: './logs/code-worker-error.log',
       out_file: './logs/code-worker-out.log',

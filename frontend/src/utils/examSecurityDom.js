@@ -4,9 +4,10 @@
 
 const INTERNAL_ZONE_SELECTORS = [
   '.monaco-editor',
-  '.monaco-code-editor-root',
+  '.monaco-code-editor-root .monaco-editor',
   '.test-taking-container textarea',
   '.test-taking-container input[type="text"]',
+  '.test-taking-container input[type="number"]',
   '.test-taking-container input:not([type])',
   '.english-test-taking textarea',
   '.english-test-taking .ql-editor',
@@ -18,6 +19,16 @@ const INTERNAL_ZONE_SELECTORS = [
 
 export function isInternalEditableZone(el) {
   if (!el || typeof el.closest !== 'function') return false;
+
+  // Monaco loading/error shell — not an active typing surface.
+  if (
+    el.closest('.monaco-code-editor-root') &&
+    !el.closest('.monaco-editor') &&
+    !el.classList?.contains('inputarea')
+  ) {
+    return false;
+  }
+
   return INTERNAL_ZONE_SELECTORS.some((sel) => el.closest(sel));
 }
 
@@ -34,12 +45,40 @@ export function isExamChoiceControl(el) {
 
 export function isMonacoEditorZone(el) {
   if (!el || typeof el.closest !== 'function') return false;
-  return Boolean(el.closest('.monaco-editor') || el.closest('.monaco-code-editor-root'));
+  return Boolean(el.closest('.monaco-editor'));
+}
+
+/** True when Monaco's hidden textarea (or focused editor widget) has focus. */
+export function isMonacoEditorFocused() {
+  const active = document.activeElement;
+  if (!active) return false;
+  if (active.classList?.contains('inputarea')) return true;
+  if (active.closest?.('.monaco-editor')) return true;
+  return Boolean(document.querySelector('.monaco-editor.focused'));
 }
 
 export function isActiveElementInInternalZone() {
   return isInternalEditableZone(document.activeElement);
 }
+
+/** Whether the event originates from (or focus is in) a code/text editor. */
+export function isExamTypingContext(e) {
+  return (
+    isMonacoEditorFocused() ||
+    isInternalEditableZone(e?.target) ||
+    isActiveElementInInternalZone()
+  );
+}
+
+/** IME / composition — never intercept (common on non-English keyboards). */
+export function isComposingKeyEvent(e) {
+  return Boolean(e?.isComposing || e?.keyCode === 229);
+}
+
+const FUNCTION_KEYS = new Set([
+  'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+  'PrintScreen', 'ContextMenu',
+]);
 
 /** Text the user is copying from a focused field / selection. */
 export function getCopyTextFromEvent(e) {
@@ -163,6 +202,47 @@ export function isBlockedBrowserShortcut(e) {
   if (meta && key === 'Tab') return 'Window switch shortcut';
 
   return null;
+}
+
+/**
+ * Copy/cut/paste shortcuts outside the editor — block silently (no violation).
+ */
+export function shouldSilentlyBlockClipboardShortcut(e) {
+  return isClipboardShortcut(e) && !isExamTypingContext(e);
+}
+
+/**
+ * Allow normal typing inside exam editors without running global shortcut blocking.
+ * Fixes plain a/s/d and sticky-Alt (Windows menu bar) swallowing keys in Monaco.
+ */
+export function shouldAllowTypingInExamContext(e) {
+  if (!isExamTypingContext(e)) return false;
+
+  if (isComposingKeyEvent(e)) return true;
+
+  const hasMeta = e.ctrlKey || e.metaKey;
+  const key = e.key;
+
+  // Cheating / browser shortcuts — always handled by the block path below.
+  if (isBlockedBrowserShortcut(e)) return false;
+
+  // Ctrl/Cmd+Z, copy, paste, select-all inside the editor.
+  if (allowsEditorMetaShortcut(e)) return true;
+
+  // Ctrl/Cmd+S, Ctrl/Cmd+P, etc. — block silently even inside the editor.
+  if (hasMeta && isSilentBlockMetaShortcut(e)) return false;
+
+  if (hasMeta) return false;
+
+  if (FUNCTION_KEYS.has(key)) return false;
+
+  // Plain typing, Shift+capital, editor navigation keys.
+  if (!e.altKey) return true;
+
+  // Sticky Alt after Windows menu / accidental Alt — allow single-character keys in editor.
+  if (key?.length === 1) return true;
+
+  return false;
 }
 
 export function allowsDragInExam(target) {

@@ -11,12 +11,16 @@ const {
   CODE_EXECUTION_SINGLE,
   CODE_EXECUTION_BATCH
 } = require('../config/bullQueueNames');
+const {
+  EXECUTION_TIMEOUT,
+  WORKER_SINGLE_CONCURRENCY,
+  WORKER_BATCH_CONCURRENCY,
+  BATCH_CASE_PARALLELISM,
+} = require('../config/codeExecution');
 
 // --- Configuration ---
 const TEMP_DIR = path.join(__dirname, '../temp');
 const MAX_OUTPUT_SIZE = 64 * 1024;
-const EXECUTION_TIMEOUT = parseInt(process.env.CODE_EXECUTION_TIMEOUT || '5000', 10);
-const WORKER_CONCURRENCY = parseInt(process.env.CODE_WORKER_CONCURRENCY || '8', 10);
 const CLEANUP_INTERVAL = 2 * 60 * 1000;
 const MAX_FILE_AGE = 5 * 60 * 1000;
 
@@ -230,8 +234,26 @@ async function runCode(prepared, input) {
 
 const normalize = (s) => (s || '').trim().replace(/\r\n/g, '\n').replace(/\s+$/gm, '');
 
+/** Run async tasks with a fixed concurrency pool. */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const i = nextIndex;
+      nextIndex += 1;
+      results[i] = await fn(items[i], i);
+    }
+  }
+
+  const pool = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: pool }, () => worker()));
+  return results;
+}
+
 // --- Single execution processor ---
-singleQueue.process(WORKER_CONCURRENCY, async (job) => {
+singleQueue.process(WORKER_SINGLE_CONCURRENCY, async (job) => {
   const { code, language, input } = job.data;
   ensureTempDir();
   const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${job.id}`;
@@ -251,7 +273,7 @@ singleQueue.process(WORKER_CONCURRENCY, async (job) => {
 });
 
 // --- Batch execution processor (compile once, run N test cases) ---
-batchQueue.process(WORKER_CONCURRENCY, async (job) => {
+batchQueue.process(WORKER_BATCH_CONCURRENCY, async (job) => {
   const { code, language, testCases } = job.data;
   const n = Array.isArray(testCases) ? testCases.length : 0;
   console.log(`[code-worker] batch job ${job.id} start (${n} cases, ${language})`);
@@ -279,18 +301,36 @@ batchQueue.process(WORKER_CONCURRENCY, async (job) => {
       };
     }
 
-    const results = [];
-    let passed = 0;
-
-    for (const tc of testCases) {
-      try {
-        const r = await runCode(prepared, tc.input || '');
-        const tcPassed = r.success && normalize(tc.expectedOutput) === normalize(r.output);
-        if (tcPassed) passed++;
-        results.push({ success: r.success, output: r.output, error: r.error, executionTime: r.executionTime, passed: tcPassed });
-      } catch (err) {
-        results.push({ success: false, output: '', error: err.message || 'Execution failed', executionTime: 0, passed: false });
+    const caseResults = await mapWithConcurrency(
+      testCases,
+      BATCH_CASE_PARALLELISM,
+      async (tc) => {
+        try {
+          const r = await runCode(prepared, tc.input || '');
+          const tcPassed = r.success && normalize(tc.expectedOutput) === normalize(r.output);
+          return {
+            success: r.success,
+            output: r.output,
+            error: r.error,
+            executionTime: r.executionTime,
+            passed: tcPassed,
+          };
+        } catch (err) {
+          return {
+            success: false,
+            output: '',
+            error: err.message || 'Execution failed',
+            executionTime: 0,
+            passed: false,
+          };
+        }
       }
+    );
+
+    const results = caseResults;
+    let passed = 0;
+    for (const r of results) {
+      if (r.passed) passed += 1;
     }
 
     return { success: true, results, testCasesPassed: passed, total: testCases.length };
@@ -365,7 +405,9 @@ if (isStandaloneCodeWorkerProcess) {
 console.log('='.repeat(50));
 console.log('Code Execution Worker Started');
 console.log('='.repeat(50));
-console.log(`  Concurrency: ${WORKER_CONCURRENCY} parallel jobs`);
+console.log(`  Single concurrency: ${WORKER_SINGLE_CONCURRENCY} parallel jobs`);
+console.log(`  Batch concurrency: ${WORKER_BATCH_CONCURRENCY} parallel jobs`);
+console.log(`  Batch case parallelism: ${BATCH_CASE_PARALLELISM} cases/job`);
 console.log(`  Timeout: ${EXECUTION_TIMEOUT}ms per run`);
 console.log(`  Output cap: ${MAX_OUTPUT_SIZE / 1024} KB`);
 console.log(`  Temp dir: ${TEMP_DIR}`);
