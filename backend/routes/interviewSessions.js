@@ -449,11 +449,16 @@ router.post('/:sessionId/answer', auth, authorize('student'), async (req, res) =
       transcript: transcriptForEval
     });
 
+    const maxPoints = Number(question?.points) > 0 ? Number(question.points) : 10;
+    const points = Math.round(((evaluation?.overall ?? 0) / 100) * maxPoints);
+
     session.answers.push({
       questionId: session.currentQuestion?.questionId || null,
       questionText: session.currentQuestion?.questionText || '',
       transcript: transcript || '(No verbal response)',
       evaluation,
+      points,
+      maxPoints,
       isFollowUp: session.currentQuestion?.isFollowUp || false
     });
 

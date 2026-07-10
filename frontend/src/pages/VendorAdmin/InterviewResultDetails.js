@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
-import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
-import { formatDateTime } from '../../utils/vendorAssessmentUi';
+import { formatDateTime, scoreTone } from '../../utils/vendorAssessmentUi';
+import { getInterviewAnswerScoreDisplay } from '../../utils/interviewScoring';
 import './InterviewResultDetails.css';
 
 const SKILL_LABELS = [
@@ -184,11 +184,16 @@ const InterviewResultDetails = () => {
       <div className="va-panel ird-answers-panel">
         <h2 className="va-panel-title">Question by question</h2>
         <div className="ird-answers">
-          {(session.answers || []).map((answer, idx) => (
+          {(session.answers || []).map((answer, idx) => {
+            const { points, maxPoints, percent } = getInterviewAnswerScoreDisplay(answer);
+            const tonePct = percent ?? Math.round((points / maxPoints) * 100);
+            return (
             <article key={idx} className="ird-answer-card">
               <div className="ird-answer-head">
                 <h3>Q{idx + 1}</h3>
-                <VendorScoreBadge value={answer.evaluation?.overall ?? 0} suffix="/100" />
+                <span className={`va-score va-score--${scoreTone(tonePct)}`}>
+                  {points}/{maxPoints}
+                </span>
               </div>
               <p className="ird-q-text">{answer.questionText}</p>
               <p className="ird-transcript">
@@ -203,7 +208,8 @@ const InterviewResultDetails = () => {
                 <p className="ird-feedback">{answer.evaluation.feedback}</p>
               )}
             </article>
-          ))}
+          );
+          })}
         </div>
       </div>
     </VendorAssessPage>

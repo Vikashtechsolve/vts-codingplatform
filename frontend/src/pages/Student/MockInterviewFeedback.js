@@ -9,6 +9,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import axiosInstance from '../../utils/axios';
+import { getInterviewAnswerScoreDisplay } from '../../utils/interviewScoring';
 import './MockInterviewFeedback.css';
 
 const SKILL_KEYS = [
@@ -195,6 +196,7 @@ const MockInterviewFeedback = () => {
   const renderAnswerCard = (answer, idx) => {
     const e = answer.evaluation || {};
     const overall = e.overall ?? 0;
+    const { points, maxPoints, percent } = getInterviewAnswerScoreDisplay(answer);
     const tier = getTier(overall);
     const cardId = `q-${idx}`;
     const isExpanded = expandedCards[cardId];
@@ -220,9 +222,9 @@ const MockInterviewFeedback = () => {
             </div>
           </div>
           <div className="mir-card-right">
-            <div className="mir-card-score-wrap">
-              <span className="mir-card-score" style={{ color: gradeColor }}>{overall}</span>
-              <span className="mir-card-score-max">/ 100</span>
+            <div className="mir-card-score-wrap" title={percent != null ? `${percent}% rubric score` : undefined}>
+              <span className="mir-card-score" style={{ color: gradeColor }}>{points}</span>
+              <span className="mir-card-score-max">/ {maxPoints}</span>
             </div>
             <span className={`mir-expand-icon ${isExpanded ? 'open' : ''}`} aria-hidden>
               &#9662;
@@ -293,8 +295,7 @@ const MockInterviewFeedback = () => {
               <div className="mir-review-section-content">
                 <h4 className="mir-review-heading">How each skill was scored</h4>
                 <p className="mir-review-hint">
-                  Each dimension is scored 0–100 based on accuracy, depth, how clearly you explained ideas,
-                  confidence, and how well you stayed on topic.
+                  Skill bars use a 0–100% rubric. Question marks above are out of {maxPoints} per question.
                 </p>
                 <div className="mir-score-bars-grid">
                   <ScoreBar label="Correctness — facts and accuracy" value={e.correctness ?? 0} />

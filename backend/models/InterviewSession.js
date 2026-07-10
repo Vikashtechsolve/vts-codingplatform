@@ -26,6 +26,14 @@ const answerSchema = new mongoose.Schema({
     feedback: String,
     resources: [String]
   },
+  points: {
+    type: Number,
+    default: 0
+  },
+  maxPoints: {
+    type: Number,
+    default: 10
+  },
   isFollowUp: {
     type: Boolean,
     default: false
