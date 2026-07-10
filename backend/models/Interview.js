@@ -73,6 +73,10 @@ const interviewSchema = new mongoose.Schema({
       type: Number,
       default: 6
     },
+    autoSubmitAtWindowEnd: {
+      type: Boolean,
+      default: true
+    },
     adaptiveDifficulty: {
       type: Boolean,
       default: true

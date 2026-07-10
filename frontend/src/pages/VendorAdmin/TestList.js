@@ -4,6 +4,7 @@ import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
 import { VENDOR_TEST_SECTIONS, getVendorTestSectionByType } from '../../constants/vendorSections';
 import CopyShareLinkButton from '../../components/CopyShareLinkButton';
+import { formatTopicsCardPreview } from '../../utils/interviewCardText';
 import {
   FiPlus,
   FiSearch,
@@ -430,7 +431,11 @@ const TestList = () => {
                     {item.kind === 'interview' && (
                       <>
                         {item.interviewType && <span>{item.interviewType}</span>}
-                        {item.topic && <span>Topic: {item.topic}</span>}
+                        {item.topic && (
+                          <span title={item.topic}>
+                            Topic: {formatTopicsCardPreview(item.topic)}
+                          </span>
+                        )}
                         <span>
                           <FiHelpCircle /> {item.questions?.length || 0} questions
                         </span>

@@ -678,6 +678,7 @@ const generateInterviewOpener = async ({
   interviewType,
   topic,
   difficulty,
+  description,
   firstQuestionText
 }) => {
   const question = String(firstQuestionText || '').trim();
@@ -692,10 +693,12 @@ const generateInterviewOpener = async ({
     return fallback;
   }
 
+  const brief = String(description || '').trim();
   const prompt = `
 You are starting a live mock interview. Greet the candidate warmly in 2-3 short sentences, then ask the first question naturally.
 Interview: ${interviewTitle || interviewType || 'Mock Interview'}
 Type: ${interviewType || 'General'}, Topic: ${topic || 'General'}, Level: ${difficulty || 'beginner'}
+${brief ? `Interview brief: ${brief}` : ''}
 First question to ask: ${question}
 
 Return JSON only:
@@ -747,6 +750,8 @@ const generateInterviewQuestion = async ({
   interviewType,
   topic,
   difficulty,
+  description,
+  title,
   previousQuestions = []
 }) => {
   if (!OPENAI_API_KEY) {
@@ -756,15 +761,20 @@ const generateInterviewQuestion = async ({
   const history = previousQuestions.length
     ? previousQuestions.map((q, idx) => `${idx + 1}. ${q}`).join('\n')
     : 'None';
+  const brief = String(description || '').trim();
 
   const prompt = `
 Create one concise interview question.
+Interview Title: ${title || 'Mock Interview'}
 Interview Type: ${interviewType || 'General'}
 Topic: ${topic || 'General'}
 Difficulty: ${difficulty || 'beginner'}
+${brief ? `Interview Brief (use this to focus questions): ${brief}` : ''}
 Previous Questions:
 ${history}
 
+The question must match the type, topic, difficulty${brief ? ', and follow the interview brief' : ''}.
+Do not repeat or closely paraphrase previous questions.
 Return plain text only.
 `;
 

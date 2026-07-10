@@ -11,6 +11,13 @@ const {
   enrollStudentsInInterview,
   assignInterviewToClassrooms,
 } = require('../utils/assignToClassroom');
+const {
+  validateScheduleInput,
+  parseScheduleDateInput,
+  attachScheduleToTest,
+  resolveScheduleEnrollmentStatus,
+} = require('../utils/testSchedule');
+const { findPublishedContestByAssessment } = require('../utils/contestService');
 
 router.use(auth);
 
@@ -42,6 +49,16 @@ router.post('/', [
       endDate,
       settings
     } = req.body;
+
+    const parsedStartDate = parseScheduleDateInput(startDate);
+    const parsedEndDate = parseScheduleDateInput(endDate);
+    const scheduleError = validateScheduleInput({
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+    });
+    if (scheduleError) {
+      return res.status(400).json({ message: scheduleError });
+    }
 
     // Validate questions (if provided)
     if (questions && questions.length > 0) {
@@ -79,9 +96,12 @@ router.post('/', [
         questionId: q.questionId,
         order: q.order || index + 1
       })),
-      startDate,
-      endDate,
-      settings: settings || {}
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+      settings: {
+        autoSubmitAtWindowEnd: settings?.autoSubmitAtWindowEnd !== false,
+        ...settings,
+      }
     });
 
     await interview.save();
@@ -129,22 +149,39 @@ router.get('/assigned', authorize('student'), async (req, res) => {
       if (!lastCompletedByInterview[id]) lastCompletedByInterview[id] = s;
     }
 
-    const withStatus = interviews.map(interview => {
+    const withStatus = await Promise.all(interviews.map(async (interview) => {
       const enrollment = student.enrolledInterviews.find(
         ei => ei.interviewId && ei.interviewId.toString() === interview._id.toString()
       );
       const allowMultipleAttempts = interview.settings?.allowMultipleAttempts === true;
       const lastSession = lastCompletedByInterview[interview._id.toString()];
       const hasCompleted = !!lastSession;
-      return {
+
+      const activeContest = await findPublishedContestByAssessment(
+        'interview',
+        interview._id,
+        student._id
+      );
+
+      const basePayload = {
         ...interview.toObject(),
         enrollmentStatus: enrollment ? enrollment.status : 'assigned',
         assignedAt: enrollment ? enrollment.assignedAt : null,
         allowMultipleAttempts,
         hasCompleted,
-        lastSessionId: lastSession ? lastSession._id : null
+        lastSessionId: lastSession ? lastSession._id : null,
+        ...(activeContest ? { contestId: activeContest._id } : {}),
       };
-    });
+
+      return attachScheduleToTest(
+        basePayload,
+        resolveScheduleEnrollmentStatus(enrollment ? enrollment.status : 'assigned', {
+          allowRetake: allowMultipleAttempts,
+        }),
+        undefined,
+        { skipSchedule: Boolean(activeContest) }
+      );
+    }));
 
     res.json(withStatus);
   } catch (error) {
@@ -189,13 +226,26 @@ router.put('/:id', authorize('vendor_admin'), tenantMiddleware, async (req, res)
     }
 
     const { title, description, duration, questionCount, questions, startDate, endDate, isActive, settings } = req.body;
+
+    const hasStartDate = Object.prototype.hasOwnProperty.call(req.body, 'startDate');
+    const hasEndDate = Object.prototype.hasOwnProperty.call(req.body, 'endDate');
+    const parsedStartDate = hasStartDate ? parseScheduleDateInput(startDate) : interview.startDate;
+    const parsedEndDate = hasEndDate ? parseScheduleDateInput(endDate) : interview.endDate;
+    const scheduleError = validateScheduleInput({
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+    });
+    if (scheduleError) {
+      return res.status(400).json({ message: scheduleError });
+    }
+
     if (title) interview.title = title;
     if (description !== undefined) interview.description = description;
     if (duration) interview.duration = duration;
     if (questionCount) interview.questionCount = questionCount;
     if (questions) interview.questions = questions;
-    if (startDate) interview.startDate = startDate;
-    if (endDate) interview.endDate = endDate;
+    if (hasStartDate) interview.startDate = parsedStartDate;
+    if (hasEndDate) interview.endDate = parsedEndDate;
     if (isActive !== undefined) interview.isActive = isActive;
     if (settings) interview.settings = { ...interview.settings, ...settings };
 

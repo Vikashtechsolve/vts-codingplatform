@@ -5,6 +5,7 @@ import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import Modal from '../../components/Modal';
+import { formatTopicsCardPreview } from '../../utils/interviewCardText';
 import './AssignTestToClassroom.css';
 
 const TEST_TYPES = [
@@ -404,7 +405,9 @@ const AssignTestToClassroom = () => {
                       {item.duration != null && <span>{item.duration} min</span>}
                     </div>
                     {item.kind === 'interview' && item.topic && (
-                      <p className="vh-cell-muted">Topic: {item.topic}</p>
+                      <p className="vh-cell-muted" title={item.topic}>
+                        Topic: {formatTopicsCardPreview(item.topic)}
+                      </p>
                     )}
                   </div>
                   <button

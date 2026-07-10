@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { formatScheduleDateTime } from '../../utils/datetimeLocal';
+import { formatInterviewCardSubtitle } from '../../utils/interviewCardText';
 import './VendorAdminCommon.css';
 import './InterviewList.css';
 import { FiEdit2 } from 'react-icons/fi';
@@ -73,7 +75,12 @@ const InterviewList = () => {
                 <div className="interview-card-header">
                   <div>
                     <h3>{interview.title}</h3>
-                    <p>{interview.interviewType} · {interview.topic} · {interview.difficulty}</p>
+                    <p
+                      className="interview-card-subtitle"
+                      title={[interview.interviewType, interview.topic, interview.difficulty].filter(Boolean).join(' · ')}
+                    >
+                      {formatInterviewCardSubtitle(interview)}
+                    </p>
                   </div>
                   <span className={`status-badge-modern ${interview.isActive ? 'active' : 'inactive'}`}>
                     {interview.isActive ? 'Active' : 'Inactive'}
@@ -82,6 +89,12 @@ const InterviewList = () => {
                 <div className="interview-meta">
                   <span><strong>Duration:</strong> {interview.duration} min</span>
                   <span><strong>Questions:</strong> {interview.questionCount || interview.questions?.length || 0}</span>
+                  {interview.startDate && (
+                    <span><strong>Starts:</strong> {formatScheduleDateTime(interview.startDate)}</span>
+                  )}
+                  {interview.endDate && (
+                    <span><strong>Ends:</strong> {formatScheduleDateTime(interview.endDate)}</span>
+                  )}
                 </div>
                 <div className="interview-actions">
                   <Link to={`/vendor-admin/interviews/${interview._id}/assign`} className="btn btn-primary btn-sm">

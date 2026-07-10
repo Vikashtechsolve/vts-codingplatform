@@ -55,6 +55,17 @@
   gap: 16px;
 }
 
+.interview-card-subtitle {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
 .interview-meta {
   display: flex;
   gap: 16px;

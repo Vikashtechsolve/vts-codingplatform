@@ -23,7 +23,12 @@ const {
   syncParticipantOnInterviewStart,
   markParticipantCompleted,
   getParticipant,
+  findPublishedContestByAssessment,
 } = require('../utils/contestService');
+const {
+  assertCanStartScheduledTest,
+  resolveScheduleEnrollmentStatus,
+} = require('../utils/testSchedule');
 const Contest = require('../models/Contest');
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -82,6 +87,8 @@ const generateAiQuestionBatch = async (interview, count, previousTexts = []) => 
       interviewType: interview.interviewType,
       topic: interview.topic,
       difficulty: interview.difficulty,
+      description: interview.description,
+      title: interview.title,
       previousQuestions: generated
     });
     if (questionText) {
@@ -196,6 +203,21 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
     }
 
     const allowMultipleAttempts = interview.settings?.allowMultipleAttempts === true;
+
+    if (!activeContest) {
+      const scheduleEnrollmentStatus = resolveScheduleEnrollmentStatus(enrollment.status, {
+        allowRetake: allowMultipleAttempts,
+      });
+      const scheduleCheck = assertCanStartScheduledTest(interview, scheduleEnrollmentStatus);
+      if (!scheduleCheck.ok) {
+        return res.status(scheduleCheck.status || 403).json({
+          message: scheduleCheck.message,
+          code: scheduleCheck.code,
+          schedulePhase: scheduleCheck.schedule?.phase,
+        });
+      }
+    }
+
     if (!allowMultipleAttempts) {
       const completedSession = await InterviewSession.findOne({
         interviewId: interview._id,
@@ -298,6 +320,7 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
         interviewType: interview.interviewType,
         topic: interview.topic,
         difficulty: interview.difficulty,
+        description: interview.description,
         firstQuestionText: session.currentQuestion.questionText
       });
       session.currentQuestion = {

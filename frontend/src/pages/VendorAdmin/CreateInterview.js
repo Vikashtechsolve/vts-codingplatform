@@ -7,6 +7,13 @@ import VendorTestSelectedPanel from '../../components/VendorAdmin/VendorTestSele
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag, tagSlug } from '../../utils/tagUtils';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
+import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
+import {
+  buildTestSchedulePayload,
+  toLocalDateTimeInput,
+  validateLocalScheduleRange,
+} from '../../utils/datetimeLocal';
+import { formatTopicsCardPreview } from '../../utils/interviewCardText';
 
 const CreateInterview = () => {
   const navigate = useNavigate();
@@ -22,6 +29,9 @@ const CreateInterview = () => {
     difficulty: 'beginner',
     duration: 20,
     questionCount: 6,
+    startDate: '',
+    endDate: '',
+    autoSubmitAtWindowEnd: true,
     questions: [],
     settings: {
       allowFollowUps: true,
@@ -29,6 +39,7 @@ const CreateInterview = () => {
       adaptiveDifficulty: true,
       allowMultipleAttempts: false,
       showResults: true,
+      autoSubmitAtWindowEnd: true,
     },
   });
   const [bank, setBank] = useState([]);
@@ -59,6 +70,9 @@ const CreateInterview = () => {
           difficulty: interview.difficulty || 'beginner',
           duration: interview.duration ?? 20,
           questionCount: interview.questionCount ?? (interview.questions?.length || 6),
+          startDate: toLocalDateTimeInput(interview.startDate),
+          endDate: toLocalDateTimeInput(interview.endDate),
+          autoSubmitAtWindowEnd: interview.settings?.autoSubmitAtWindowEnd !== false,
           questions: (interview.questions || []).map((q, i) => ({
             questionId: q.questionId?._id || q.questionId,
             order: q.order ?? i + 1,
@@ -69,6 +83,7 @@ const CreateInterview = () => {
             adaptiveDifficulty: interview.settings?.adaptiveDifficulty ?? true,
             allowMultipleAttempts: interview.settings?.allowMultipleAttempts ?? false,
             showResults: interview.settings?.showResults ?? true,
+            autoSubmitAtWindowEnd: interview.settings?.autoSubmitAtWindowEnd !== false,
           },
         });
       } catch (err) {
@@ -178,9 +193,28 @@ const CreateInterview = () => {
       return;
     }
 
+    const scheduleError = validateLocalScheduleRange(formData.startDate, formData.endDate);
+    if (scheduleError) {
+      setError(scheduleError);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const payload = { ...formData, questions: formData.questions };
+      const schedulePayload = buildTestSchedulePayload({
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+      });
+      const payload = {
+        ...formData,
+        ...schedulePayload,
+        questions: formData.questions,
+        settings: {
+          ...formData.settings,
+          autoSubmitAtWindowEnd: formData.autoSubmitAtWindowEnd,
+        },
+      };
+      delete payload.autoSubmitAtWindowEnd;
       if (isEditMode) {
         await axiosInstance.put(`/interviews/${interviewId}`, payload);
       } else {
@@ -204,7 +238,7 @@ const CreateInterview = () => {
     <>
       <span className="vtf-footer-meta">
         {formData.questions.length === 0 ? (
-          <>AI will pick questions by type, topic & difficulty</>
+          <>AI will pick questions by type, topic, difficulty & description</>
         ) : (
           <>
             <strong>{formData.questions.length}</strong> fixed question
@@ -374,9 +408,32 @@ const CreateInterview = () => {
             </section>
 
             <section className="vtf-section">
+              <h2 className="vtf-section-title">Schedule (optional)</h2>
+              <p className="vtf-section-hint">Leave blank for an always-available interview.</p>
+              <TestScheduleFields
+                startDate={formData.startDate}
+                endDate={formData.endDate}
+                autoSubmitAtWindowEnd={formData.autoSubmitAtWindowEnd}
+                onStartDateChange={handleChange}
+                onEndDateChange={handleChange}
+                onAutoSubmitChange={(checked) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    autoSubmitAtWindowEnd: checked,
+                    settings: { ...prev.settings, autoSubmitAtWindowEnd: checked },
+                  }))
+                }
+                startId="int-start"
+                endId="int-end"
+                fieldClassName="vtf-field"
+                rowClassName="vtf-row"
+              />
+            </section>
+
+            <section className="vtf-section">
               <h2 className="vtf-section-title">Question pool (optional)</h2>
               <p className="vtf-section-hint">
-                Pin specific questions, or leave empty so AI selects by type, topic, and difficulty.
+                Pin specific questions, or leave empty so AI selects by type, topic, difficulty, and description.
               </p>
               <div className="vtf-segment">
                 <button
@@ -465,7 +522,7 @@ const CreateInterview = () => {
                         </div>
                         <div className="vtf-q-meta">
                           <span>{q.interviewType}</span>
-                          <span>{q.topic}</span>
+                          <span title={q.topic}>{formatTopicsCardPreview(q.topic)}</span>
                         </div>
                         {!!q.tags?.length && (
                           <div className="vtf-tags-row">

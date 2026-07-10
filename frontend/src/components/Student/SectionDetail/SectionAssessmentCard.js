@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiArrowRight, FiPlay, FiAward, FiClock, FiLayers, FiTrendingUp } from 'react-icons/fi';
 import { STATUS_GROUPS } from '../../../utils/studentSectionItems';
+import { truncateCardPreview } from '../../../utils/interviewCardText';
 
 const HIDDEN_META_LABELS = new Set(['Topic']);
 
@@ -9,6 +10,13 @@ const META_ICONS = {
   Duration: FiClock,
   Type: FiLayers,
   Difficulty: FiTrendingUp,
+};
+
+const formatInterviewMetaValue = (label, value) => {
+  if (!value) return value;
+  if (label === 'Type') return truncateCardPreview(String(value), 32);
+  if (label === 'Difficulty') return truncateCardPreview(String(value), 24);
+  return truncateCardPreview(String(value), 48);
 };
 
 const SectionAssessmentCard = ({ item, sectionId, sectionIcon: SectionIcon, sectionAccent }) => {
@@ -41,10 +49,11 @@ const SectionAssessmentCard = ({ item, sectionId, sectionIcon: SectionIcon, sect
         <ul className="assessment-interview-meta">
           {displayMeta.map((m) => {
             const Icon = META_ICONS[m.label];
+            const value = formatInterviewMetaValue(m.label, m.value);
             return (
-              <li key={`${m.label}-${m.value}`}>
+              <li key={`${m.label}-${m.value}`} title={m.value}>
                 {Icon && <Icon aria-hidden />}
-                <span>{m.value}</span>
+                <span>{value}</span>
               </li>
             );
           })}

@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { formatScheduleDateTime } from '../../utils/datetimeLocal';
+import { normalizeInterviewItem } from '../../utils/studentSectionItems';
+import {
+  formatInterviewCardSubtitle,
+  truncateCardPreview,
+} from '../../utils/interviewCardText';
 import './MockInterviews.css';
 
 const MockInterviews = () => {
@@ -45,30 +51,54 @@ const MockInterviews = () => {
         </div>
       ) : (
         <div className="interview-grid">
-          {interviews.map(interview => (
+          {interviews.map((interview) => {
+            const item = normalizeInterviewItem(interview);
+            const primary = item.primary || {};
+            return (
             <div key={interview._id} className="interview-card">
               <div className="interview-card-header">
                 <div>
                   <h3>{interview.title}</h3>
-                  <p>{interview.description || 'AI-driven interview session'}</p>
+                  <p className="interview-card-subtitle" title={formatInterviewCardSubtitle(interview, { maxTopicLength: 200 })}>
+                    {formatInterviewCardSubtitle(interview)}
+                  </p>
+                  {interview.description && (
+                    <p className="interview-card-desc" title={interview.description}>
+                      {truncateCardPreview(interview.description, 90)}
+                    </p>
+                  )}
                 </div>
-                <span className={`status-badge-modern ${interview.enrollmentStatus || 'assigned'}`}>
-                  {interview.enrollmentStatus || 'assigned'}
+                <span className={`status-badge-modern ${item.statusKey || interview.enrollmentStatus || 'assigned'}`}>
+                  {item.statusLabel || interview.enrollmentStatus || 'assigned'}
                 </span>
               </div>
               <div className="interview-meta">
-                <div><strong>Type:</strong> {interview.interviewType}</div>
-                <div><strong>Topic:</strong> {interview.topic}</div>
-                <div><strong>Level:</strong> {interview.difficulty}</div>
                 <div><strong>Duration:</strong> {interview.duration} min</div>
+                {(interview.scheduleWindowStart || interview.startDate) && (
+                  <div><strong>Starts:</strong> {formatScheduleDateTime(interview.scheduleWindowStart || interview.startDate)}</div>
+                )}
+                {(interview.scheduleWindowEnd || interview.endDate) && (
+                  <div><strong>Ends:</strong> {formatScheduleDateTime(interview.scheduleWindowEnd || interview.endDate)}</div>
+                )}
               </div>
+              {primary.hint && <p className="interview-schedule-hint">{primary.hint}</p>}
               <div className="interview-actions">
-                <Link to={`/student/interviews/${interview._id}`} className="btn btn-primary">
-                  Start Interview →
-                </Link>
+                {primary.disabled ? (
+                  <span className="btn btn-secondary btn-disabled">{primary.label}</span>
+                ) : (
+                  <Link to={primary.link || `/student/interviews/${interview._id}`} className="btn btn-primary">
+                    {primary.label} →
+                  </Link>
+                )}
+                {item.secondary?.link && (
+                  <Link to={item.secondary.link} className="btn btn-secondary">
+                    {item.secondary.label}
+                  </Link>
+                )}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>

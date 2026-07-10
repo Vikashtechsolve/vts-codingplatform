@@ -168,6 +168,12 @@ function parseScheduleDateInput(value) {
   return d;
 }
 
+function resolveScheduleEnrollmentStatus(enrollmentStatus, options = {}) {
+  const { allowRetake = false } = options;
+  if (enrollmentStatus === 'completed' && allowRetake) return 'assigned';
+  return enrollmentStatus || 'assigned';
+}
+
 function assertCanStartScheduledTest(test, enrollmentStatus, now = getNow()) {
   const schedule = getTestSchedulePhase(test, now);
   const inProgress = enrollmentStatus === 'in_progress';
@@ -266,6 +272,7 @@ module.exports = {
   getAttemptWindowEndForClient,
   validateScheduleInput,
   parseScheduleDateInput,
+  resolveScheduleEnrollmentStatus,
   assertCanStartScheduledTest,
   sweepExpiredScheduledTestAttempts,
 };

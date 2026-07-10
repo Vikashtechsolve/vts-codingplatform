@@ -105,6 +105,100 @@ function getTestAction(test) {
   return { primary: { label: 'Start test', link: base, variant: 'primary' } };
 }
 
+function getInterviewAction(interview) {
+  const link = `/student/interviews/${interview._id}`;
+  const feedbackLink = interview.lastSessionId
+    ? `/student/interviews/feedback/${interview.lastSessionId}`
+    : null;
+  const hasCompleted = interview.hasCompleted;
+  const canRetry = interview.allowMultipleAttempts === true;
+
+  if (hasCompleted && feedbackLink) {
+    if (canRetry) {
+      if (interview.enrollmentStatus === 'in_progress') {
+        if (interview.canContinueAttempt === false) {
+          return {
+            primary: {
+              label: 'Window closed',
+              disabled: true,
+              hint: interview.scheduleMessage || 'The attempt window has ended.',
+            },
+            secondary: { label: 'View feedback', link: feedbackLink, variant: 'secondary' },
+          };
+        }
+        return {
+          primary: { label: 'Continue interview', link, variant: 'primary' },
+          secondary: { label: 'View feedback', link: feedbackLink, variant: 'secondary' },
+        };
+      }
+      if (interview.schedulePhase === 'upcoming') {
+        return {
+          primary: {
+            label: interview.scheduleWindowStart
+              ? `Opens ${formatDate(interview.scheduleWindowStart)}`
+              : 'Not open yet',
+            disabled: true,
+            hint: interview.scheduleMessage || 'This interview is not open yet.',
+          },
+          secondary: { label: 'View feedback', link: feedbackLink, variant: 'secondary' },
+        };
+      }
+      if (interview.schedulePhase === 'ended' || interview.canStartAttempt === false) {
+        return {
+          primary: {
+            label: 'Window closed',
+            disabled: true,
+            hint: interview.scheduleMessage || 'The scheduled attempt window has ended.',
+          },
+          secondary: { label: 'View feedback', link: feedbackLink, variant: 'secondary' },
+        };
+      }
+      return {
+        primary: { label: 'Retake interview', link, variant: 'primary' },
+        secondary: { label: 'View feedback', link: feedbackLink, variant: 'secondary' },
+      };
+    }
+    return { primary: { label: 'View feedback', link: feedbackLink, variant: 'secondary' } };
+  }
+
+  if (interview.enrollmentStatus === 'in_progress') {
+    if (interview.canContinueAttempt === false) {
+      return {
+        primary: {
+          label: 'Window closed',
+          disabled: true,
+          hint: interview.scheduleMessage || 'The attempt window has ended.',
+        },
+      };
+    }
+    return { primary: { label: 'Continue interview', link, variant: 'primary' } };
+  }
+
+  if (interview.schedulePhase === 'upcoming') {
+    return {
+      primary: {
+        label: interview.scheduleWindowStart
+          ? `Opens ${formatDate(interview.scheduleWindowStart)}`
+          : 'Not open yet',
+        disabled: true,
+        hint: interview.scheduleMessage || 'This interview is not open yet.',
+      },
+    };
+  }
+
+  if (interview.schedulePhase === 'ended' || interview.canStartAttempt === false) {
+    return {
+      primary: {
+        label: 'Window closed',
+        disabled: true,
+        hint: interview.scheduleMessage || 'The scheduled attempt window has ended.',
+      },
+    };
+  }
+
+  return { primary: { label: 'Start interview', link, variant: 'primary' } };
+}
+
 export function normalizeTestItem(test) {
   let st = mapTestStatus(test.enrollmentStatus || 'assigned');
   if (test.schedulePhase === 'upcoming' && test.enrollmentStatus !== 'completed') {
@@ -158,6 +252,14 @@ export function normalizeInterviewItem(interview) {
     st = { group: STATUS_GROUPS.COMPLETED, key: 'completed', label: 'Completed' };
   } else if (interview.enrollmentStatus === 'in_progress') {
     st = { group: STATUS_GROUPS.IN_PROGRESS, key: 'in_progress', label: 'In progress' };
+  } else if (interview.schedulePhase === 'upcoming') {
+    st = { group: STATUS_GROUPS.TODO, key: 'upcoming', label: 'Opens soon' };
+  } else if (
+    interview.schedulePhase === 'ended' &&
+    interview.enrollmentStatus !== 'completed' &&
+    interview.enrollmentStatus !== 'in_progress'
+  ) {
+    st = { group: STATUS_GROUPS.OVERDUE, key: 'window_closed', label: 'Window closed' };
   } else {
     st = { group: STATUS_GROUPS.TODO, key: 'assigned', label: 'Not started' };
   }
@@ -166,29 +268,26 @@ export function normalizeInterviewItem(interview) {
   if (interview.duration) meta.push({ label: 'Duration', value: `${interview.duration} min` });
   if (interview.interviewType) meta.push({ label: 'Type', value: interview.interviewType });
   if (interview.difficulty) meta.push({ label: 'Difficulty', value: interview.difficulty });
-
-  const actions = { primary: { label: 'Start interview', link: `/student/interviews/${interview._id}`, variant: 'primary' } };
-  if (hasCompleted && interview.lastSessionId) {
-    actions.secondary = { label: 'View feedback', link: `/student/interviews/feedback/${interview.lastSessionId}`, variant: 'secondary' };
-    if (canRetry) {
-      actions.primary = { label: 'Retake interview', link: `/student/interviews/${interview._id}`, variant: 'primary' };
-    } else {
-      actions.primary = actions.secondary;
-      delete actions.secondary;
-    }
+  if (interview.scheduleWindowStart || interview.startDate) {
+    meta.push({ label: 'Starts', value: formatDate(interview.scheduleWindowStart || interview.startDate) });
   }
+  if (interview.scheduleWindowEnd || interview.endDate) {
+    meta.push({ label: 'Ends', value: formatDate(interview.scheduleWindowEnd || interview.endDate) });
+  }
+
+  const actions = getInterviewAction(interview);
 
   return {
     id: interview._id,
     title: interview.title,
-    description: null,
+    description: interview.description || null,
     typeLabel: 'interview',
     statusGroup: st.group,
     statusKey: st.key,
     statusLabel: st.label,
     score: null,
     assignedAt: interview.assignedAt,
-    sortDate: interview.assignedAt,
+    sortDate: interview.assignedAt || interview.startDate,
     meta,
     ...actions,
     raw: interview,
