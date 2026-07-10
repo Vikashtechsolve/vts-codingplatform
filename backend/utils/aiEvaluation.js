@@ -2,6 +2,7 @@ const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
 const OPENAI_EVAL_MODEL = process.env.OPENAI_EVAL_MODEL || 'gpt-4.1-mini';
+const { computeSessionMarksTotals } = require('./interviewScoring');
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -10,6 +11,94 @@ const normalizeText = (text = '') => text.replace(/\s+/g, ' ').trim();
 const wordCount = (text = '') => {
   const normalized = normalizeText(text);
   return normalized ? normalized.split(' ').length : 0;
+};
+
+const INTERVIEW_DIMENSION_WEIGHTS = {
+  correctness: 0.25,
+  depth: 0.25,
+  structure: 0.15,
+  confidence: 0.15,
+  relevance: 0.2
+};
+
+const EMPTY_TRANSCRIPT_MARKERS = new Set([
+  '',
+  '(no verbal response)',
+  '(No verbal response)'
+]);
+
+const isEmptyInterviewTranscript = (transcript = '') => {
+  const normalized = normalizeText(transcript).toLowerCase();
+  return EMPTY_TRANSCRIPT_MARKERS.has(normalized);
+};
+
+const weightedInterviewDimensionAverage = (evaluation = {}) => {
+  let sum = 0;
+  let weightSum = 0;
+  Object.entries(INTERVIEW_DIMENSION_WEIGHTS).forEach(([key, weight]) => {
+    const value = Number(evaluation[key]);
+    if (Number.isFinite(value)) {
+      sum += value * weight;
+      weightSum += weight;
+    }
+  });
+  return weightSum > 0 ? sum / weightSum : 0;
+};
+
+const normalizeInterviewEvaluation = (evaluation = {}, transcript = '') => {
+  const normalized = { ...evaluation };
+  const dimensions = ['correctness', 'depth', 'structure', 'confidence', 'relevance'];
+
+  if (isEmptyInterviewTranscript(transcript)) {
+    return {
+      ...normalized,
+      overall: 0,
+      correctness: 0,
+      depth: 0,
+      structure: 0,
+      confidence: 0,
+      relevance: 0
+    };
+  }
+
+  const words = wordCount(transcript);
+  const weightedAvg = weightedInterviewDimensionAverage(normalized);
+  const dimensionMax = Math.max(...dimensions.map((key) => Number(normalized[key]) || 0));
+  let overall = Number(normalized.overall) || 0;
+
+  if (overall < 8 && weightedAvg >= 12) {
+    overall = Math.round(weightedAvg);
+  }
+
+  if (words >= 4 && overall < 15) {
+    const effortBase = Math.min(45, 12 + Math.min(words, 35));
+    const relevanceBump = dimensionMax >= 10 ? Math.round(dimensionMax * 0.4) : 0;
+    overall = Math.max(overall, effortBase, relevanceBump);
+  }
+  if (words >= 12 && overall < 22 && weightedAvg >= 8) {
+    overall = Math.max(overall, 22);
+  }
+  if (words >= 20 && overall < 28 && weightedAvg >= 15) {
+    overall = Math.max(overall, 28);
+  }
+
+  overall = clamp(Math.round(overall), 0, 100);
+
+  if (overall >= 20) {
+    dimensions.forEach((key) => {
+      const value = Number(normalized[key]) || 0;
+      if (value === 0) {
+        normalized[key] = Math.round(overall * 0.55);
+      }
+    });
+  }
+
+  dimensions.forEach((key) => {
+    normalized[key] = clamp(Math.round(Number(normalized[key]) || 0), 0, 100);
+  });
+  normalized.overall = overall;
+
+  return normalized;
 };
 
 const detectLanguage = (text = '') => {
@@ -266,6 +355,19 @@ Return JSON only with this schema:
   "answerSummary": string
 }
 
+Scoring rubric (0-100 for overall and each dimension):
+- 0: No meaningful answer, silence, or completely off-topic with no substance.
+- 15-35: Partial attempt — vague, incomplete, or missing key ideas but still relevant (award partial credit).
+- 40-55: Partially correct with noticeable gaps or weak examples.
+- 60-75: Good answer with minor gaps.
+- 76-90: Strong, well-explained answer.
+- 91-100: Excellent, thorough answer.
+
+IMPORTANT partial-credit rules:
+- If the student gave a partial but relevant answer, overall MUST be at least 25.
+- Do NOT give 0 unless they provided no meaningful content.
+- Score each dimension independently; a weak depth score can coexist with fair relevance.
+
 needsFollowUp: true if the answer is missing examples, lacks depth, is vague, off-topic, too short, OR leaves claims unexplored. Only false if the answer thoroughly answers the question with specific examples.
 acknowledgment: one short spoken sentence reacting to something SPECIFIC they said (quote or paraphrase their content).
 probeTopic: what to dig into next based on their actual words (for a follow-up question).
@@ -325,7 +427,7 @@ ${transcript}
     };
   }
 
-  return {
+  const rawEvaluation = {
     overall: clamp(Number(parsed.overall || 0), 0, 100),
     correctness: clamp(Number(parsed.correctness || 0), 0, 100),
     depth: clamp(Number(parsed.depth || 0), 0, 100),
@@ -341,6 +443,8 @@ ${transcript}
     probeTopic: String(parsed.probeTopic || '').trim(),
     answerSummary: String(parsed.answerSummary || '').trim()
   };
+
+  return normalizeInterviewEvaluation(rawEvaluation, transcript);
 };
 
 const isExceptionalAnswer = (evaluation, transcript) => {
@@ -804,15 +908,17 @@ Return plain text only.
 
 const generateInterviewFinalReport = async (session) => {
   const answers = session.answers || [];
+  const marksTotals = computeSessionMarksTotals(answers);
   const fallback = () => {
     const strengths = answers.flatMap((a) => a.evaluation?.strengths || []).slice(0, 5);
     const improvements = answers.flatMap((a) => a.evaluation?.weaknesses || []).slice(0, 5);
-    const overallScore = answers.length
+    const rubricAverage = answers.length
       ? Math.round(answers.reduce((s, a) => s + (a.evaluation?.overall || 0), 0) / answers.length)
       : 0;
+    const overallScore = marksTotals.totalMax > 0 ? marksTotals.percent : rubricAverage;
     return {
       overallScore,
-      readinessPercent: overallScore,
+      readinessPercent: rubricAverage,
       strengths: strengths.length ? strengths : ['Completed the full interview session.'],
       improvements: improvements.length ? improvements : ['Review question feedback for targeted practice.'],
       summary:
@@ -889,10 +995,11 @@ focusAreas: top 3 topics to practice next.`;
       return fallback();
     }
 
-    const overallScore = clamp(Math.round(Number(parsed.overallScore) || 0), 0, 100);
+    const rubricOverall = clamp(Math.round(Number(parsed.overallScore) || 0), 0, 100);
+    const overallScore = marksTotals.totalMax > 0 ? marksTotals.percent : rubricOverall;
     return {
       overallScore,
-      readinessPercent: clamp(Math.round(Number(parsed.readinessPercent) || overallScore), 0, 100),
+      readinessPercent: clamp(Math.round(Number(parsed.readinessPercent) || rubricOverall), 0, 100),
       readinessLabel: String(parsed.readinessLabel || '').slice(0, 80) || fallback().readinessLabel,
       strengths: Array.isArray(parsed.strengths) ? parsed.strengths.slice(0, 6) : fallback().strengths,
       improvements: Array.isArray(parsed.improvements) ? parsed.improvements.slice(0, 6) : fallback().improvements,
@@ -907,6 +1014,7 @@ focusAreas: top 3 topics to practice next.`;
 module.exports = {
   evaluateTheoryAnswer,
   evaluateInterviewAnswer,
+  normalizeInterviewEvaluation,
   generateFollowUpQuestion,
   generateInterviewQuestion,
   planInterviewerTurn,

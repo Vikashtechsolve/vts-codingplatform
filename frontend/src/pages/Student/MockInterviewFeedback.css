@@ -168,6 +168,7 @@
   line-height: 1.45;
 }
 
+.mir-overall-pill,
 .mir-readiness-pill {
   margin-left: auto;
   text-align: center;
@@ -178,6 +179,7 @@
   flex-shrink: 0;
 }
 
+.mir-overall-label,
 .mir-readiness-label {
   display: block;
   font-size: 0.68rem;
@@ -187,10 +189,19 @@
   color: var(--text-secondary);
 }
 
+.mir-overall-value,
 .mir-readiness-value {
   font-size: 1.35rem;
   font-weight: 800;
   color: var(--mir-accent);
+}
+
+.mir-overall-percent {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 /* Hero score */
@@ -245,7 +256,7 @@
 .mir-hero-stats {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -463,6 +474,10 @@
   border-left: 3px solid #f59e0b;
 }
 
+.mir-card-partial {
+  border-left: 3px solid #fb923c;
+}
+
 .mir-card-weak {
   border-left: 3px solid #ef4444;
 }
@@ -514,6 +529,11 @@
 .mir-status-fair {
   background: rgba(245, 158, 11, 0.14);
   color: #d97706;
+}
+
+.mir-status-partial {
+  background: rgba(251, 146, 60, 0.14);
+  color: #ea580c;
 }
 
 .mir-status-weak {
@@ -1014,6 +1034,7 @@
     flex-wrap: wrap;
   }
 
+  .mir-overall-pill,
   .mir-readiness-pill {
     margin-left: 0;
     width: 100%;

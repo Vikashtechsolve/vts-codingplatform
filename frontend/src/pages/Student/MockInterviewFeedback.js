@@ -9,7 +9,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import axiosInstance from '../../utils/axios';
-import { getInterviewAnswerScoreDisplay } from '../../utils/interviewScoring';
+import { getInterviewAnswerScoreDisplay, computeSessionMarksTotals } from '../../utils/interviewScoring';
 import './MockInterviewFeedback.css';
 
 const SKILL_KEYS = [
@@ -36,9 +36,12 @@ const getGrade = (pct) => {
   return { grade: 'D', color: '#ef4444' };
 };
 
-const getTier = (score) => {
-  if (score >= 80) return { cls: 'strong', label: 'Strong', icon: '✓' };
-  if (score >= 60) return { cls: 'fair', label: 'Fair', icon: '◐' };
+const getTier = (score, points, maxPoints) => {
+  const ratio = maxPoints > 0 ? (points / maxPoints) * 100 : score;
+  const basis = Number.isFinite(ratio) ? ratio : score;
+  if (basis >= 80) return { cls: 'strong', label: 'Strong', icon: '✓' };
+  if (basis >= 60) return { cls: 'fair', label: 'Fair', icon: '◐' };
+  if (basis >= 20) return { cls: 'partial', label: 'Partial', icon: '◔' };
   return { cls: 'weak', label: 'Needs work', icon: '!' };
 };
 
@@ -130,28 +133,39 @@ const MockInterviewFeedback = () => {
     [skillScores]
   );
 
+  const sessionMarks = useMemo(
+    () => computeSessionMarksTotals(session?.answers || []),
+    [session]
+  );
+
   const answerStats = useMemo(() => {
     const answers = session?.answers || [];
     let strong = 0;
     let fair = 0;
+    let partial = 0;
     let weak = 0;
     answers.forEach((a) => {
-      const s = a.evaluation?.overall ?? 0;
-      if (s >= 80) strong += 1;
-      else if (s >= 60) fair += 1;
+      const { points, maxPoints } = getInterviewAnswerScoreDisplay(a);
+      const tier = getTier(a.evaluation?.overall ?? 0, points, maxPoints);
+      if (tier.cls === 'strong') strong += 1;
+      else if (tier.cls === 'fair') fair += 1;
+      else if (tier.cls === 'partial') partial += 1;
       else weak += 1;
     });
-    return { strong, fair, weak, total: answers.length };
+    return { strong, fair, partial, weak, total: answers.length };
   }, [session]);
 
   const filteredAnswers = useMemo(() => {
     const answers = session?.answers || [];
     if (filter === 'all') return answers;
-    if (filter === 'strong') return answers.filter((a) => (a.evaluation?.overall ?? 0) >= 80);
-    if (filter === 'weak') return answers.filter((a) => (a.evaluation?.overall ?? 0) < 60);
     return answers.filter((a) => {
-      const s = a.evaluation?.overall ?? 0;
-      return s >= 60 && s < 80;
+      const { points, maxPoints } = getInterviewAnswerScoreDisplay(a);
+      const tier = getTier(a.evaluation?.overall ?? 0, points, maxPoints);
+      if (filter === 'strong') return tier.cls === 'strong';
+      if (filter === 'fair') return tier.cls === 'fair';
+      if (filter === 'partial') return tier.cls === 'partial';
+      if (filter === 'weak') return tier.cls === 'weak';
+      return true;
     });
   }, [session, filter]);
 
@@ -186,10 +200,12 @@ const MockInterviewFeedback = () => {
     );
   }
 
-  const overallScore = session.overallScore ?? 0;
-  const readinessPercent = session.readinessPercent ?? overallScore;
-  const { grade, color: gradeColor } = getGrade(overallScore);
-  const isPass = overallScore >= 60;
+  const displayScore = sessionMarks.totalMax > 0
+    ? sessionMarks.percent
+    : (session.overallScore ?? 0);
+  const readinessPercent = session.readinessPercent ?? displayScore;
+  const { grade, color: gradeColor } = getGrade(displayScore);
+  const isPass = displayScore >= 60;
   const ringLen = 327;
   const interview = session.interviewId || {};
 
@@ -197,7 +213,7 @@ const MockInterviewFeedback = () => {
     const e = answer.evaluation || {};
     const overall = e.overall ?? 0;
     const { points, maxPoints, percent } = getInterviewAnswerScoreDisplay(answer);
-    const tier = getTier(overall);
+    const tier = getTier(overall, points, maxPoints);
     const cardId = `q-${idx}`;
     const isExpanded = expandedCards[cardId];
     const transcript = answer.transcript?.trim() || '';
@@ -404,9 +420,16 @@ const MockInterviewFeedback = () => {
               (isPass ? 'You are on track for real interviews.' : 'Focus on the focus areas below before your next attempt.')}
           </p>
         </div>
-        <div className="mir-readiness-pill">
-          <span className="mir-readiness-label">Readiness</span>
-          <span className="mir-readiness-value">{readinessPercent}%</span>
+        <div className="mir-overall-pill">
+          <span className="mir-overall-label">Overall score</span>
+          <span className="mir-overall-value">
+            {sessionMarks.totalMax > 0
+              ? `${sessionMarks.totalPoints}/${sessionMarks.totalMax}`
+              : `${displayScore}%`}
+          </span>
+          {sessionMarks.totalMax > 0 && (
+            <span className="mir-overall-percent">{displayScore}%</span>
+          )}
         </div>
       </section>
 
@@ -421,14 +444,14 @@ const MockInterviewFeedback = () => {
               fill="none"
               stroke={gradeColor}
               strokeWidth="8"
-              strokeDasharray={`${(overallScore / 100) * ringLen} ${ringLen}`}
+              strokeDasharray={`${(displayScore / 100) * ringLen} ${ringLen}`}
               strokeLinecap="round"
               transform="rotate(-90 60 60)"
               className="mir-ring-fill"
             />
           </svg>
           <div className="mir-ring-text">
-            <span className="mir-ring-pct" style={{ color: gradeColor }}>{overallScore}%</span>
+            <span className="mir-ring-pct" style={{ color: gradeColor }}>{displayScore}%</span>
             <span className="mir-ring-grade" style={{ color: gradeColor }}>{grade}</span>
           </div>
         </div>
@@ -436,6 +459,18 @@ const MockInterviewFeedback = () => {
           <div className="mir-stat">
             <span className="mir-stat-value">{answerStats.total}</span>
             <span className="mir-stat-label">Questions</span>
+          </div>
+          <div className="mir-stat">
+            <span className="mir-stat-value">
+              {sessionMarks.totalMax > 0
+                ? `${sessionMarks.totalPoints}/${sessionMarks.totalMax}`
+                : '—'}
+            </span>
+            <span className="mir-stat-label">Marks earned</span>
+          </div>
+          <div className="mir-stat mir-stat-readiness">
+            <span className="mir-stat-value">{readinessPercent}%</span>
+            <span className="mir-stat-label">Readiness</span>
           </div>
           <div className="mir-stat">
             <span className="mir-stat-value">{formatTime(session.timeSpent)}</span>
@@ -541,6 +576,7 @@ const MockInterviewFeedback = () => {
               { id: 'all', label: `All (${answerStats.total})` },
               { id: 'strong', label: `Strong (${answerStats.strong})` },
               { id: 'fair', label: `Fair (${answerStats.fair})` },
+              { id: 'partial', label: `Partial (${answerStats.partial})` },
               { id: 'weak', label: `Needs work (${answerStats.weak})` }
             ].map((f) => (
               <button

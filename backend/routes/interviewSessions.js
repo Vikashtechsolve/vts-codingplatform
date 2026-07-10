@@ -15,6 +15,7 @@ const {
   generateInterviewOpener,
   generateInterviewFinalReport
 } = require('../utils/aiEvaluation');
+const { percentToInterviewPoints, computeSessionMarksTotals } = require('../utils/interviewScoring');
 const { transcribeAudio } = require('../utils/sttService');
 const { synthesizeSpeech } = require('../utils/ttsService');
 const { createTalkingHeadVideo, isTalkingHeadEnabled } = require('../utils/avatarTalkService');
@@ -450,7 +451,7 @@ router.post('/:sessionId/answer', auth, authorize('student'), async (req, res) =
     });
 
     const maxPoints = Number(question?.points) > 0 ? Number(question.points) : 10;
-    const points = Math.round(((evaluation?.overall ?? 0) / 100) * maxPoints);
+    const points = percentToInterviewPoints(evaluation?.overall ?? 0, maxPoints);
 
     session.answers.push({
       questionId: session.currentQuestion?.questionId || null,
@@ -545,7 +546,8 @@ router.post('/:sessionId/submit', auth, authorize('student'), async (req, res) =
     session.status = 'completed';
 
     const report = await generateInterviewFinalReport(session);
-    session.overallScore = report.overallScore;
+    const marksTotals = computeSessionMarksTotals(session.answers);
+    session.overallScore = marksTotals.totalMax > 0 ? marksTotals.percent : report.overallScore;
     session.readinessPercent = report.readinessPercent;
     session.finalFeedback = {
       strengths: report.strengths,
