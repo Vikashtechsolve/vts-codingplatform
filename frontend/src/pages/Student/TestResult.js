@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import axiosInstance from '../../utils/axios';
 import QuestionPracticePanel from '../../components/QuestionPracticePanel';
-import RichTextDisplay from '../../components/RichTextDisplay';
+import RichTextDisplay, { htmlToListPreview } from '../../components/RichTextDisplay';
 import './TestResult.css';
 
 const TYPE_META = {
@@ -449,8 +449,9 @@ const TestResult = () => {
     const meta = TYPE_META[answer.questionType] || { label: answer.questionType, color: '#64748b', icon: '?' };
     const cardKey = `q-${index}`;
     const isExpanded = expandedCards[cardKey];
-    const qTitle =
-      qd?.title || qd?.question?.slice?.(0, 60) || qd?.text?.slice?.(0, 60) || `Question ${index + 1}`;
+    const qTitle = htmlToListPreview(
+      qd?.title || qd?.question || qd?.text || qd?.questionText || `Question ${index + 1}`
+    ).slice(0, 60) || `Question ${index + 1}`;
     const canPractice = ['coding', 'mcq', 'aptitude', 'sql', 'theory'].includes(answer.questionType);
 
     return (

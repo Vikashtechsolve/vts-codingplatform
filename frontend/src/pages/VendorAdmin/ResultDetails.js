@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import RichTextDisplay, { htmlToListPreview } from '../../components/RichTextDisplay';
 import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
 import { formatDateTime, scoreTone } from '../../utils/vendorAssessmentUi';
@@ -86,6 +87,16 @@ const safeText = (v) => {
   if (Array.isArray(v)) return v.map(safeText).join(', ');
   if (typeof v === 'object') return JSON.stringify(v);
   return String(v);
+};
+
+const resultQuestionPreview = (qd, fallback = 'Question') => {
+  const raw =
+    qd?.title ||
+    qd?.question ||
+    qd?.text ||
+    qd?.questionText ||
+    fallback;
+  return htmlToListPreview(raw).slice(0, 80) || fallback;
 };
 
 /** Normalize stored coding/SQL submission (string or legacy object shapes). */
@@ -519,7 +530,7 @@ const ResultDetails = () => {
     <>
       <div className="vrd-q-block">
         <h5>Question</h5>
-        <p>{qd?.question || '—'}</p>
+        <RichTextDisplay content={qd?.question || '—'} className="vrd-html" />
       </div>
       <div className="vrd-options">
         {qd?.options?.map((option, optIndex) => {
@@ -531,7 +542,7 @@ const ResultDetails = () => {
               className={`vrd-opt ${isCorrectOption ? 'is-correct' : ''} ${isSelected ? 'is-selected' : ''}`}
             >
               <span className="vrd-opt-letter">{String.fromCharCode(65 + optIndex)}.</span>
-              <span>{option.text}</span>
+              <RichTextDisplay content={option.text} className="vrd-opt-text vrd-html" />
               {isCorrectOption && <span className="vrd-opt-pill ok">Correct</span>}
               {isSelected && !isCorrectOption && <span className="vrd-opt-pill bad">Selected</span>}
               {isSelected && isCorrectOption && <span className="vrd-opt-pill ok">Selected</span>}
@@ -542,7 +553,7 @@ const ResultDetails = () => {
       {qd?.explanation && (
         <div className="vrd-explanation">
           <strong>Explanation</strong>
-          <p>{qd.explanation}</p>
+          <RichTextDisplay content={qd.explanation} className="vrd-html" />
         </div>
       )}
     </>
@@ -553,12 +564,12 @@ const ResultDetails = () => {
       {qd?.caseStudy && (
         <div className="vrd-q-block">
           <h5>Case study</h5>
-          <p>{qd.caseStudy}</p>
+          <RichTextDisplay content={qd.caseStudy} className="vrd-html" />
         </div>
       )}
       <div className="vrd-q-block">
         <h5>Question</h5>
-        <p>{qd?.question || '—'}</p>
+        <RichTextDisplay content={qd?.question || '—'} className="vrd-html" />
       </div>
       {qd?.questionType === 'numeric' ? (
         <div className="vrd-answer-box">
@@ -581,7 +592,7 @@ const ResultDetails = () => {
                 className={`vrd-opt ${isCorrectOption ? 'is-correct' : ''} ${isSelected ? 'is-selected' : ''}`}
               >
                 <span className="vrd-opt-letter">{String.fromCharCode(65 + optIndex)}.</span>
-                <span>{option.text}</span>
+                <RichTextDisplay content={option.text} className="vrd-opt-text vrd-html" />
                 {isCorrectOption && <span className="vrd-opt-pill ok">Correct</span>}
                 {isSelected && !isCorrectOption && <span className="vrd-opt-pill bad">Selected</span>}
               </div>
@@ -592,7 +603,7 @@ const ResultDetails = () => {
       {qd?.explanation && (
         <div className="vrd-explanation">
           <strong>Explanation</strong>
-          <p>{qd.explanation}</p>
+          <RichTextDisplay content={qd.explanation} className="vrd-html" />
         </div>
       )}
     </>
@@ -776,13 +787,10 @@ const ResultDetails = () => {
     };
     const cardKey = `q-${index}`;
     const isExpanded = expandedCards[cardKey];
-    const qTitle =
-      qd?.title ||
-      qd?.question?.slice?.(0, 80) ||
-      qd?.text?.slice?.(0, 80) ||
-      qd?.questionText?.slice?.(0, 80) ||
-      SECTION_LABELS[answer.questionType] ||
-      `Question ${index + 1}`;
+    const qTitle = resultQuestionPreview(
+      qd,
+      SECTION_LABELS[answer.questionType] || `Question ${index + 1}`
+    );
     const isEnglishQ = ENGLISH_TYPES.includes(answer.questionType);
 
     return (

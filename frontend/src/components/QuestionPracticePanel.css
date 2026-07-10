@@ -247,12 +247,18 @@
 
 .qpp-opt {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--bg-secondary);
+}
+
+.qpp-opt-text.rich-text-display {
+  flex: 1;
+  min-width: 0;
 }
 
 .qpp-opt.correct {

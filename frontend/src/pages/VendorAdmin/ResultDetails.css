@@ -901,6 +901,23 @@
   font-weight: 800;
   color: var(--vrd-muted);
   min-width: 22px;
+  flex-shrink: 0;
+}
+
+.vrd-opt-text.rich-text-display {
+  flex: 1;
+  min-width: 0;
+}
+
+.vrd-html.rich-text-display {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--vrd-text);
+}
+
+.vrd-explanation .vrd-html.rich-text-display {
+  margin-top: 6px;
 }
 
 .vrd-opt-pill {

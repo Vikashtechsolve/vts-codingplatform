@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import MonacoCodeEditor from './MonacoCodeEditor';
+import RichTextDisplay from './RichTextDisplay';
 import axiosInstance from '../utils/axios';
 import {
   CODE_REQUEST_TIMEOUT_BATCH_MS,
@@ -264,7 +265,7 @@ const QuestionPracticePanel = ({ resultId, questionId, questionLabel, onClose })
 
             {payload.questionType === 'mcq' && q && (
               <div className="qpp-review">
-                <p className="qpp-q-text">{q.question}</p>
+                <RichTextDisplay content={q.question} className="qpp-q-text" />
                 <div className="qpp-options">
                   {q.options?.map((opt, idx) => {
                     const selected = parseInt(payload.submittedAnswer, 10) === idx;
@@ -275,7 +276,7 @@ const QuestionPracticePanel = ({ resultId, questionId, questionLabel, onClose })
                         className={`qpp-opt ${correct ? 'correct' : ''} ${selected ? 'selected' : ''}`}
                       >
                         <span className="qpp-opt-letter">{String.fromCharCode(65 + idx)}.</span>
-                        <span>{opt.text}</span>
+                        <RichTextDisplay content={opt.text} className="qpp-opt-text" />
                         {correct && <span className="qpp-opt-tag">Correct</span>}
                         {selected && <span className="qpp-opt-tag you">Your answer</span>}
                       </div>
@@ -285,7 +286,7 @@ const QuestionPracticePanel = ({ resultId, questionId, questionLabel, onClose })
                 {q.explanation && (
                   <div className="qpp-explanation">
                     <strong>Explanation</strong>
-                    <p>{q.explanation}</p>
+                    <RichTextDisplay content={q.explanation} className="qpp-explanation-text" />
                   </div>
                 )}
                 <p className="qpp-practice-note">
