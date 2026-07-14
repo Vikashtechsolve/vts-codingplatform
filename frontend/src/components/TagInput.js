@@ -18,46 +18,79 @@ const TagInput = ({
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [remoteLoading, setRemoteLoading] = useState(false);
 
   const rootRef = useRef(null);
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
+  const remoteSeqRef = useRef(0);
+  const selectedSlugsRef = useRef(new Set());
 
-  const { loading, searchTags, filterLocal, registerTag } = useTagSuggestions();
+  const { searchTags, filterLocal, registerTag } = useTagSuggestions();
   const selectedSlugs = useMemo(() => new Set(tags.map(tagSlug)), [tags]);
+  selectedSlugsRef.current = selectedSlugs;
 
   const trimmedInput = input.trim();
   const showSuggestions = trimmedInput.length > 0 && !disabled;
 
+  const mergeSuggestions = useCallback((local, remote, exclude) => {
+    const merged = new Map();
+    [...local, ...(remote || [])].forEach((item) => {
+      if (!item?.slug || exclude.has(item.slug)) return;
+      merged.set(item.slug, item);
+    });
+    return [...merged.values()].slice(0, 8);
+  }, []);
+
   const refreshSuggestions = useCallback(
-    async (query) => {
+    async (query, { refreshLocal = true } = {}) => {
       const trimmed = query.trim();
       if (!trimmed) {
         setSuggestions([]);
+        setRemoteLoading(false);
         return;
       }
 
-      const local = filterLocal(trimmed, selectedSlugs);
-      setSuggestions(local);
+      const exclude = selectedSlugsRef.current;
+      const local = filterLocal(trimmed, exclude);
+      if (refreshLocal) {
+        setSuggestions(local);
+      }
 
-      const remote = await searchTags(trimmed);
-      const merged = new Map();
-      [...local, ...(remote || [])].forEach((item) => {
-        if (!selectedSlugs.has(item.slug)) merged.set(item.slug, item);
-      });
-      setSuggestions([...merged.values()].slice(0, 8));
+      const seq = ++remoteSeqRef.current;
+      setRemoteLoading(true);
+      try {
+        const remote = await searchTags(trimmed);
+        if (seq !== remoteSeqRef.current) return;
+        if (remote === null) return;
+
+        setSuggestions((prev) => {
+          const merged = mergeSuggestions(local, remote, exclude);
+          return merged.length ? merged : prev;
+        });
+      } finally {
+        if (seq === remoteSeqRef.current) {
+          setRemoteLoading(false);
+        }
+      }
     },
-    [filterLocal, searchTags, selectedSlugs]
+    [filterLocal, mergeSuggestions, searchTags]
   );
 
   useEffect(() => {
     if (!showSuggestions) {
+      clearTimeout(debounceRef.current);
       setSuggestions([]);
       setActiveIndex(-1);
+      setRemoteLoading(false);
       return undefined;
     }
+
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => refreshSuggestions(input), 150);
+    debounceRef.current = setTimeout(() => {
+      refreshSuggestions(input, { refreshLocal: false });
+    }, 150);
+
     return () => clearTimeout(debounceRef.current);
   }, [input, showSuggestions, refreshSuggestions]);
 
@@ -114,6 +147,23 @@ const TagInput = ({
     addTag(opt.label);
   };
 
+  const onInputChange = (e) => {
+    const next = e.target.value;
+    setInput(next);
+    setActiveIndex(-1);
+
+    if (!next.trim()) {
+      remoteSeqRef.current += 1;
+      setSuggestions([]);
+      setRemoteLoading(false);
+      return;
+    }
+
+    remoteSeqRef.current += 1;
+    const local = filterLocal(next, selectedSlugsRef.current);
+    setSuggestions(local);
+  };
+
   const onKeyDown = (e) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       if (!options.length) return;
@@ -167,10 +217,7 @@ const TagInput = ({
             value={input}
             disabled={disabled}
             placeholder={tags.length ? 'Add tag…' : 'Type to search tags…'}
-            onChange={(e) => {
-              setInput(e.target.value);
-              setActiveIndex(-1);
-            }}
+            onChange={onInputChange}
             onKeyDown={onKeyDown}
             role="combobox"
             aria-autocomplete="list"
@@ -179,9 +226,9 @@ const TagInput = ({
           />
         </div>
 
-        {showSuggestions && (loading || options.length > 0) && (
+        {showSuggestions && (remoteLoading || options.length > 0) && (
           <div id="tag-input-suggestions" className="tag-input-suggest-strip" role="listbox">
-            {loading && options.length === 0 && (
+            {remoteLoading && options.length === 0 && (
               <span className="tag-input-suggest-hint">Finding tags…</span>
             )}
             {options.map((opt, index) => (
@@ -191,9 +238,11 @@ const TagInput = ({
                 role="option"
                 aria-selected={activeIndex === index}
                 className={`tag-input-suggest-pill ${opt.isCreate ? 'is-create' : ''} ${activeIndex === index ? 'is-active' : ''}`}
-                onMouseDown={(e) => e.preventDefault()}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickOption(index);
+                }}
                 onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => pickOption(index)}
               >
                 {opt.isCreate ? `+ Create "${opt.label}"` : opt.label}
                 {!opt.isCreate && opt.usageCount > 0 && (

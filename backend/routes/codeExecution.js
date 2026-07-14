@@ -22,25 +22,65 @@ const {
 
 /** Poll Redis for job state (avoids Bull pub/sub, unreliable on ElastiCache Serverless). */
 async function awaitJobResultPolled(queue, job, httpMs, label) {
-  const id = job.id;
+  const jobId = job.id;
   const deadline = Date.now() + httpMs;
+
   while (Date.now() < deadline) {
-    const fresh = await queue.getJob(id);
-    if (fresh) {
-      const state = await fresh.getState();
-      if (state === 'completed') {
-        return fresh.returnvalue;
-      }
-      if (state === 'failed') {
-        throw new Error(fresh.failedReason || 'Job failed');
+    let snapshot = null;
+
+    try {
+      snapshot = await queue.getJob(jobId);
+    } catch {
+      snapshot = null;
+    }
+
+    if (!snapshot) {
+      try {
+        await job.reload();
+        snapshot = job;
+      } catch {
+        if (job.returnvalue !== undefined && job.returnvalue !== null) {
+          return job.returnvalue;
+        }
       }
     }
+
+    if (snapshot) {
+      let state = 'unknown';
+      try {
+        state = await snapshot.getState();
+      } catch {
+        state = 'unknown';
+      }
+
+      if (state === 'completed') {
+        if (snapshot.returnvalue !== undefined && snapshot.returnvalue !== null) {
+          return snapshot.returnvalue;
+        }
+      } else if (state === 'failed') {
+        throw new Error(snapshot.failedReason || 'Job failed');
+      }
+    }
+
     await new Promise((r) => setTimeout(r, CODE_JOB_POLL_MS));
   }
+
   throw new Error(
     `${label}: no response after ${httpMs}ms. Ensure the code-worker container is running with the same ` +
       `REDIS_URL and the same app version (queue names in config/bullQueueNames.js) as this API.`
   );
+}
+
+async function safeRemoveWaitingJob(job) {
+  if (!job) return;
+  try {
+    const state = await job.getState();
+    if (state === 'waiting' || state === 'delayed' || state === 'paused') {
+      await job.remove();
+    }
+  } catch {
+    /* job may already be gone */
+  }
 }
 
 const JOB_ADD_OPTS = {
@@ -172,7 +212,7 @@ router.post('/execute', [
     console.error('[code-execution/execute]', msg, err.stack || '');
     const stalled = msg.includes('no response after');
     const isJobTimeout = msg.includes('timed out');
-    if (stalled && job) job.remove().catch(() => {});
+    if (stalled && job) await safeRemoveWaitingJob(job);
     res.status(stalled ? 503 : isJobTimeout ? 408 : 500).json({
       success: false,
       output: '',
@@ -221,7 +261,7 @@ router.post('/execute-batch', [
     console.error('[code-execution/execute-batch]', msg, err.stack || '');
     const stalled = msg.includes('no response after');
     const isJobTimeout = msg.includes('timed out');
-    if (stalled && job) job.remove().catch(() => {});
+    if (stalled && job) await safeRemoveWaitingJob(job);
     res.status(stalled ? 503 : isJobTimeout ? 408 : 500).json({
       success: false,
       error: stalled ? msg : isJobTimeout ? 'Execution timed out. Please simplify your code.' : msg,

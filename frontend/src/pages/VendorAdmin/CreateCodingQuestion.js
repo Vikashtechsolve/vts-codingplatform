@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { FiCopy, FiPlay } from 'react-icons/fi';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
@@ -799,10 +800,47 @@ const CreateCodingQuestion = () => {
         </div>
 
         <div className="form-section cq-section cq-code-section">
-          <h2 className="section-title">Code templates</h2>
-          <p className="section-description">
-            Write starter and private solution code side-by-side for the selected language.
-          </p>
+          <div className="cq-code-section-head">
+            <div className="cq-code-section-head-main">
+              <h2 className="section-title">Code templates</h2>
+              <p className="section-description cq-section-desc-inline">
+                Write starter and private solution code for each allowed language.
+              </p>
+            </div>
+            <div className="cq-code-section-actions">
+              {!String(testCode[selectedLanguage] || '').trim() && formData.allowedLanguages.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-secondary cq-copy-starter-btn"
+                  onClick={() => handleCopyStarterToSolution(selectedLanguage)}
+                  title="Copy starter template into solution code for the selected language"
+                >
+                  <FiCopy aria-hidden />
+                  Copy starter to solution
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary cq-run-all-btn"
+                onClick={handleTestAllTestCases}
+                disabled={
+                  isTestingAll ||
+                  formData.allowedLanguages.length === 0 ||
+                  formData.testCases.length === 0
+                }
+                title={
+                  formData.allowedLanguages.length === 0
+                    ? 'Select at least one allowed language'
+                    : formData.testCases.length === 0
+                      ? 'Add at least one test case'
+                      : 'Run solution code against all test cases'
+                }
+              >
+                <FiPlay aria-hidden />
+                {isTestingAll ? 'Running all test cases…' : 'Run all test cases'}
+              </button>
+            </div>
+          </div>
           <CodingQuestionCodeWorkspace
             allowedLanguages={formData.allowedLanguages}
             activeLang={selectedLanguage}
@@ -811,10 +849,6 @@ const CreateCodingQuestion = () => {
             testCode={testCode}
             onStarterChange={handleStarterCodeChange}
             onTestCodeChange={handleTestCodeChange}
-            onCopyStarterToSolution={handleCopyStarterToSolution}
-            onRunAllTests={handleTestAllTestCases}
-            isTestingAll={isTestingAll}
-            canRunTests={formData.allowedLanguages.length > 0 && formData.testCases.length > 0}
           />
         </div>
 

@@ -41,7 +41,7 @@ const WORKER_BATCH_CONCURRENCY = readInt(
 );
 
 /** Run up to N sample/hidden cases concurrently inside one batch job (compile once). */
-const BATCH_CASE_PARALLELISM = readInt('CODE_BATCH_CASE_PARALLELISM', 4);
+const BATCH_CASE_PARALLELISM = readInt('CODE_BATCH_CASE_PARALLELISM', 1);
 
 const JOB_ATTEMPTS = readInt('CODE_JOB_ATTEMPTS', 2);
 const JOB_RETRY_DELAY_MS = readInt('CODE_JOB_RETRY_DELAY_MS', 2000);

@@ -1591,12 +1591,19 @@
   --exam-accent-hover: #2563eb;
   --exam-accent-soft: rgba(59, 130, 246, 0.1);
   --exam-surface: #ffffff;
+  --exam-surface-elevated: #f8fafc;
+  --exam-code-bg: #f1f5f9;
+  --exam-editor-bg: #1e1e1e;
   --exam-border: var(--border-color);
   --exam-text: var(--text-primary);
   --exam-muted: var(--text-secondary);
   --exam-success: #059669;
   --exam-warn: #d97706;
   --exam-danger: #dc2626;
+  --exam-pass-bg: color-mix(in srgb, var(--exam-success) 10%, var(--exam-surface-elevated));
+  --exam-fail-bg: color-mix(in srgb, var(--exam-danger) 10%, var(--exam-surface-elevated));
+  --exam-pass-pre-bg: color-mix(in srgb, var(--exam-success) 12%, var(--exam-code-bg));
+  --exam-fail-pre-bg: color-mix(in srgb, var(--exam-danger) 12%, var(--exam-code-bg));
   --exam-radius: 10px;
   --exam-radius-sm: 8px;
   --exam-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -1911,7 +1918,13 @@
 .test-taking-container .question-panel:not(.coding-question-panel) {
   padding: 20px 22px;
   border-right: 1px solid var(--exam-border);
-  background: var(--bg-primary);
+  background: var(--exam-surface);
+  color: var(--exam-text);
+}
+
+.test-taking-container .question-panel.full-width {
+  background: var(--exam-surface);
+  color: var(--exam-text);
 }
 
 .test-taking-container .question-header {
@@ -1923,22 +1936,83 @@
 .test-taking-container .question-header h3 {
   font-size: 1rem;
   font-weight: 600;
+  color: var(--exam-text);
 }
 
-.test-taking-container .difficulty-badge.medium {
-  background: color-mix(in srgb, var(--exam-warn) 15%, var(--bg-primary));
-  color: var(--exam-warn);
-  border: 1px solid color-mix(in srgb, var(--exam-warn) 30%, var(--exam-border));
+.test-taking-container .question-description,
+.test-taking-container .question-description h4 {
+  color: var(--exam-text);
+}
+
+.test-taking-container .question-rich-text,
+.test-taking-container .description-content {
+  color: var(--exam-muted);
 }
 
 .test-taking-container .constraints-section {
   border-left: 3px solid var(--exam-accent);
   background: var(--exam-accent-soft);
   border-radius: var(--exam-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--exam-accent) 18%, var(--exam-border));
+  border-left-width: 3px;
 }
 
 .test-taking-container .constraints-section strong {
   color: var(--exam-accent);
+}
+
+.test-taking-container .constraints-content {
+  color: var(--exam-text);
+}
+
+.test-taking-container .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--exam-text);
+}
+
+.test-taking-container .form-group textarea,
+.test-taking-container .form-group input[type='text'],
+.test-taking-container .form-group input[type='number'] {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--exam-border);
+  border-radius: var(--exam-radius-sm);
+  background: var(--exam-code-bg);
+  color: var(--exam-text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.test-taking-container .form-group textarea::placeholder {
+  color: var(--exam-muted);
+}
+
+.test-taking-container .form-group textarea:focus,
+.test-taking-container .form-group input:focus {
+  outline: none;
+  border-color: var(--exam-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--exam-accent) 20%, transparent);
+}
+
+.test-taking-container .test-header-left h2,
+.test-taking-container .test-header-left h2 span {
+  color: var(--exam-text);
+}
+
+.test-taking-container .test-cases-section strong,
+.test-taking-container .custom-test-case-section strong,
+.test-taking-container .examples-section strong {
+  color: var(--exam-text);
+}
+
+.test-taking-container .difficulty-badge.medium {
+  background: color-mix(in srgb, var(--exam-warn) 15%, var(--exam-surface-elevated));
+  color: var(--exam-warn);
+  border: 1px solid color-mix(in srgb, var(--exam-warn) 30%, var(--exam-border));
 }
 
 .test-taking-container .test-cases-section,
@@ -1950,26 +2024,20 @@
   box-shadow: var(--exam-shadow);
 }
 
-.test-taking-container .test-cases-section strong,
-.test-taking-container .custom-test-case-section strong,
-.test-taking-container .examples-section strong {
-  color: var(--exam-text);
-}
-
 .test-taking-container .test-case-box {
-  background: var(--bg-primary);
+  background: var(--exam-surface-elevated);
   border: 1.5px solid var(--exam-border);
   border-radius: var(--exam-radius-sm);
 }
 
 .test-taking-container .test-case-box.test-case-passed {
   border-color: var(--exam-success);
-  background: color-mix(in srgb, var(--exam-success) 10%, var(--bg-primary));
+  background: var(--exam-pass-bg);
 }
 
 .test-taking-container .test-case-box.test-case-failed {
   border-color: var(--exam-danger);
-  background: color-mix(in srgb, var(--exam-danger) 10%, var(--bg-primary));
+  background: var(--exam-fail-bg);
 }
 
 .test-taking-container .test-case-header,
@@ -1981,8 +2049,9 @@
 
 .test-taking-container .test-case-item pre,
 .test-taking-container .custom-test-result-content pre,
-.test-taking-container .example-item pre {
-  background: var(--input-bg);
+.test-taking-container .example-item pre,
+.test-taking-container .test-case-result-details pre {
+  background: var(--exam-code-bg);
   border: 1px solid var(--exam-border);
   color: var(--exam-text);
 }
@@ -1992,52 +2061,53 @@
 }
 
 .test-taking-container .test-case-item.error pre {
-  background: color-mix(in srgb, var(--exam-danger) 12%, var(--bg-primary));
+  background: var(--exam-fail-pre-bg);
   border-color: color-mix(in srgb, var(--exam-danger) 40%, var(--exam-border));
+  color: var(--exam-danger);
 }
 
 .test-taking-container .output-correct {
   color: var(--exam-success) !important;
   border-color: var(--exam-success) !important;
-  background: color-mix(in srgb, var(--exam-success) 12%, var(--bg-primary)) !important;
+  background: var(--exam-pass-pre-bg) !important;
 }
 
 .test-taking-container .output-incorrect {
   color: var(--exam-danger) !important;
   border-color: var(--exam-danger) !important;
-  background: color-mix(in srgb, var(--exam-danger) 12%, var(--bg-primary)) !important;
+  background: var(--exam-fail-pre-bg) !important;
 }
 
 .test-taking-container .hidden-test-cases-note {
-  background: color-mix(in srgb, var(--exam-warn) 12%, var(--bg-primary));
+  background: color-mix(in srgb, var(--exam-warn) 12%, var(--exam-surface-elevated));
   border-left-color: var(--exam-warn);
   color: var(--exam-muted);
 }
 
 .test-taking-container .custom-test-input {
-  background: var(--input-bg);
+  background: var(--exam-code-bg);
   border-color: var(--exam-border);
   color: var(--exam-text);
 }
 
 .test-taking-container .custom-test-result.passed {
   border-color: var(--exam-success);
-  background: color-mix(in srgb, var(--exam-success) 10%, var(--bg-primary));
+  background: var(--exam-pass-bg);
 }
 
 .test-taking-container .custom-test-result.failed {
   border-color: var(--exam-danger);
-  background: color-mix(in srgb, var(--exam-danger) 10%, var(--bg-primary));
+  background: var(--exam-fail-bg);
 }
 
 .test-taking-container .test-case-result-item.passed {
   border-color: var(--exam-success);
-  background: color-mix(in srgb, var(--exam-success) 10%, var(--bg-primary));
+  background: var(--exam-pass-bg);
 }
 
 .test-taking-container .test-case-result-item.failed {
   border-color: var(--exam-danger);
-  background: color-mix(in srgb, var(--exam-danger) 10%, var(--bg-primary));
+  background: var(--exam-fail-bg);
 }
 
 .test-taking-container .test-case-result-header {
@@ -2109,7 +2179,7 @@
   gap: 14px;
   padding: 16px 18px;
   margin-bottom: 0;
-  background: var(--exam-surface);
+  background: var(--exam-surface-elevated);
   border: 1.5px solid var(--exam-border);
   border-radius: var(--exam-radius);
   cursor: pointer;
@@ -2261,244 +2331,191 @@
 
 /* Dark theme */
 [data-theme='dark'] .test-taking-container {
-  --exam-surface: #1f1f1f;
+  --exam-surface: #18181b;
+  --exam-surface-elevated: #27272a;
+  --exam-code-bg: #09090b;
+  --exam-editor-bg: #1e1e1e;
   --exam-border: #3f3f46;
+  --exam-text: #f4f4f5;
+  --exam-muted: #a1a1aa;
   --exam-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   --exam-shadow-md: 0 6px 20px rgba(0, 0, 0, 0.35);
-  --exam-accent-soft: rgba(59, 130, 246, 0.12);
+  --exam-accent-soft: rgba(59, 130, 246, 0.14);
+  --exam-pass-bg: rgba(34, 197, 94, 0.12);
+  --exam-fail-bg: rgba(239, 68, 68, 0.12);
+  --exam-pass-pre-bg: rgba(34, 197, 94, 0.16);
+  --exam-fail-pre-bg: rgba(239, 68, 68, 0.16);
+  --exam-success: #22c55e;
+  --exam-danger: #ef4444;
 }
 
-[data-theme='dark'] .test-taking-container .question-panel:not(.coding-question-panel) {
-  background: #121212;
+[data-theme='light'] .test-taking-container {
+  --exam-surface: #ffffff;
+  --exam-surface-elevated: #f8fafc;
+  --exam-code-bg: #f1f5f9;
+  --exam-border: #e2e8f0;
+  --exam-text: #0f172a;
+  --exam-muted: #64748b;
+  --exam-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --exam-pass-bg: rgba(5, 150, 105, 0.08);
+  --exam-fail-bg: rgba(220, 38, 38, 0.08);
+  --exam-pass-pre-bg: rgba(5, 150, 105, 0.1);
+  --exam-fail-pre-bg: rgba(220, 38, 38, 0.1);
+}
+
+[data-theme='dark'] .test-taking-container .question-panel:not(.coding-question-panel),
+[data-theme='dark'] .test-taking-container .question-panel.full-width {
+  background: var(--exam-surface);
+  color: var(--exam-text);
 }
 
 [data-theme='dark'] .test-taking-container .question-sidebar {
-  background: #18181b;
-  border-right-color: #3f3f46;
+  background: var(--exam-surface);
+  border-right-color: var(--exam-border);
 }
 
 [data-theme='dark'] .test-taking-container .test-header,
 [data-theme='dark'] .test-taking-container .test-footer {
-  background: #1a1a1a;
-  border-color: #3f3f46;
+  background: var(--exam-surface);
+  border-color: var(--exam-border);
 }
 
 [data-theme='dark'] .test-taking-container .question-nav-btn {
-  background: #27272a;
-  border-color: #3f3f46;
-  color: #e4e4e7;
+  background: var(--exam-surface-elevated);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
 [data-theme='dark'] .test-taking-container .question-nav-btn:hover {
-  background: #3f3f46;
+  background: color-mix(in srgb, var(--exam-accent) 12%, var(--exam-surface-elevated));
   border-color: #52525b;
 }
 
-/* MCQ / mixed — dark option cards */
+/* MCQ / aptitude — token-based (no flat same-color cards on panel) */
 [data-theme='dark'] .test-taking-container .mcq-option {
-  background: #222222;
-  border-color: #3f3f46;
+  background: var(--exam-surface-elevated);
+  border-color: var(--exam-border);
 }
 
 [data-theme='dark'] .test-taking-container .mcq-option:hover {
-  background: #2a2a2a;
-  border-color: #52525b;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--exam-accent) 10%, var(--exam-surface-elevated));
+  border-color: color-mix(in srgb, var(--exam-accent) 35%, var(--exam-border));
+  box-shadow: var(--exam-shadow);
 }
 
 [data-theme='dark'] .test-taking-container .mcq-option.selected {
-  background: rgba(59, 130, 246, 0.14);
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25);
+  background: var(--exam-accent-soft);
+  border-color: var(--exam-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--exam-accent) 25%, transparent);
 }
 
-[data-theme='dark'] .test-taking-container .mcq-option .option-text {
-  color: #f4f4f5;
+[data-theme='dark'] .test-taking-container .mcq-option .option-text,
+[data-theme='dark'] .test-taking-container .mcq-option .option-text.rich-text-display,
+[data-theme='dark'] .test-taking-container .mcq-option .option-text.rich-text-display * {
+  color: var(--exam-text) !important;
 }
 
-[data-theme='dark'] .test-taking-container .mcq-option.selected .option-text {
-  color: #fafafa;
+[data-theme='dark'] .test-taking-container .mcq-option.selected .option-text,
+[data-theme='dark'] .test-taking-container .mcq-option.selected .option-text.rich-text-display,
+[data-theme='dark'] .test-taking-container .mcq-option.selected .option-text.rich-text-display * {
+  color: var(--exam-text) !important;
 }
 
 [data-theme='dark'] .test-taking-container .mcq-option input[type='radio'],
 [data-theme='dark'] .test-taking-container .mcq-option input[type='checkbox'] {
-  accent-color: #3b82f6;
+  accent-color: var(--exam-accent);
 }
 
 [data-theme='dark'] .test-taking-container .case-study-block {
-  background: #222222;
-  border-color: #3f3f46;
+  background: var(--exam-surface-elevated);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
 [data-theme='dark'] .test-taking-container .case-study-block h4 {
-  color: #a1a1aa;
+  color: var(--exam-muted);
 }
 
-[data-theme='dark'] .test-taking-container .case-study-block p {
-  color: #e4e4e7;
+[data-theme='dark'] .test-taking-container .case-study-block p,
+[data-theme='dark'] .test-taking-container .case-study-block .rich-text-display,
+[data-theme='dark'] .test-taking-container .case-study-block .rich-text-display * {
+  color: var(--exam-text) !important;
 }
 
 [data-theme='dark'] .test-taking-container .section-badge {
-  background: #27272a;
+  background: var(--exam-accent-soft);
   color: #93c5fd;
-  border-color: #3f3f46;
+  border-color: var(--exam-border);
 }
 
 [data-theme='dark'] .test-taking-container .numeric-input {
-  background: #222222;
-  border-color: #3f3f46;
-  color: #f4f4f5;
+  background: var(--exam-code-bg);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
-[data-theme='dark'] .test-taking-container .question-description h4 {
-  color: #f4f4f5;
+[data-theme='dark'] .test-taking-container .question-description h4,
+[data-theme='dark'] .test-taking-container .question-rich-text,
+[data-theme='dark'] .test-taking-container .question-rich-text.rich-text-display,
+[data-theme='dark'] .test-taking-container .question-rich-text.rich-text-display * {
+  color: var(--exam-text) !important;
 }
 
-[data-theme='dark'] .test-taking-container .description-content {
-  color: #d4d4d8;
+[data-theme='dark'] .test-taking-container .description-content,
+[data-theme='dark'] .test-taking-container .description-content.rich-text-display,
+[data-theme='dark'] .test-taking-container .description-content.rich-text-display * {
+  color: var(--exam-muted) !important;
+}
+
+[data-theme='dark'] .test-taking-container .constraints-content,
+[data-theme='dark'] .test-taking-container .constraints-content.rich-text-display,
+[data-theme='dark'] .test-taking-container .constraints-content.rich-text-display * {
+  color: var(--exam-text) !important;
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .coding-question-panel {
-  background: #121212;
-  border-right-color: #3f3f46;
+  background: var(--exam-surface);
+  border-right-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
 [data-theme='dark'] .test-taking-container .constraints-section {
-  background: #222222;
-  border-color: #3f3f46;
-  border-left-color: #3b82f6;
+  background: var(--exam-accent-soft);
+  border-color: color-mix(in srgb, var(--exam-accent) 18%, var(--exam-border));
+  border-left-color: var(--exam-accent);
 }
 
 [data-theme='dark'] .test-taking-container .constraints-section strong {
   color: #93c5fd;
 }
 
-[data-theme='dark'] .test-taking-container .constraints-content {
-  color: #d4d4d8;
+/* Coding test — sample / custom test cases inherit --exam-* tokens from dark theme block above */
+
+[data-theme='dark'] .test-taking-container .custom-test-input {
+  background: var(--exam-code-bg);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
-/* Coding test — sample / custom test cases (dark) */
-[data-theme='dark'] .test-taking-container .test-cases-section,
-[data-theme='dark'] .test-taking-container .custom-test-case-section,
-[data-theme='dark'] .test-taking-container .example-box {
-  background: #1f1f1f;
-  border-color: #3f3f46;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-[data-theme='dark'] .test-taking-container .test-cases-section strong,
-[data-theme='dark'] .test-taking-container .custom-test-case-section strong {
-  color: #f4f4f5;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-box {
-  background: #27272a;
-  border-color: #3f3f46;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-box.test-case-passed {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: #22c55e;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-box.test-case-failed {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: #ef4444;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-header,
-[data-theme='dark'] .test-taking-container .test-case-item strong,
-[data-theme='dark'] .test-taking-container .custom-test-result-header,
-[data-theme='dark'] .test-taking-container .custom-input-group label {
-  color: #e4e4e7;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-item pre,
-[data-theme='dark'] .test-taking-container .custom-test-result-content pre,
-[data-theme='dark'] .test-taking-container .example-item pre {
-  background: #18181b;
-  border-color: #3f3f46;
-  color: #e4e4e7;
+[data-theme='dark'] .test-taking-container .custom-test-input::placeholder {
+  color: var(--exam-muted);
 }
 
 [data-theme='dark'] .test-taking-container .test-case-item.error {
   color: #fca5a5;
 }
 
-[data-theme='dark'] .test-taking-container .test-case-item.error pre {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: #ef4444;
-  color: #fecaca;
-}
-
 [data-theme='dark'] .test-taking-container .output-correct {
   color: #86efac !important;
-  border-color: #22c55e !important;
-  background: rgba(34, 197, 94, 0.15) !important;
 }
 
 [data-theme='dark'] .test-taking-container .output-incorrect {
   color: #fca5a5 !important;
-  border-color: #ef4444 !important;
-  background: rgba(239, 68, 68, 0.15) !important;
 }
 
-[data-theme='dark'] .test-taking-container .hidden-test-cases-note {
-  background: rgba(251, 191, 36, 0.1);
-  border-left-color: #f59e0b;
-  color: #d4d4d8;
-}
-
-[data-theme='dark'] .test-taking-container .custom-test-input {
-  background: #18181b;
-  border-color: #3f3f46;
-  color: #f4f4f5;
-}
-
-[data-theme='dark'] .test-taking-container .custom-test-input::placeholder {
-  color: #71717a;
-}
-
-[data-theme='dark'] .test-taking-container .custom-test-result.passed {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: #22c55e;
-}
-
-[data-theme='dark'] .test-taking-container .custom-test-result.failed {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: #ef4444;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-result-item.passed {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: #22c55e;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-result-item.failed {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: #ef4444;
-}
-
-[data-theme='dark'] .test-taking-container .test-case-result-header {
-  color: #e4e4e7;
-}
-
-[data-theme='dark'] .test-taking-container .summary-total {
-  background: #1f1f1f;
-  border-color: #3f3f46;
-  color: #f4f4f5;
-}
-
-[data-theme='dark'] .test-taking-container .submission-summary-inline {
-  background: #1f1f1f;
-  border-color: #3f3f46;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-[data-theme='dark'] .test-taking-container .submission-summary-head h3,
-[data-theme='dark'] .test-taking-container .submission-summary h3,
-[data-theme='dark'] .test-taking-container .test-case-group h4 {
-  color: #f4f4f5;
+[data-theme='dark'] .test-taking-container .custom-test-result-content strong,
+[data-theme='dark'] .test-taking-container .test-case-result-details strong {
+  color: var(--exam-text);
 }
 
 [data-theme='dark'] .test-taking-container .exam-btn-primary,
@@ -2523,50 +2540,50 @@
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .question-sidebar {
-  background: #18181b;
-  border-right-color: #3f3f46;
+  background: var(--exam-surface);
+  border-right-color: var(--exam-border);
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .question-sidebar-head {
-  border-bottom-color: #3f3f46;
+  border-bottom-color: var(--exam-border);
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .question-nav-btn {
-  background: #27272a;
-  border-color: #3f3f46;
-  color: #e4e4e7;
+  background: var(--exam-surface-elevated);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .question-nav-btn:hover {
-  background: #3f3f46;
+  background: color-mix(in srgb, var(--exam-accent) 12%, var(--exam-surface-elevated));
   border-color: #52525b;
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .question-nav-btn.active {
-  background: rgba(59, 130, 246, 0.18);
+  background: var(--exam-accent-soft);
   color: #93c5fd;
-  border-color: #3b82f6;
+  border-color: var(--exam-accent);
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-toolbar {
-  background: #27272a;
-  border-bottom-color: #3f3f46;
+  background: var(--exam-surface-elevated);
+  border-bottom-color: var(--exam-border);
   box-shadow: none;
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .editor-toolbar-title {
-  color: #a1a1aa;
+  color: var(--exam-muted);
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-toolbar .language-select {
-  background: #18181b;
-  border-color: #52525b;
-  color: #f4f4f5;
+  background: var(--exam-code-bg);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
 [data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-panel {
-  border-left-color: #3f3f46;
-  background: #1e1e1e;
+  border-left-color: var(--exam-border);
+  background: var(--exam-editor-bg);
 }
 
 /* —— Single-screen coding layout (no page scroll) —— */
@@ -2591,40 +2608,40 @@
   height: 100%;
   max-height: none;
   overflow-y: auto;
-  background: #ffffff;
-  border-right-color: #e2e8f0;
+  background: var(--exam-surface);
+  border-right-color: var(--exam-border);
 }
 
 .test-taking-container.test-taking--coding .question-sidebar-head {
-  border-bottom-color: #e2e8f0;
+  border-bottom-color: var(--exam-border);
 }
 
 .test-taking-container.test-taking--coding .section-title {
-  color: #64748b;
+  color: var(--exam-muted);
   border-left-color: var(--exam-accent, #3b82f6);
 }
 
 .test-taking-container.test-taking--coding .question-nav-btn {
-  background: #fff;
-  border-color: #e2e8f0;
-  color: #334155;
+  background: var(--exam-surface-elevated);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
 .test-taking-container.test-taking--coding .question-nav-btn:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #1e293b;
+  background: var(--exam-accent-soft);
+  border-color: color-mix(in srgb, var(--exam-accent) 35%, var(--exam-border));
+  color: var(--exam-text);
 }
 
 .test-taking-container.test-taking--coding .question-nav-btn.active {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-color: #bfdbfe;
-  border-left-color: #3b82f6;
+  background: var(--exam-accent-soft);
+  color: var(--exam-accent);
+  border-color: color-mix(in srgb, var(--exam-accent) 40%, var(--exam-border));
+  border-left-color: var(--exam-accent);
 }
 
 .test-taking-container.test-taking--coding .question-nav-btn.attempted:not(.active) {
-  border-left-color: #10b981;
+  border-left-color: var(--exam-success);
 }
 
 .test-taking-container.test-taking--coding .question-nav-btn.active .question-status-indicator {
@@ -2641,6 +2658,9 @@
   height: 100%;
   max-height: none;
   min-height: 0;
+  background: var(--exam-surface);
+  border-right-color: var(--exam-border);
+  color: var(--exam-text);
 }
 
 .test-taking-container.test-taking--coding .question-panel-top {
@@ -2667,12 +2687,14 @@
 .test-taking-container.test-taking--coding .question-description h4 {
   font-size: 1.1rem;
   margin-bottom: 8px;
+  color: var(--exam-text);
 }
 
 .test-taking-container.test-taking--coding .description-content {
   font-size: 0.88rem;
   line-height: 1.55;
   margin-bottom: 12px;
+  color: var(--exam-muted);
 }
 
 .test-taking-container.test-taking--coding .test-cases-section,
@@ -2693,8 +2715,8 @@
   height: 100%;
   flex: 1;
   min-height: 0;
-  border-left: 1px solid #e2e8f0;
-  background: #fff;
+  border-left: 1px solid var(--exam-border);
+  background: var(--exam-editor-bg);
 }
 
 .test-taking-container.test-taking--coding .coding-editor-toolbar {
@@ -2702,17 +2724,17 @@
   align-items: center;
   gap: 12px;
   flex-wrap: nowrap;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--exam-surface);
+  border-bottom: 1px solid var(--exam-border);
   min-height: 52px;
   padding: 10px 16px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--exam-shadow);
 }
 
 .test-taking-container.test-taking--coding .editor-toolbar-title {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--exam-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
@@ -2720,9 +2742,9 @@
 }
 
 .test-taking-container.test-taking--coding .coding-editor-toolbar .language-select {
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  color: #1e293b;
+  background: var(--exam-surface-elevated);
+  border: 1px solid var(--exam-border);
+  color: var(--exam-text);
   min-width: 128px;
   font-size: 0.84rem;
   font-weight: 500;
@@ -2732,13 +2754,13 @@
 }
 
 .test-taking-container.test-taking--coding .coding-editor-toolbar .language-select:hover {
-  border-color: #94a3b8;
+  border-color: color-mix(in srgb, var(--exam-accent) 35%, var(--exam-border));
 }
 
 .test-taking-container.test-taking--coding .coding-editor-toolbar .language-select:focus {
   outline: none;
   border-color: var(--exam-accent, #3b82f6);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--exam-accent) 25%, transparent);
 }
 
 .test-taking-container.test-taking--coding .coding-editor-toolbar .editor-actions {
@@ -2850,4 +2872,111 @@
     max-width: none;
     min-height: 200px;
   }
+}
+
+/* Dark mode — coding layout + testcase panels (must follow layout rules above) */
+[data-theme='dark'] .test-taking-container.test-taking--coding .test-cases-section,
+[data-theme='dark'] .test-taking-container.test-taking--coding .custom-test-case-section,
+[data-theme='dark'] .test-taking-container.test-taking--coding .example-box {
+  background: var(--exam-surface);
+  border-color: var(--exam-border);
+  box-shadow: var(--exam-shadow);
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--coding .test-cases-section strong,
+[data-theme='dark'] .test-taking-container.test-taking--coding .custom-test-case-section strong,
+[data-theme='dark'] .test-taking-container.test-taking--coding .test-case-header,
+[data-theme='dark'] .test-taking-container.test-taking--coding .test-case-item strong,
+[data-theme='dark'] .test-taking-container.test-taking--coding .custom-test-result-header,
+[data-theme='dark'] .test-taking-container.test-taking--coding .custom-input-group label,
+[data-theme='dark'] .test-taking-container.test-taking--coding .custom-test-result-content,
+[data-theme='dark'] .test-taking-container .test-case-result-header,
+[data-theme='dark'] .test-taking-container .test-case-group h4 {
+  color: var(--exam-text);
+}
+
+[data-theme='dark'] .test-taking-container .success-output pre,
+[data-theme='dark'] .test-taking-container .error-output pre {
+  background: var(--exam-code-bg);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
+}
+
+[data-theme='dark'] .test-taking-container .error-output pre {
+  color: #fca5a5;
+  border-color: var(--exam-danger);
+  background: var(--exam-fail-pre-bg);
+}
+
+/* ===== MCQ + coding — final visibility pass (light & dark) ===== */
+[data-theme='light'] .test-taking-container .mcq-option .option-text,
+[data-theme='light'] .test-taking-container .mcq-option .option-text.rich-text-display,
+[data-theme='light'] .test-taking-container .mcq-option .option-text.rich-text-display * {
+  color: var(--exam-text) !important;
+}
+
+[data-theme='light'] .test-taking-container .question-rich-text.rich-text-display,
+[data-theme='light'] .test-taking-container .description-content.rich-text-display,
+[data-theme='light'] .test-taking-container .constraints-content.rich-text-display {
+  color: inherit;
+}
+
+.test-taking-container .test-progress-pill,
+.test-taking-container .test-violations-pill,
+.test-taking-container .test-timer {
+  background: var(--exam-surface-elevated);
+  color: var(--exam-text);
+  border-color: var(--exam-border);
+}
+
+.test-taking-container .numeric-hint {
+  color: var(--exam-muted);
+  font-size: 0.85rem;
+}
+
+.test-taking-container .mcq-options > p {
+  color: var(--exam-muted);
+}
+
+.test-taking-container.test-taking--standard .question-panel.full-width .question-actions {
+  background: var(--exam-surface);
+  box-shadow: 0 -8px 16px color-mix(in srgb, var(--exam-border) 70%, transparent);
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--standard .question-panel.full-width .question-actions {
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--coding .question-sidebar,
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-panel,
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-toolbar,
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-question-panel,
+[data-theme='dark'] .test-taking-container.test-taking--coding .test-cases-section,
+[data-theme='dark'] .test-taking-container.test-taking--coding .custom-test-case-section,
+[data-theme='dark'] .test-taking-container.test-taking--standard .question-panel.full-width {
+  background: var(--exam-surface);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
+}
+
+[data-theme='light'] .test-taking-container.test-taking--coding .test-cases-section,
+[data-theme='light'] .test-taking-container.test-taking--coding .custom-test-case-section,
+[data-theme='light'] .test-taking-container.test-taking--coding .test-case-box,
+[data-theme='light'] .test-taking-container .test-cases-section,
+[data-theme='light'] .test-taking-container .custom-test-case-section {
+  background: var(--exam-surface);
+  border-color: var(--exam-border);
+}
+
+[data-theme='light'] .test-taking-container .test-case-box,
+[data-theme='light'] .test-taking-container.test-taking--coding .test-case-box {
+  background: var(--exam-surface-elevated);
+}
+
+[data-theme='light'] .test-taking-container .test-case-item pre,
+[data-theme='light'] .test-taking-container .custom-test-result-content pre,
+[data-theme='light'] .test-taking-container .test-case-result-details pre {
+  background: var(--exam-code-bg);
+  border-color: var(--exam-border);
+  color: var(--exam-text);
 }

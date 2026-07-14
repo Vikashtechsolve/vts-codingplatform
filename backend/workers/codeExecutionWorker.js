@@ -79,14 +79,44 @@ setInterval(cleanupTempDir, CLEANUP_INTERVAL);
 // --- Process runner with output cap + timeout ---
 function runProcess(cmd, args, opts, input) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], ...opts });
+    const isWin = process.platform === 'win32';
+    const spawnOpts = {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      ...opts,
+    };
+    // Own process group on Unix so timeouts kill child processes spawned by student code.
+    if (!isWin) {
+      spawnOpts.detached = true;
+    }
+
+    const proc = spawn(cmd, args, spawnOpts);
     let output = '';
     let error = '';
     let outputSize = 0;
     let killed = false;
     const startTime = Date.now();
 
-    if (input) { proc.stdin.write(input); }
+    const killProcessTree = () => {
+      if (killed) return;
+      killed = true;
+      try {
+        if (!isWin && proc.pid) {
+          process.kill(-proc.pid, 'SIGKILL');
+        } else {
+          proc.kill('SIGKILL');
+        }
+      } catch {
+        try {
+          proc.kill('SIGKILL');
+        } catch {
+          /* already exited */
+        }
+      }
+    };
+
+    if (input) {
+      proc.stdin.write(input);
+    }
     proc.stdin.end();
 
     proc.stdout.on('data', (data) => {
@@ -94,8 +124,7 @@ function runProcess(cmd, args, opts, input) {
       if (outputSize <= MAX_OUTPUT_SIZE) {
         output += data.toString();
       } else if (!killed) {
-        killed = true;
-        proc.kill('SIGKILL');
+        killProcessTree();
       }
     });
 
@@ -103,9 +132,7 @@ function runProcess(cmd, args, opts, input) {
       if (error.length < MAX_OUTPUT_SIZE) error += data.toString();
     });
 
-    const timeoutId = setTimeout(() => {
-      if (!killed) { killed = true; proc.kill('SIGKILL'); }
-    }, EXECUTION_TIMEOUT);
+    const timeoutId = setTimeout(killProcessTree, EXECUTION_TIMEOUT);
 
     proc.on('close', (code) => {
       clearTimeout(timeoutId);
@@ -119,7 +146,10 @@ function runProcess(cmd, args, opts, input) {
       }
     });
 
-    proc.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
+    proc.on('error', (err) => {
+      clearTimeout(timeoutId);
+      reject(err);
+    });
   });
 }
 

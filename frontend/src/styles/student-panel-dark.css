@@ -322,8 +322,22 @@
 /* —— Coding test: remaining light surfaces —— */
 [data-theme='dark'] .test-taking-container.test-taking--coding .question-sidebar,
 [data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-panel,
-[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-toolbar {
-  background: #18181b;
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-toolbar,
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-question-panel,
+[data-theme='dark'] .test-taking-container.test-taking--coding .test-cases-section,
+[data-theme='dark'] .test-taking-container.test-taking--coding .custom-test-case-section,
+[data-theme='dark'] .test-taking-container.test-taking--standard .question-panel.full-width {
+  background: var(--exam-surface);
+  border-color: var(--student-dark-border);
+  color: var(--exam-text);
+}
+
+[data-theme='dark'] .test-taking-container.test-taking--coding .coding-editor-panel {
+  background: var(--exam-editor-bg);
+}
+
+[data-theme='dark'] .test-taking-container .mcq-option {
+  background: var(--exam-surface-elevated);
   border-color: var(--student-dark-border);
 }
 

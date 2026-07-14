@@ -54,6 +54,7 @@ const MonacoCodeEditor = ({
   editorKey,
   className = '',
   options = {},
+  onEditorMount,
   examMode = false,
 }) => {
   const { isDark } = useTheme();
@@ -122,6 +123,7 @@ const MonacoCodeEditor = ({
       monacoRef.current = monaco;
       ensureThemes(monaco);
       monaco.editor.setTheme(themeName);
+      onEditorMount?.(editor);
       requestAnimationFrame(() => {
         editor.layout();
         if (examMode && !readOnly) {
@@ -129,7 +131,7 @@ const MonacoCodeEditor = ({
         }
       });
     },
-    [themeName, examMode, readOnly]
+    [themeName, examMode, readOnly, onEditorMount]
   );
 
   useEffect(() => {

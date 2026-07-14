@@ -33,8 +33,6 @@ export const invalidateTagSuggestionCache = () => {
 
 export default function useTagSuggestions() {
   const [popularTags, setPopularTags] = useState(cachedPopularTags || []);
-  const [remoteTags, setRemoteTags] = useState([]);
-  const [loading, setLoading] = useState(false);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -47,51 +45,40 @@ export default function useTagSuggestions() {
     };
   }, []);
 
+  /** Remote search — returns results only; does not mutate UI state (avoids flicker). */
   const searchTags = useCallback(async (query) => {
     const trimmed = String(query || '').trim();
+    if (!trimmed) return [];
+
     const requestId = ++requestIdRef.current;
-
-    if (!trimmed) {
-      setRemoteTags([]);
-      setLoading(false);
-      return popularTags.length ? popularTags : loadPopularTags().then((tags) => {
-        if (requestId === requestIdRef.current) setPopularTags(tags);
-        return tags;
-      });
-    }
-
-    setLoading(true);
     try {
       const { data } = await axiosInstance.get('/question-tags', {
         params: { q: trimmed, limit: 20 },
       });
-      if (requestId !== requestIdRef.current) return;
-      const results = Array.isArray(data) ? data : [];
-      setRemoteTags(results);
-      return results;
+      if (requestId !== requestIdRef.current) return null;
+      return Array.isArray(data) ? data : [];
     } catch {
-      if (requestId === requestIdRef.current) setRemoteTags([]);
+      if (requestId !== requestIdRef.current) return null;
       return [];
-    } finally {
-      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [popularTags]);
+  }, []);
 
   const filterLocal = useCallback(
     (query, excludeSlugs = new Set()) => {
       const trimmed = String(query || '').trim().toLowerCase();
-      const pool = popularTags.length ? popularTags : remoteTags;
-      const filtered = pool.filter((tag) => {
-        if (excludeSlugs.has(tag.slug)) return false;
-        if (!trimmed) return true;
-        return (
-          tag.label.toLowerCase().includes(trimmed) ||
-          tag.slug.includes(trimmed)
-        );
-      });
-      return filtered.slice(0, 12);
+      if (!trimmed) return [];
+
+      return popularTags
+        .filter((tag) => {
+          if (excludeSlugs.has(tag.slug)) return false;
+          return (
+            tag.label.toLowerCase().includes(trimmed) ||
+            tag.slug.includes(trimmed)
+          );
+        })
+        .slice(0, 12);
     },
-    [popularTags, remoteTags]
+    [popularTags]
   );
 
   const registerTag = useCallback(async (label) => {
@@ -112,8 +99,6 @@ export default function useTagSuggestions() {
 
   return {
     popularTags,
-    remoteTags,
-    loading,
     searchTags,
     filterLocal,
     registerTag,

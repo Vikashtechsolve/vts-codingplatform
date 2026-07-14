@@ -349,6 +349,10 @@ const TestTaking = () => {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [timeExpired, setTimeExpired] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('python');
+  const codeEditorRef = useRef(null);
+  const codeDraftRef = useRef('');
+  const answersRef = useRef({});
+  const runGenerationRef = useRef(0);
   
   // Modal states
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
@@ -448,6 +452,35 @@ const TestTaking = () => {
   const [isResizing, setIsResizing] = useState(false);
   
   const sections = useMemo(() => buildSectionsFromTest(test), [test]);
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  const resolveCodingCode = useCallback((qKey, lang, questionDoc) => {
+    const editorValue = codeEditorRef.current?.getValue?.();
+    if (typeof editorValue === 'string') {
+      return editorValue;
+    }
+    if (typeof codeDraftRef.current === 'string') {
+      return codeDraftRef.current;
+    }
+    return getCodingCode(answersRef.current, qKey, lang, questionDoc);
+  }, []);
+
+  const handleCodingEditorMount = useCallback((editor) => {
+    codeEditorRef.current = editor;
+    codeDraftRef.current = editor.getValue();
+  }, []);
+
+  useEffect(() => {
+    const question = sections[currentSectionIndex]?.questions?.[currentQuestionIndex];
+    if (!question || question.type !== 'coding' || !question.questionId) return;
+    const qKey = questionKey(question.questionId._id);
+    const entry = answersRef.current[qKey];
+    const lang = entry?.language || selectedLanguage;
+    codeDraftRef.current = getCodingCode(answersRef.current, qKey, lang, question.questionId);
+  }, [currentSectionIndex, currentQuestionIndex, sections, selectedLanguage]);
 
   const questionProgress = useMemo(() => {
     const total = sections.reduce((sum, sec) => sum + sec.questions.length, 0);
@@ -862,6 +895,7 @@ const TestTaking = () => {
 
     const qKey = questionKey(question.questionId._id);
     const code = value ?? '';
+    codeDraftRef.current = code;
 
     setAnswers((prev) => {
       const entry = prev[qKey] || {};
@@ -1053,7 +1087,7 @@ const TestTaking = () => {
     }
     
     const qKey = questionKey(question.questionId._id);
-    const code = getCodingCode(answers, qKey, selectedLanguage, question.questionId);
+    const code = resolveCodingCode(qKey, selectedLanguage, question.questionId);
 
     if (!code.trim()) {
       showToast('Please write some code first', 'warning');
@@ -1065,6 +1099,7 @@ const TestTaking = () => {
       return;
     }
 
+    const runId = ++runGenerationRef.current;
     try {
       setIsRunningTests(true);
       const response = await postCodeExecution(
@@ -1082,6 +1117,8 @@ const TestTaking = () => {
         }
       );
 
+      if (runId !== runGenerationRef.current) return;
+
       const expectedNormalized = normalizeOutput(customTestCase.expectedOutput);
       const actualNormalized = normalizeOutput(response.data.output || '');
       const passed = response.data.success && expectedNormalized === actualNormalized;
@@ -1094,9 +1131,8 @@ const TestTaking = () => {
         passed,
         executionTime: response.data.executionTime || 0
       });
-      setIsRunningTests(false);
     } catch (error) {
-      setIsRunningTests(false);
+      if (runId !== runGenerationRef.current) return;
       console.error('❌ Error executing custom test case:', error);
       const errorMsg = formatCodeExecutionError(error, 'Error executing code');
       setCustomTestResult({
@@ -1107,6 +1143,10 @@ const TestTaking = () => {
         passed: false,
         executionTime: 0
       });
+    } finally {
+      if (runId === runGenerationRef.current) {
+        setIsRunningTests(false);
+      }
     }
   };
 
@@ -1118,25 +1158,25 @@ const TestTaking = () => {
     }
     
     const qKey = questionKey(question.questionId._id);
-    const code = getCodingCode(answers, qKey, selectedLanguage, question.questionId);
+    const code = resolveCodingCode(qKey, selectedLanguage, question.questionId);
 
     if (!code.trim()) {
       showToast('Please write some code first', 'warning');
       return;
     }
 
+    const questionData = question.questionId;
+    const visibleTestCases = questionData.testCases?.filter(tc => !tc.isHidden) || [];
+
+    if (visibleTestCases.length === 0) {
+      showToast('No sample test cases available for this question.', 'info');
+      return;
+    }
+
+    const runId = ++runGenerationRef.current;
     try {
       setIsRunningTests(true);
       setTestCaseResults([]);
-      
-      const questionData = question.questionId;
-      const visibleTestCases = questionData.testCases?.filter(tc => !tc.isHidden) || [];
-      
-      if (visibleTestCases.length === 0) {
-        showToast('No sample test cases available for this question.', 'info');
-        setIsRunningTests(false);
-        return;
-      }
 
       const response = await postCodeExecution(
         '/code-execution/execute-batch',
@@ -1153,6 +1193,8 @@ const TestTaking = () => {
         }
       );
 
+      if (runId !== runGenerationRef.current) return;
+
       const batchResults = response.data.results || [];
       const results = batchResults.map((r, i) => ({
         testCaseIndex: i + 1,
@@ -1165,7 +1207,6 @@ const TestTaking = () => {
       }));
 
       setTestCaseResults(results);
-      setIsRunningTests(false);
       
       const passedCount = results.filter(r => r.passed).length;
       const totalCount = results.length;
@@ -1176,13 +1217,17 @@ const TestTaking = () => {
         showToast(`${passedCount} out of ${totalCount} sample test case(s) passed.`, 'warning', { title: 'Some test cases failed' });
       }
     } catch (error) {
-      setIsRunningTests(false);
+      if (runId !== runGenerationRef.current) return;
       console.error('Error executing code:', error);
       const errorMsg = formatCodeExecutionError(
         error,
         'Error executing code. Please check your code and try again.'
       );
       showToast(errorMsg, 'error', { title: 'Code execution error' });
+    } finally {
+      if (runId === runGenerationRef.current) {
+        setIsRunningTests(false);
+      }
     }
   };
 
@@ -1200,7 +1245,7 @@ const TestTaking = () => {
     try {
       setSavingAnswer(true);
       if (question.type === 'coding') {
-        const code = getCodingCode(answers, qKey, selectedLanguage, question.questionId);
+        const code = resolveCodingCode(qKey, selectedLanguage, question.questionId);
         
         if (!code.trim()) {
           showToast('Please write some code before saving', 'warning');
@@ -1763,7 +1808,7 @@ const TestTaking = () => {
                     <button 
                       onClick={handleSubmitAnswer} 
                       className="exam-btn exam-btn-primary" 
-                      disabled={savingAnswer}
+                      disabled={savingAnswer || isRunningTests}
                     >
                       {savingAnswer ? 'Saving...' : '✓ Submit'}
                     </button>
@@ -1775,6 +1820,7 @@ const TestTaking = () => {
                     language={selectedLanguage}
                     value={getCodingCode(answers, questionKey(questionData._id), selectedLanguage, questionData)}
                     onChange={handleCodeChange}
+                    onEditorMount={handleCodingEditorMount}
                     examMode
                   />
                 </div>

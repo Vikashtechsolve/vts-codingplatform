@@ -21,10 +21,6 @@ const CodingQuestionCodeWorkspace = ({
   testCode = {},
   onStarterChange,
   onTestCodeChange,
-  onCopyStarterToSolution,
-  onRunAllTests,
-  isTestingAll,
-  canRunTests,
 }) => {
   const langs = Array.from(
     new Set([
@@ -66,7 +62,7 @@ const CodingQuestionCodeWorkspace = ({
         </div>
       </div>
 
-      <div className="cq-editor-stack">
+      <div className="cq-editor-grid">
         <section className="cq-editor-card">
           <header className="cq-editor-card-head">
             <span className="cq-editor-badge is-starter">
@@ -76,7 +72,7 @@ const CodingQuestionCodeWorkspace = ({
           </header>
           <div className="cq-editor-card-body">
             <MonacoCodeEditor
-              height="320px"
+              height="340px"
               editorKey={`cq-starter-${activeLang}`}
               language={meta.monaco}
               value={starterCode[activeLang] || ''}
@@ -95,7 +91,7 @@ const CodingQuestionCodeWorkspace = ({
           </header>
           <div className="cq-editor-card-body">
             <MonacoCodeEditor
-              height="320px"
+              height="340px"
               editorKey={`cq-solution-${activeLang}`}
               language={meta.monaco}
               value={testCode[activeLang] || ''}
@@ -103,26 +99,6 @@ const CodingQuestionCodeWorkspace = ({
               className="cq-monaco"
             />
           </div>
-          <footer className="cq-editor-card-foot">
-            {!String(testCode[activeLang] || '').trim() && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => onCopyStarterToSolution(activeLang)}
-              >
-                Copy starter to solution
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn btn-primary cq-run-btn"
-              onClick={onRunAllTests}
-              disabled={isTestingAll || !canRunTests}
-            >
-              <FiPlay aria-hidden />
-              {isTestingAll ? 'Running all test cases…' : 'Run all test cases'}
-            </button>
-          </footer>
         </section>
       </div>
     </div>

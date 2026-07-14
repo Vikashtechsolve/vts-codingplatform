@@ -231,10 +231,11 @@
   color: #fff;
 }
 
-.cq-editor-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.cq-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: stretch;
 }
 
 .cq-editor-card {
@@ -242,6 +243,9 @@
   border-radius: 12px;
   overflow: hidden;
   background: var(--cq-editor-surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .cq-editor-card-head {
@@ -296,28 +300,49 @@
 }
 
 .cq-editor-card-body {
-  min-height: 320px;
+  flex: 1;
+  min-height: 340px;
   border-top: 1px solid transparent;
 }
 
 .cq-editor-card-body .cq-monaco,
 .cq-editor-card-body .monaco-code-editor-root {
-  min-height: 320px !important;
-  height: 320px !important;
+  min-height: 340px !important;
+  height: 340px !important;
 }
 
-.cq-editor-card-foot {
+.cq-code-section-head {
   display: flex;
-  justify-content: flex-end;
-  padding: 10px 12px;
-  border-top: 1px solid var(--cq-border);
-  background: var(--cq-editor-surface-2);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
-.cq-run-btn {
+.cq-code-section-head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cq-code-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.cq-copy-starter-btn,
+.cq-run-all-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  white-space: nowrap;
+}
+
+.cq-run-all-btn svg {
+  flex-shrink: 0;
 }
 
 .create-coding-question .form-actions {
@@ -328,12 +353,29 @@
   padding-top: 8px;
 }
 
+@media (max-width: 960px) {
+  .cq-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .create-coding-question .form-row {
     grid-template-columns: 1fr;
   }
 
-  .create-coding-question .section-header {
+  .create-coding-question .section-header,
+  .cq-code-section-head {
     flex-direction: column;
+  }
+
+  .cq-code-section-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .cq-code-section-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
