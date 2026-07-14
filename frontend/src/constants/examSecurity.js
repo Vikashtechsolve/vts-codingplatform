@@ -1,4 +1,4 @@
-/** Max violations before auto-submit (override via REACT_APP_MAX_VIOLATIONS). */
+/** Fallback max violations when the server has not sent maxViolations yet (override via REACT_APP_MAX_VIOLATIONS). */
 export const MAX_EXAM_VIOLATIONS = parseInt(
   process.env.REACT_APP_MAX_VIOLATIONS || '3',
   10

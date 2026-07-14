@@ -1,5 +1,18 @@
 const MAX_VIOLATIONS = parseInt(process.env.MAX_VIOLATIONS || '3', 10);
 
+/** Attach server-configured proctoring limit to API payloads (not persisted on models). */
+function addExamSecurityMeta(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  return { ...payload, maxViolations: MAX_VIOLATIONS };
+}
+
+function stampExamSecurityMeta(payload) {
+  if (payload && typeof payload === 'object') {
+    payload.maxViolations = MAX_VIOLATIONS;
+  }
+  return payload;
+}
+
 const ALLOWED_VIOLATION_TYPES = new Set([
   'tab_switch',
   'window_blur',
@@ -25,4 +38,6 @@ module.exports = {
   MAX_VIOLATIONS,
   ALLOWED_VIOLATION_TYPES,
   normalizeViolationType,
+  addExamSecurityMeta,
+  stampExamSecurityMeta,
 };

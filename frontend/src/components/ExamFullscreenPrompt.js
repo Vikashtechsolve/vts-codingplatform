@@ -6,7 +6,10 @@ import './ExamFullscreenPrompt.css';
 /**
  * Blocks the exam UI until the student enters fullscreen (browser requires user gesture).
  */
-const ExamFullscreenPrompt = ({ title, subtitle, onEntered }) => {
+const ExamFullscreenPrompt = ({ title, subtitle, onEntered, maxViolations }) => {
+  const limit = Number.isFinite(parseInt(maxViolations, 10)) && parseInt(maxViolations, 10) > 0
+    ? parseInt(maxViolations, 10)
+    : MAX_EXAM_VIOLATIONS;
   const [entering, setEntering] = useState(false);
 
   useEffect(() => {
@@ -40,7 +43,7 @@ const ExamFullscreenPrompt = ({ title, subtitle, onEntered }) => {
           <li>Stay in fullscreen — do not switch tabs, apps, or desktops (macOS three-finger swipe counts)</li>
           <li>Do not use Cmd/Ctrl+Tab, Mission Control, or a second monitor for help</li>
           <li>Copy, cut, and paste work inside the code editor only — external paste is blocked</li>
-          <li>Maximum {MAX_EXAM_VIOLATIONS} violations — your test auto-submits after that</li>
+          <li>Maximum {limit} violations — your test auto-submits after that</li>
         </ul>
         <button
           type="button"

@@ -396,6 +396,7 @@ const TestTaking = () => {
     {
       autoRequestFullscreen: !fromShareLink,
       initialViolationCount: result?.violationCount ?? 0,
+      maxViolations: result?.maxViolations,
     }
   );
 
@@ -1526,6 +1527,7 @@ const TestTaking = () => {
         <ExamFullscreenPrompt
           title="Enter fullscreen to start the test"
           subtitle="Click below to maximize your screen and begin. This matches the secure start flow from the student portal."
+          maxViolations={maxViolations}
           onEntered={async () => {
             await requestFullscreen();
             if (isDocumentFullscreen()) {

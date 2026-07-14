@@ -19,7 +19,7 @@ const EnglishEssayQuestion = require('../models/EnglishEssayQuestion');
 const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
 const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
 const CodingQuestion = require('../models/CodingQuestion');
-const { MAX_VIOLATIONS, normalizeViolationType } = require('../utils/examViolations');
+const { MAX_VIOLATIONS, normalizeViolationType, stampExamSecurityMeta } = require('../utils/examViolations');
 const {
   enforceContestWindowIfApplicable,
   syncParticipantOnTestStart,
@@ -317,7 +317,7 @@ router.post('/start/:testId', auth, async (req, res) => {
       }
 
       console.log('✅ Returning existing in-progress result');
-      const payload = result.toObject();
+      const payload = stampExamSecurityMeta(result.toObject());
       if (contestForResume) {
         payload.contestId = contestForResume._id;
         payload.attemptWindowEnd = contestForResume.attemptWindowEnd;
@@ -396,7 +396,7 @@ router.post('/start/:testId', auth, async (req, res) => {
     await student.save();
     console.log('✅ Enrollment status updated');
 
-    const payload = result.toObject();
+    const payload = stampExamSecurityMeta(result.toObject());
     if (activeContest) {
       payload.contestId = activeContest._id;
       payload.attemptWindowEnd = activeContest.attemptWindowEnd;
@@ -1164,6 +1164,8 @@ router.get('/:resultId', auth, async (req, res) => {
       await attachStandardQuestionDetails(out);
       await ensureSectionScores(out);
     }
+
+    stampExamSecurityMeta(out);
 
     res.json(out);
   } catch (error) {

@@ -78,6 +78,7 @@ const SystemDesignTaking = () => {
   const [showHints, setShowHints] = useState(false);
   const [sectionTimers, setSectionTimers] = useState({});
   const [violationModal, setViolationModal] = useState(null);
+  const [examMaxViolations, setExamMaxViolations] = useState(undefined);
   const timerRef = useRef(null);
   const sectionStartRef = useRef(Date.now());
   const handleSubmitRef = useRef(() => {});
@@ -90,7 +91,7 @@ const SystemDesignTaking = () => {
   const handleMaxViolations = useCallback(() => {
     setViolationModal({
       title: 'Auto-Submission',
-      message: 'You have reached the maximum number of violations (3). Your test is being automatically submitted.',
+      message: 'You have reached the maximum number of violations. Your test is being automatically submitted.',
       type: 'error'
     });
     setTimeout(() => {
@@ -127,6 +128,7 @@ const SystemDesignTaking = () => {
       violationEndpoint: submission ? `/system-design-submissions/${submission._id}/violation` : null,
       autoRequestFullscreen: !fromShareLink,
       initialViolationCount: submission?.violationCount ?? 0,
+      maxViolations: examMaxViolations,
     }
   );
 
@@ -170,6 +172,7 @@ const SystemDesignTaking = () => {
       const { data } = await axiosInstance.post(`/system-design-submissions/start/${problemId}`);
       if (data.success) {
         setSubmission(data.submission);
+        if (data.maxViolations != null) setExamMaxViolations(data.maxViolations);
         if (data.submission.currentStep > 0) setCurrentStep(data.submission.currentStep);
       }
     } catch (err) {
@@ -359,6 +362,7 @@ const SystemDesignTaking = () => {
         <ExamFullscreenPrompt
           title="Enter fullscreen to start"
           subtitle="Maximize your screen to continue this system design assessment securely."
+          maxViolations={maxViolations}
           onEntered={async () => {
             await requestFullscreen();
             if (isDocumentFullscreen()) {

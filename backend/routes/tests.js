@@ -26,6 +26,7 @@ const {
   parseScheduleDateInput,
 } = require('../utils/testSchedule');
 const { findPublishedContestByAssessment } = require('../utils/contestService');
+const { MAX_VIOLATIONS } = require('../utils/examViolations');
 const { getEffectiveAllowedLanguages } = require('../utils/codingQuestion');
 
 const ENGLISH_QUESTION_MODELS = {
@@ -375,6 +376,7 @@ router.get('/:id', auth, async (req, res) => {
           {
             ...testObj,
             enrollmentStatus,
+            maxViolations: MAX_VIOLATIONS,
             ...(activeContest ? { contestId: activeContest._id } : {}),
           },
           enrollmentStatus,

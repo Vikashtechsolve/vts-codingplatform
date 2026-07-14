@@ -10,6 +10,7 @@ const {
   markParticipantCompleted,
   getParticipant,
 } = require('../utils/contestService');
+const { MAX_VIOLATIONS } = require('../utils/examViolations');
 
 /**
  * POST /api/system-design-submissions/start/:problemId
@@ -52,7 +53,8 @@ router.post('/start/:problemId', authenticateToken, authorizeRoles('student'), a
       return res.json({
         success: true,
         message: 'Resuming existing submission',
-        submission
+        submission,
+        maxViolations: MAX_VIOLATIONS,
       });
     }
 
@@ -110,6 +112,7 @@ router.post('/start/:problemId', authenticateToken, authorizeRoles('student'), a
       success: true,
       message: 'System design attempt started',
       submission,
+      maxViolations: MAX_VIOLATIONS,
       contestId: activeContest?._id,
       attemptWindowEnd: activeContest?.attemptWindowEnd,
     });
@@ -120,7 +123,12 @@ router.post('/start/:problemId', authenticateToken, authorizeRoles('student'), a
         problemId: req.params.problemId,
         studentId: req.user._id
       });
-      return res.json({ success: true, message: 'Resuming existing submission', submission });
+      return res.json({
+        success: true,
+        message: 'Resuming existing submission',
+        submission,
+        maxViolations: MAX_VIOLATIONS,
+      });
     }
     console.error('Error starting system design:', error);
     res.status(500).json({
@@ -564,7 +572,8 @@ router.get('/:submissionId', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       submission,
-      referenceAnswer
+      referenceAnswer,
+      maxViolations: MAX_VIOLATIONS,
     });
   } catch (error) {
     console.error('Error fetching submission:', error);

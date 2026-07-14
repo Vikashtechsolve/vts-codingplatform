@@ -32,6 +32,11 @@ import {
 
 export { MAX_EXAM_VIOLATIONS };
 
+function resolveMaxViolations(value) {
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : MAX_EXAM_VIOLATIONS;
+}
+
 function isSecurityPaused() {
   return Boolean(
     document.querySelector('.exam-fullscreen-prompt') ||
@@ -55,19 +60,34 @@ export const useExamSecurity = (
     violationEndpoint,
     autoRequestFullscreen = true,
     initialViolationCount = 0,
+    maxViolations: initialMaxViolations,
   } = options;
 
   const [violations, setViolations] = useState(initialViolationCount);
+  const [maxViolationsLimit, setMaxViolationsLimit] = useState(() =>
+    resolveMaxViolations(initialMaxViolations)
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [securityOverlay, setSecurityOverlay] = useState(null);
 
   const violationsRef = useRef(initialViolationCount);
+  const maxViolationsRef = useRef(maxViolationsLimit);
   const onMaxViolationsRef = useRef(onMaxViolationsReached);
   const onViolationWarningRef = useRef(onViolationWarning);
 
   useEffect(() => {
     violationsRef.current = violations;
   }, [violations]);
+
+  useEffect(() => {
+    maxViolationsRef.current = maxViolationsLimit;
+  }, [maxViolationsLimit]);
+
+  useEffect(() => {
+    if (initialMaxViolations != null) {
+      setMaxViolationsLimit(resolveMaxViolations(initialMaxViolations));
+    }
+  }, [initialMaxViolations, resultId]);
 
   useEffect(() => {
     onMaxViolationsRef.current = onMaxViolationsReached;
@@ -135,10 +155,17 @@ export const useExamSecurity = (
 
           const newViolationCount =
             response.data.violationCount ?? violationsRef.current + 1;
+          const serverMax = response.data.maxViolations;
+          const limit = serverMax != null
+            ? resolveMaxViolations(serverMax)
+            : maxViolationsRef.current;
+          if (serverMax != null) {
+            setMaxViolationsLimit(limit);
+          }
           violationsRef.current = newViolationCount;
           setViolations(newViolationCount);
 
-          if (newViolationCount >= MAX_EXAM_VIOLATIONS && response.data.autoSubmitted) {
+          if (newViolationCount >= limit && response.data.autoSubmitted) {
             onMaxViolationsRef.current?.();
           }
         } catch (error) {
@@ -542,11 +569,15 @@ export const useExamSecurity = (
   ]);
 
   useEffect(() => {
-    if (violations > 0 && violations < MAX_EXAM_VIOLATIONS && !warningShownFor.current.has(violations)) {
-      onViolationWarningRef.current?.(violations, MAX_EXAM_VIOLATIONS);
+    if (
+      violations > 0 &&
+      violations < maxViolationsLimit &&
+      !warningShownFor.current.has(violations)
+    ) {
+      onViolationWarningRef.current?.(violations, maxViolationsLimit);
       warningShownFor.current.add(violations);
     }
-  }, [violations]);
+  }, [violations, maxViolationsLimit]);
 
   const handleReenterFullscreen = useCallback(async () => {
     await requestFullscreen();
@@ -557,7 +588,7 @@ export const useExamSecurity = (
 
   return {
     violations,
-    maxViolations: MAX_EXAM_VIOLATIONS,
+    maxViolations: maxViolationsLimit,
     isFullscreen,
     requestFullscreen,
     trackViolation,
