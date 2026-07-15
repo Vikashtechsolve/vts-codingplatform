@@ -244,8 +244,6 @@ const CreateTest = () => {
     return byTab;
   }, [registryTags, codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions]);
 
-  const fetchQuestions = () => fetchTabQuestions(selectedTab, { pageNum: 1, append: false });
-
   const handleChange = (e) => {
     setFormData({
       ...formData,

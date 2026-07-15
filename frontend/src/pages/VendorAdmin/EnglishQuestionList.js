@@ -72,22 +72,25 @@ const EnglishQuestionList = () => {
 
   const meta = QUESTION_FORM_META.english;
 
+  const fetchTabQuestions = useCallback(
+    async (tab) => {
+      try {
+        beginFetch(false);
+        const { data } = await axiosInstance.get(`/questions/english/${tab}`);
+        setQuestions(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error fetching English questions:', error);
+        setQuestions([]);
+      } finally {
+        endFetch();
+      }
+    },
+    [beginFetch, endFetch]
+  );
+
   useEffect(() => {
     fetchTabQuestions(activeTab);
-  }, [activeTab]);
-
-  const fetchTabQuestions = async (tab) => {
-    try {
-      beginFetch(false);
-      const { data } = await axiosInstance.get(`/questions/english/${tab}`);
-      setQuestions(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching English questions:', error);
-      setQuestions([]);
-    } finally {
-      endFetch();
-    }
-  };
+  }, [activeTab, fetchTabQuestions]);
 
   const handleDelete = async (type, id) => {
     if (!window.confirm('Are you sure you want to delete this question?')) return;
