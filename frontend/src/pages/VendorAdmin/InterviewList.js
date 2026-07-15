@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { normalizePaginatedResponse } from '../../utils/paginatedApi';
 import { formatScheduleDateTime } from '../../utils/datetimeLocal';
 import { formatInterviewCardSubtitle } from '../../utils/interviewCardText';
 import './VendorAdminCommon.css';
@@ -17,8 +18,9 @@ const InterviewList = () => {
 
   const fetchInterviews = async () => {
     try {
-      const response = await axiosInstance.get('/interviews');
-      setInterviews(response.data || []);
+      const response = await axiosInstance.get('/interviews', { params: { page: 1, limit: 100 } });
+      const parsed = normalizePaginatedResponse(response.data);
+      setInterviews(parsed.items);
     } catch (error) {
       console.error('Error fetching interviews:', error);
     } finally {

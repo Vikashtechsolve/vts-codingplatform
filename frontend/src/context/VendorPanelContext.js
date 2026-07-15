@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import axiosInstance from '../utils/axios';
 
 const VendorPanelContext = createContext(null);
@@ -20,80 +19,49 @@ const defaultStats = {
   questions: { coding: 0, mcq: 0, aptitude: 0, theory: 0 },
 };
 
-/** Same grouping as VendorAdmin TestList */
-export function buildSectionCounts(tests, interviews, assignments, systemDesigns) {
-  const counts = {
-    coding: 0,
-    aptitude: 0,
-    mcq: 0,
-    english: 0,
-    theory: 0,
-    mixed: 0,
-    tools: 0,
-    project: assignments.length,
-    interview: interviews.length,
-    system: systemDesigns.length,
+/** Same grouping as VendorAdmin TestList — derived from dashboard stats only. */
+export function buildSectionCounts(testsByType = {}, totals = {}) {
+  return {
+    coding: testsByType.coding || 0,
+    aptitude: testsByType.aptitude || 0,
+    mcq: testsByType.mcq || 0,
+    english: testsByType.english || 0,
+    theory: testsByType.theory || 0,
+    mixed: testsByType.mixed || 0,
+    tools: testsByType.sql || 0,
+    project: totals.totalAssignments || 0,
+    interview: totals.totalInterviews || 0,
+    system: totals.totalSystemDesigns || 0,
     company: 0,
   };
-
-  for (const t of tests) {
-    const type = t.type;
-    if (type === 'sql') {
-      counts.tools += 1;
-    } else if (type && Object.prototype.hasOwnProperty.call(counts, type)) {
-      counts[type] += 1;
-    }
-  }
-
-  return counts;
 }
 
 export function VendorPanelProvider({ children }) {
   const [stats, setStats] = useState(defaultStats);
   const [loading, setLoading] = useState(true);
-  const location = useLocation();
   const hasLoadedRef = useRef(false);
-  const skipPathRefreshRef = useRef(true);
 
   const refreshStats = useCallback(async ({ silent = false } = {}) => {
     const isBackground = silent || hasLoadedRef.current;
     if (!isBackground) setLoading(true);
     try {
-      const [statsRes, testsRes, interviewsRes, assignmentsRes, systemDesignRes] = await Promise.all([
-        axiosInstance.get('/vendor-admin/dashboard/stats').catch(() => ({ data: {} })),
-        axiosInstance.get('/vendor-admin/tests'),
-        axiosInstance.get('/interviews').catch(() => ({ data: [] })),
-        axiosInstance.get('/assignments').catch(() => ({ data: { assignments: [] } })),
-        axiosInstance.get('/system-design-problems').catch(() => ({ data: { problems: [] } })),
-      ]);
+      const { data: api } = await axiosInstance.get('/vendor-admin/dashboard/stats');
 
-      const tests = Array.isArray(testsRes.data) ? testsRes.data : [];
-      const interviews = Array.isArray(interviewsRes.data) ? interviewsRes.data : [];
-      const assignments = assignmentsRes.data?.assignments ?? [];
-      const systemDesigns = systemDesignRes.data?.problems ?? [];
+      const testsByType = api?.testsByType || {};
+      const sectionCounts = api?.sectionCounts || buildSectionCounts(testsByType, api);
 
-      const sectionCounts = buildSectionCounts(tests, interviews, assignments, systemDesigns);
-      const totalAssessments =
-        tests.length + interviews.length + assignments.length + systemDesigns.length;
-
-      const testsByType = {};
-      for (const t of tests) {
-        const type = t.type || 'other';
-        testsByType[type] = (testsByType[type] || 0) + 1;
-      }
-
-      const api = statsRes.data || {};
       setStats({
         ...defaultStats,
         ...api,
-        totalTests: tests.length,
-        totalInterviews: interviews.length,
-        totalAssignments: assignments.length,
-        totalSystemDesigns: systemDesigns.length,
-        totalAssessments,
         testsByType,
         sectionCounts,
-        questions: api.questions || defaultStats.questions,
+        totalAssessments:
+          api?.totalAssessments ??
+          (api?.totalTests || 0) +
+            (api?.totalInterviews || 0) +
+            (api?.totalAssignments || 0) +
+            (api?.totalSystemDesigns || 0),
+        questions: api?.questions || defaultStats.questions,
       });
       hasLoadedRef.current = true;
     } catch (err) {
@@ -109,15 +77,6 @@ export function VendorPanelProvider({ children }) {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [refreshStats]);
-
-  useEffect(() => {
-    if (skipPathRefreshRef.current) {
-      skipPathRefreshRef.current = false;
-      return;
-    }
-    if (!hasLoadedRef.current) return;
-    refreshStats({ silent: true });
-  }, [location.pathname, location.search, refreshStats]);
 
   const getSectionCount = useCallback(
     (sectionId) => {

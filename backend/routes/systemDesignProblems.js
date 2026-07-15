@@ -5,6 +5,7 @@ const SystemDesignSubmission = require('../models/SystemDesignSubmission');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
+const { parsePagination, paginatedResponse } = require('../utils/pagination');
 
 // ==========================================
 // ADMIN ROUTES - Create & Manage Problems
@@ -46,18 +47,36 @@ router.post('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, 
 router.get('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, res) => {
   try {
     const { category, difficulty, isActive } = req.query;
+    const { page, limit, skip, search } = parsePagination(req.query, {
+      defaultLimit: 30,
+      maxLimit: 100,
+    });
 
     const query = { vendorId: req.user.vendorId };
     if (category) query.category = category;
     if (difficulty) query.difficulty = difficulty;
     if (isActive !== undefined) query.isActive = isActive === 'true';
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.title = new RegExp(escaped, 'i');
+    }
 
-    const problems = await SystemDesignProblem.find(query)
-      .populate('createdBy', 'name email')
-      .select('-referenceAnswer')
-      .sort({ createdAt: -1 });
+    const [problems, total] = await Promise.all([
+      SystemDesignProblem.find(query)
+        .populate('createdBy', 'name email')
+        .select('-referenceAnswer')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      SystemDesignProblem.countDocuments(query),
+    ]);
 
-    res.json({ success: true, problems });
+    res.json({
+      success: true,
+      ...paginatedResponse({ items: problems, page, limit, total }),
+      problems,
+    });
   } catch (error) {
     console.error('Error fetching system design problems:', error);
     res.status(500).json({

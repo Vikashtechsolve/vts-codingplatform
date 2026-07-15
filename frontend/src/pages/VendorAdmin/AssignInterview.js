@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
+import { useVendorStudents } from '../../hooks/useVendorStudents';
 import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorAssignStudents from '../../components/VendorAdmin/VendorAssignStudents';
 import { getVendorTestTypeAccent } from '../../utils/vendorTestTypeUi';
@@ -10,29 +11,36 @@ const AssignInterview = () => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
   const { refreshStats } = useVendorPanel();
+  const {
+    students,
+    refreshing: studentsRefreshing,
+    loadingMore,
+    hasMore,
+    total,
+    search,
+    setSearch,
+    loadMore,
+  } = useVendorStudents();
   const [interview, setInterview] = useState(null);
-  const [students, setStudents] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [studentsRes, interviewRes, classroomsRes] = await Promise.all([
-          axiosInstance.get('/vendor-admin/students'),
+        const [interviewRes, classroomsRes] = await Promise.all([
           axiosInstance.get(`/interviews/${interviewId}`).catch(() => ({ data: null })),
           axiosInstance.get('/vendor-admin/classrooms').catch(() => ({ data: [] })),
         ]);
-        setStudents(studentsRes.data || []);
         setInterview(interviewRes.data);
         setClassrooms(classroomsRes.data || []);
       } catch (error) {
         console.error('Error loading assign page:', error);
       } finally {
-        setLoading(false);
+        setMetaLoading(false);
       }
     };
     load();
@@ -93,7 +101,7 @@ const AssignInterview = () => {
 
   return (
     <VendorAssessPage
-      loading={loading}
+      loading={metaLoading}
       backTo="/vendor-admin/tests?type=interview"
       backLabel="Back to interviews"
       eyebrow="Assign · Interview"
@@ -119,6 +127,13 @@ const AssignInterview = () => {
         assigning={assigning}
         accent={accent}
         assignEntityLabel="interview"
+        studentSearch={search}
+        onStudentSearchChange={setSearch}
+        refreshingStudents={studentsRefreshing}
+        hasMoreStudents={hasMore}
+        loadingMoreStudents={loadingMore}
+        onLoadMoreStudents={loadMore}
+        totalStudents={total}
       />
     </VendorAssessPage>
   );

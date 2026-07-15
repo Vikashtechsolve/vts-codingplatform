@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { normalizePaginatedResponse } from '../../utils/paginatedApi';
 import { truncateForPreview } from '../../components/RichTextDisplay';
 import './SystemDesignList.css';
 
@@ -25,8 +26,11 @@ const SystemDesignList = () => {
   const fetchProblems = async () => {
     try {
       setLoading(true);
-      const { data } = await axiosInstance.get('/system-design-problems');
-      if (data.success) setProblems(data.problems);
+      const { data } = await axiosInstance.get('/system-design-problems', {
+        params: { page: 1, limit: 100 },
+      });
+      const parsed = normalizePaginatedResponse(data);
+      if (data.success !== false) setProblems(parsed.items);
       else setError(data.message);
     } catch (err) {
       setError('Failed to fetch system design problems');

@@ -2,6 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
+import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
+import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/paginatedApi';
+import { useListFetchLoading } from '../../hooks/useListFetchLoading';
 import { VENDOR_TEST_SECTIONS, getVendorTestSectionByType } from '../../constants/vendorSections';
 import CopyShareLinkButton from '../../components/CopyShareLinkButton';
 import { formatTopicsCardPreview } from '../../utils/interviewCardText';
@@ -118,17 +122,24 @@ function getCreateLabel(activeType) {
 }
 
 const TestList = () => {
-  const [tests, setTests] = useState([]);
-  const [interviews, setInterviews] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [systemDesigns, setSystemDesigns] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState([]);
+  const {
+    initialLoading,
+    refreshing,
+    loadingMore,
+    beginFetch,
+    endFetch,
+  } = useListFetchLoading();
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [openMenuId, setOpenMenuId] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const { refreshStats } = useVendorPanel();
+  const { refreshStats, getSectionCount, stats } = useVendorPanel();
 
   const typeParam = new URLSearchParams(location.search).get('type');
   const activeType = VALID_TYPES.includes(typeParam) ? typeParam : 'all';
@@ -142,28 +153,100 @@ const TestList = () => {
     (action) => !action.primary && action.to !== currentListPath
   );
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [testsRes, interviewsRes, assignmentsRes, systemDesignRes] = await Promise.all([
-        axiosInstance.get('/vendor-admin/tests'),
-        axiosInstance.get('/interviews').catch(() => ({ data: [] })),
-        axiosInstance.get('/assignments').catch(() => ({ data: { assignments: [] } })),
-        axiosInstance.get('/system-design-problems').catch(() => ({ data: { problems: [] } })),
-      ]);
-      setTests(Array.isArray(testsRes.data) ? testsRes.data : []);
-      setInterviews(Array.isArray(interviewsRes?.data) ? interviewsRes.data : []);
-      setAssignments(assignmentsRes?.data?.assignments ?? []);
-      setSystemDesigns(systemDesignRes?.data?.problems ?? []);
-      refreshStats({ silent: true });
-    } catch (error) {
-      console.error('Error fetching assessments:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [refreshStats]);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchData = useCallback(
+    async ({ pageNum = 1, append = false } = {}) => {
+      try {
+        beginFetch(append);
+
+        const searchParam = debouncedSearch.trim() || undefined;
+        const limit = activeType === 'all' ? 15 : 30;
+        const params = { page: pageNum, limit, search: searchParam };
+
+        let nextItems = [];
+        let nextHasMore = false;
+        let nextTotal = 0;
+
+        if (activeType === 'interview') {
+          const res = await axiosInstance.get('/interviews', { params });
+          const parsed = normalizePaginatedResponse(res.data);
+          nextItems = parsed.items.map(normalizeInterview);
+          nextHasMore = parsed.hasMore;
+          nextTotal = parsed.total;
+        } else if (activeType === 'project') {
+          const res = await axiosInstance.get('/assignments', { params });
+          const parsed = normalizePaginatedResponse(res.data);
+          nextItems = parsed.items.map(normalizeAssignment);
+          nextHasMore = parsed.hasMore;
+          nextTotal = parsed.total;
+        } else if (activeType === 'system') {
+          const res = await axiosInstance.get('/system-design-problems', { params });
+          const parsed = normalizePaginatedResponse(res.data);
+          nextItems = parsed.items.map(normalizeSystemDesign);
+          nextHasMore = parsed.hasMore;
+          nextTotal = parsed.total;
+        } else if (activeType === 'all') {
+          const [testsRes, interviewsRes, assignmentsRes, systemRes] = await Promise.all([
+            axiosInstance.get('/vendor-admin/tests', { params }),
+            axiosInstance.get('/interviews', { params }).catch(() => ({ data: { items: [] } })),
+            axiosInstance.get('/assignments', { params }).catch(() => ({ data: { items: [] } })),
+            axiosInstance
+              .get('/system-design-problems', { params })
+              .catch(() => ({ data: { items: [] } })),
+          ]);
+          const parsedTests = normalizePaginatedResponse(testsRes.data);
+          const parsedInterviews = normalizePaginatedResponse(interviewsRes.data);
+          const parsedAssignments = normalizePaginatedResponse(assignmentsRes.data);
+          const parsedSystem = normalizePaginatedResponse(systemRes.data);
+
+          nextItems = [
+            ...parsedTests.items.map((t) => ({ ...t, kind: 'test' })),
+            ...parsedInterviews.items.map(normalizeInterview),
+            ...parsedAssignments.items.map(normalizeAssignment),
+            ...parsedSystem.items.map(normalizeSystemDesign),
+          ].sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+          nextHasMore =
+            parsedTests.hasMore ||
+            parsedInterviews.hasMore ||
+            parsedAssignments.hasMore ||
+            parsedSystem.hasMore;
+          nextTotal =
+            parsedTests.total +
+            parsedInterviews.total +
+            parsedAssignments.total +
+            parsedSystem.total;
+        } else {
+          const res = await axiosInstance.get('/vendor-admin/tests', {
+            params: { ...params, type: activeType },
+          });
+          const parsed = normalizePaginatedResponse(res.data);
+          nextItems = parsed.items.map((t) => ({ ...t, kind: 'test' }));
+          nextHasMore = parsed.hasMore;
+          nextTotal = parsed.total;
+        }
+
+        setItems((prev) => (append ? mergePaginatedPages(prev, nextItems) : nextItems));
+        setPage(pageNum);
+        setHasMore(nextHasMore);
+        setTotal(nextTotal);
+        refreshStats({ silent: true });
+      } catch (error) {
+        console.error('Error fetching assessments:', error);
+      } finally {
+        endFetch();
+      }
+    },
+    [activeType, debouncedSearch, refreshStats, beginFetch, endFetch]
+  );
 
   useEffect(() => {
-    fetchData();
+    fetchData({ pageNum: 1, append: false });
   }, [fetchData]);
 
   useEffect(() => {
@@ -171,36 +254,19 @@ const TestList = () => {
   }, [activeType, search]);
 
 
-  const allItems = useMemo(() => {
-    const testItems = (tests || []).map((t) => ({ ...t, kind: 'test' }));
-    const interviewItems = (interviews || []).map(normalizeInterview);
-    const assignmentItems = (assignments || []).map(normalizeAssignment);
-    const systemDesignItems = (systemDesigns || []).map(normalizeSystemDesign);
-    return [...testItems, ...interviewItems, ...assignmentItems, ...systemDesignItems];
-  }, [tests, interviews, assignments, systemDesigns]);
-
   const countsByType = useMemo(() => {
-    const map = { all: allItems.length };
+    const map = { all: stats.totalAssessments || 0 };
     for (const chip of FILTER_CHIPS) {
       if (chip.id === 'all') continue;
-      map[chip.id] = allItems.filter((t) => t.type === chip.id).length;
+      const key = chip.id === 'sql' ? 'tools' : chip.id;
+      map[chip.id] = getSectionCount(key);
     }
     return map;
-  }, [allItems]);
+  }, [getSectionCount, stats.totalAssessments]);
 
   const filteredItems = useMemo(() => {
-    let list = activeType === 'all' ? allItems : allItems.filter((t) => t.type === activeType);
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (t) =>
-          t.title?.toLowerCase().includes(q) ||
-          t.topic?.toLowerCase().includes(q) ||
-          t.category?.toLowerCase().includes(q) ||
-          TYPE_LABELS[t.type]?.toLowerCase().includes(q)
-      );
-    }
-    list = [...list].sort((a, b) => {
+    let list = [...items];
+    list.sort((a, b) => {
       if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '');
       if (sortBy === 'duration') return (b.duration || 0) - (a.duration || 0);
       const da = new Date(a.createdAt || 0).getTime();
@@ -208,7 +274,7 @@ const TestList = () => {
       return db - da;
     });
     return list;
-  }, [allItems, activeType, search, sortBy]);
+  }, [items, sortBy]);
 
   const handleDelete = async (item) => {
     const isInterview = item.kind === 'interview';
@@ -233,7 +299,7 @@ const TestList = () => {
       else if (isAssignment) await axiosInstance.delete(`/assignments/${item._id}`);
       else if (isSystemDesign) await axiosInstance.delete(`/system-design-problems/${item._id}`);
       else await axiosInstance.delete(`/tests/${item._id}`);
-      await fetchData();
+      await fetchData({ pageNum: 1, append: false });
     } catch (e) {
       alert(e.response?.data?.message || 'Error deleting');
     }
@@ -278,7 +344,7 @@ const TestList = () => {
         ? `Manage your ${activeChip.label.toLowerCase()} assessments.`
         : 'Manage assessments for your organization.');
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="vendor-tests-page" style={{ '--vt-accent': pageAccent }}>
         <div className="vendor-tests-loading">
@@ -334,7 +400,8 @@ const TestList = () => {
           <span className="vendor-tests-result-count">
             <strong>{filteredItems.length}</strong>
             {filteredItems.length === 1 ? ' item' : ' items'}
-            {search ? ' found' : activeType !== 'all' ? '' : ` · ${allItems.length} total`}
+            {total > filteredItems.length ? ` · ${total} total` : ''}
+            {search ? ' found' : ''}
           </span>
         </div>
       </div>
@@ -364,7 +431,8 @@ const TestList = () => {
         })}
       </div>
 
-      {filteredItems.length === 0 ? (
+      <VendorDataSection refreshing={refreshing}>
+      {filteredItems.length === 0 && !refreshing ? (
         <div className="vendor-tests-empty">
           <div
             className="vendor-tests-empty-icon"
@@ -388,6 +456,7 @@ const TestList = () => {
           )}
         </div>
       ) : (
+        <>
         <ul className="vendor-tests-list">
           {filteredItems.map((item) => {
             const accent = getTypeAccent(item.type);
@@ -586,7 +655,16 @@ const TestList = () => {
             );
           })}
         </ul>
+        <VendorLoadMore
+          hasMore={hasMore}
+          loading={loadingMore || refreshing}
+          loadedCount={filteredItems.length}
+          total={total}
+          onLoadMore={() => fetchData({ pageNum: page + 1, append: true })}
+        />
+        </>
       )}
+      </VendorDataSection>
     </div>
   );
 };

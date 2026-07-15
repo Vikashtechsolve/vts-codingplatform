@@ -2,6 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiSearch, FiUsers, FiCheck, FiGrid } from 'react-icons/fi';
 import { matchesStudentSearch } from '../../utils/studentBulkImport';
+import VendorLoadMore from './VendorLoadMore';
+import VendorDataSection from './VendorDataSection';
+
+const classroomStudentCount = (c) => c.studentCount ?? c.students?.length ?? 0;
 
 const VendorAssignStudents = ({
   students = [],
@@ -17,8 +21,18 @@ const VendorAssignStudents = ({
   assigning = false,
   accent = '#2563eb',
   assignEntityLabel = 'assessment',
+  studentSearch,
+  onStudentSearchChange,
+  refreshingStudents = false,
+  hasMoreStudents = false,
+  loadingMoreStudents = false,
+  onLoadMoreStudents,
+  totalStudents = 0,
 }) => {
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
+  const search = onStudentSearchChange != null ? studentSearch ?? '' : localSearch;
+  const setSearch = onStudentSearchChange || setLocalSearch;
+  const serverSearch = onStudentSearchChange != null;
   const [mode, setMode] = useState(classrooms.length > 0 ? 'classroom' : 'students');
 
   const selectedClassrooms = useMemo(
@@ -27,36 +41,26 @@ const VendorAssignStudents = ({
   );
 
   const classroomsWithStudents = useMemo(
-    () => classrooms.filter((c) => (c.students?.length ?? 0) > 0),
+    () => classrooms.filter((c) => classroomStudentCount(c) > 0),
     [classrooms]
   );
 
-  const { uniqueStudentIds, totalSeatCount } = useMemo(() => {
-    const ids = new Set();
+  const { totalSeatCount } = useMemo(() => {
     let seats = 0;
     selectedClassrooms.forEach((c) => {
-      (c.students || []).forEach((s) => {
-        const id = (s._id || s).toString();
-        ids.add(id);
-        seats += 1;
-      });
+      seats += classroomStudentCount(c);
     });
-    return { uniqueStudentIds: ids, totalSeatCount: seats };
+    return { totalSeatCount: seats };
   }, [selectedClassrooms]);
 
-  const uniqueStudentCount = uniqueStudentIds.size;
-
-  const previewStudents = useMemo(() => {
-    if (uniqueStudentCount === 0) return [];
-    return students.filter((s) => uniqueStudentIds.has(s._id.toString()));
-  }, [students, uniqueStudentIds, uniqueStudentCount]);
+  const uniqueStudentCount = totalSeatCount;
 
   const filteredStudents = useMemo(() => {
+    if (serverSearch) return students;
     const q = search.trim().toLowerCase();
-    let list = students;
-    if (!q) return list;
-    return list.filter((s) => matchesStudentSearch(s, q));
-  }, [students, search]);
+    if (!q) return students;
+    return students.filter((s) => matchesStudentSearch(s, q));
+  }, [students, search, serverSearch]);
 
   const allStudentsSelected =
     mode === 'students' &&
@@ -98,8 +102,8 @@ const VendorAssignStudents = ({
     if (mode === 'classroom' && selectedClassroomIds.length > 0) {
       const classPart = `${selectedClassroomIds.length} classroom${selectedClassroomIds.length !== 1 ? 's' : ''}`;
       const studentPart = `${uniqueStudentCount} student${uniqueStudentCount !== 1 ? 's' : ''}`;
-      if (totalSeatCount > uniqueStudentCount) {
-        return `${classPart} · ${studentPart} (${totalSeatCount - uniqueStudentCount} overlap)`;
+      if (selectedClassroomIds.length > 1) {
+        return `${classPart} · ${studentPart} (duplicates removed on assign)`;
       }
       return `${classPart} · ${studentPart}`;
     }
@@ -111,7 +115,6 @@ const VendorAssignStudents = ({
     mode,
     selectedClassroomIds.length,
     uniqueStudentCount,
-    totalSeatCount,
     selectedStudents.length,
     assignEntityLabel,
   ]);
@@ -125,6 +128,8 @@ const VendorAssignStudents = ({
       onClearClassrooms?.();
     }
   };
+
+  const studentTotalLabel = totalStudents || students.length;
 
   return (
     <div className="va-assign" style={{ '--card-accent': accent }}>
@@ -196,7 +201,7 @@ const VendorAssignStudents = ({
             </p>
             <div className="va-classroom-grid">
               {classrooms.map((c) => {
-                const count = c.students?.length ?? 0;
+                const count = classroomStudentCount(c);
                 const selected = selectedClassroomIds.includes(c._id);
                 const empty = count === 0;
                 return (
@@ -237,7 +242,7 @@ const VendorAssignStudents = ({
               <FiUsers style={{ verticalAlign: 'middle', marginRight: 6 }} />
               Select students
             </h2>
-            <span className="va-cell-muted">{students.length} total</span>
+            <span className="va-cell-muted">{studentTotalLabel} total</span>
           </div>
           <div className="va-panel-body">
             <div className="va-student-toolbar">
@@ -265,35 +270,48 @@ const VendorAssignStudents = ({
                 <p>{search ? 'No students match your search.' : 'No students available to assign.'}</p>
               </div>
             ) : (
-              <div className="va-student-grid">
-                {filteredStudents.map((student) => {
-                  const selected = selectedStudents.includes(student._id);
-                  return (
-                    <button
-                      key={student._id}
-                      type="button"
-                      className={`va-student-card ${selected ? 'selected' : ''}`}
-                      onClick={() => onToggleStudent(student._id)}
-                    >
-                      <input
-                        type="checkbox"
-                        readOnly
-                        checked={selected}
-                        tabIndex={-1}
-                        aria-hidden
-                      />
-                      <span>
-                        <span className="va-student-name">{student.name}</span>
-                        <span className="va-student-email">
-                          {student.enrollmentNumber
-                            ? `${student.enrollmentNumber} · ${student.email}`
-                            : student.email}
+              <>
+                <VendorDataSection refreshing={refreshingStudents}>
+                <div className="va-student-grid">
+                  {filteredStudents.map((student) => {
+                    const selected = selectedStudents.includes(student._id);
+                    return (
+                      <button
+                        key={student._id}
+                        type="button"
+                        className={`va-student-card ${selected ? 'selected' : ''}`}
+                        onClick={() => onToggleStudent(student._id)}
+                      >
+                        <input
+                          type="checkbox"
+                          readOnly
+                          checked={selected}
+                          tabIndex={-1}
+                          aria-hidden
+                        />
+                        <span>
+                          <span className="va-student-name">{student.name}</span>
+                          <span className="va-student-email">
+                            {student.enrollmentNumber
+                              ? `${student.enrollmentNumber} · ${student.email}`
+                              : student.email}
+                          </span>
                         </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {onLoadMoreStudents && (
+                  <VendorLoadMore
+                    hasMore={hasMoreStudents}
+                    loading={loadingMoreStudents || refreshingStudents}
+                    loadedCount={students.length}
+                    total={totalStudents || students.length}
+                    onLoadMore={onLoadMoreStudents}
+                  />
+                )}
+                </VendorDataSection>
+              </>
             )}
           </div>
         </div>
@@ -311,7 +329,7 @@ const VendorAssignStudents = ({
             <div className="va-assign-class-chips">
               {selectedClassrooms.map((c) => (
                 <span key={c._id} className="va-assign-class-chip">
-                  {c.name}
+                  {c.name} ({classroomStudentCount(c)})
                   <button
                     type="button"
                     className="va-assign-class-chip-remove"
@@ -323,14 +341,6 @@ const VendorAssignStudents = ({
                 </span>
               ))}
             </div>
-            <ul className="va-assign-roster">
-              {previewStudents.slice(0, 16).map((s) => (
-                <li key={s._id}>{s.name}</li>
-              ))}
-              {previewStudents.length > 16 && (
-                <li className="va-assign-roster-more">+{previewStudents.length - 16} more</li>
-              )}
-            </ul>
           </div>
         </div>
       )}

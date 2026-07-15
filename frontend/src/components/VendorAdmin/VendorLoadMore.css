@@ -1,0 +1,43 @@
+.vendor-load-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 16px 0 24px;
+}
+
+.vendor-load-more--done {
+  min-height: 48px;
+  padding-bottom: 12px;
+}
+
+.vendor-load-more-count {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.vendor-load-more-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+}
+
+.vendor-load-more-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border-color, #e2e8f0);
+  border-top-color: var(--primary-color, #2563eb);
+  border-radius: 50%;
+  animation: vendorLoadMoreSpin 0.7s linear infinite;
+}
+
+@keyframes vendorLoadMoreSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

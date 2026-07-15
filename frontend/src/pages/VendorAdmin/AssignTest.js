@@ -2,37 +2,47 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
+import { useVendorStudents } from '../../hooks/useVendorStudents';
 import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorAssignStudents from '../../components/VendorAdmin/VendorAssignStudents';
 import { getVendorTestTypeAccent, getVendorTestTypeLabel } from '../../utils/vendorTestTypeUi';
+
+const classroomStudentCount = (c) => c?.studentCount ?? c?.students?.length ?? 0;
 
 const AssignTest = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
   const { refreshStats } = useVendorPanel();
+  const {
+    students,
+    refreshing: studentsRefreshing,
+    loadingMore,
+    hasMore,
+    total,
+    search,
+    setSearch,
+    loadMore,
+  } = useVendorStudents();
   const [test, setTest] = useState(null);
-  const [students, setStudents] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [studentsRes, testRes, classroomsRes] = await Promise.all([
-          axiosInstance.get('/vendor-admin/students'),
+        const [testRes, classroomsRes] = await Promise.all([
           axiosInstance.get(`/tests/${testId}`).catch(() => ({ data: null })),
           axiosInstance.get('/vendor-admin/classrooms').catch(() => ({ data: [] })),
         ]);
-        setStudents(studentsRes.data || []);
         setTest(testRes.data);
         setClassrooms(classroomsRes.data || []);
       } catch (error) {
         console.error('Error loading assign page:', error);
       } finally {
-        setLoading(false);
+        setMetaLoading(false);
       }
     };
     load();
@@ -64,7 +74,7 @@ const AssignTest = () => {
     if (hasClassrooms) {
       const empty = selectedClassroomIds.filter((cid) => {
         const c = classrooms.find((x) => x._id === cid);
-        return !c?.students?.length;
+        return classroomStudentCount(c) === 0;
       });
       if (empty.length > 0) {
         alert('One or more selected classrooms have no students.');
@@ -105,7 +115,7 @@ const AssignTest = () => {
 
   return (
     <VendorAssessPage
-      loading={loading}
+      loading={metaLoading}
       backTo={`/vendor-admin/tests${backType}`}
       backLabel="Back to tests"
       eyebrow={`Assign · ${typeLabel}`}
@@ -131,6 +141,13 @@ const AssignTest = () => {
         assigning={assigning}
         accent={accent}
         assignEntityLabel="test"
+        studentSearch={search}
+        onStudentSearchChange={setSearch}
+        refreshingStudents={studentsRefreshing}
+        hasMoreStudents={hasMore}
+        loadingMoreStudents={loadingMore}
+        onLoadMoreStudents={loadMore}
+        totalStudents={total}
       />
     </VendorAssessPage>
   );

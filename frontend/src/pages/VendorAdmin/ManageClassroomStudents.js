@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   FiSearch,
@@ -15,6 +15,9 @@ import {
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
+import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
+import { useVendorStudents } from '../../hooks/useVendorStudents';
 import {
   parseBulkStudentText,
   matchesStudentSearch,
@@ -36,8 +39,18 @@ const normalizeId = (value) => String(value?._id || value || '');
 const ManageClassroomStudents = () => {
   const { id } = useParams();
   const [classroom, setClassroom] = useState(null);
-  const [allStudents, setAllStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    students: allStudents,
+    refreshing: studentsRefreshing,
+    loadingMore,
+    hasMore,
+    total: totalStudents,
+    search: searchAvailable,
+    setSearch: setSearchAvailable,
+    loadMore,
+    refresh: refreshStudents,
+  } = useVendorStudents();
+  const [classroomLoading, setClassroomLoading] = useState(true);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [activeTab, setActiveTab] = useState('enrolled');
   const [selectedStudents, setSelectedStudents] = useState([]);
@@ -47,7 +60,9 @@ const ManageClassroomStudents = () => {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkFeedback, setBulkFeedback] = useState({ type: '', message: '' });
   const [searchCurrent, setSearchCurrent] = useState('');
-  const [searchAvailable, setSearchAvailable] = useState('');
+  const classroomLoadedRef = useRef(false);
+
+  const pageLoading = classroomLoading && !classroomLoadedRef.current;
 
   const showModal = (title, message, type = 'info') => {
     setModal({ isOpen: true, title, message, type });
@@ -57,26 +72,27 @@ const ManageClassroomStudents = () => {
     setModal({ isOpen: false, title: '', message: '', type: 'info' });
   };
 
-  const fetchData = useCallback(async () => {
+  const fetchClassroom = useCallback(async () => {
     try {
-      setLoading(true);
-      const [classroomRes, studentsRes] = await Promise.all([
-        axiosInstance.get(`/vendor-admin/classrooms/${id}`),
-        axiosInstance.get('/vendor-admin/students'),
-      ]);
+      if (!classroomLoadedRef.current) setClassroomLoading(true);
+      const classroomRes = await axiosInstance.get(`/vendor-admin/classrooms/${id}`);
       setClassroom(classroomRes.data);
-      setAllStudents(studentsRes.data || []);
+      classroomLoadedRef.current = true;
     } catch (error) {
       console.error('Error fetching data:', error);
       showModal('Error', error.response?.data?.message || 'Failed to load classroom data.', 'error');
     } finally {
-      setLoading(false);
+      setClassroomLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchClassroom();
+  }, [fetchClassroom]);
+
+  const fetchData = useCallback(async () => {
+    await Promise.all([fetchClassroom(), refreshStudents()]);
+  }, [fetchClassroom, refreshStudents]);
 
   const classroomStudentIds = useMemo(
     () => new Set((classroom?.students || []).map((s) => normalizeId(s))),
@@ -91,10 +107,8 @@ const ManageClassroomStudents = () => {
   }, [classroom, searchCurrent]);
 
   const availableStudents = useMemo(() => {
-    return allStudents
-      .filter((s) => !classroomStudentIds.has(normalizeId(s._id)))
-      .filter((s) => matchesStudentSearch(s, searchAvailable));
-  }, [allStudents, classroomStudentIds, searchAvailable]);
+    return allStudents.filter((s) => !classroomStudentIds.has(normalizeId(s._id)));
+  }, [allStudents, classroomStudentIds]);
 
   const handleStudentToggle = (studentId) => {
     const sid = normalizeId(studentId);
@@ -245,7 +259,7 @@ const ManageClassroomStudents = () => {
 
   const enrolledCount = classroom?.students?.length || 0;
 
-  if (!loading && !classroom) {
+  if (!pageLoading && !classroom) {
     return (
       <VendorHubPage
         backTo="/vendor-admin/classrooms"
@@ -266,7 +280,7 @@ const ManageClassroomStudents = () => {
   return (
     <VendorHubPage
       className="mcs-page"
-      loading={loading}
+      loading={pageLoading}
       backTo="/vendor-admin/classrooms"
       backLabel="Back to classrooms"
       eyebrow="Classroom roster"
@@ -493,7 +507,7 @@ const ManageClassroomStudents = () => {
               </div>
             )}
 
-            {availableStudents.length === 0 ? (
+            {availableStudents.length === 0 && !studentsRefreshing ? (
               <div className="mcs-empty">
                 <div className="vh-empty-icon">
                   <FiUserPlus />
@@ -515,6 +529,8 @@ const ManageClassroomStudents = () => {
                 )}
               </div>
             ) : (
+              <>
+              <VendorDataSection refreshing={studentsRefreshing}>
               <div className="mcs-member-list">
                 {availableStudents.map((student) => {
                   const sid = normalizeId(student._id);
@@ -548,6 +564,15 @@ const ManageClassroomStudents = () => {
                   );
                 })}
               </div>
+              <VendorLoadMore
+                hasMore={hasMore}
+                loading={loadingMore || studentsRefreshing}
+                loadedCount={allStudents.length}
+                total={totalStudents}
+                onLoadMore={loadMore}
+              />
+              </VendorDataSection>
+              </>
             )}
           </div>
         </div>

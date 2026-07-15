@@ -15,6 +15,7 @@ const ProjectSubmission = require('../models/ProjectSubmission');
 const EvaluationJob = require('../models/EvaluationJob');
 const EvaluationResult = require('../models/EvaluationResult');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
+const { parsePagination, paginatedResponse } = require('../utils/pagination');
 
 // ==========================================
 // ADMIN ROUTES - Create & Manage Assignments
@@ -27,20 +28,38 @@ const { auth: authenticateToken, authorize: authorizeRoles } = require('../middl
 router.get('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, res) => {
   try {
     const { status, category, difficulty } = req.query;
+    const { page, limit, skip, search } = parsePagination(req.query, {
+      defaultLimit: 30,
+      maxLimit: 100,
+    });
     
     const query = { vendorId: req.user.vendorId };
     
     if (status) query.status = status;
     if (category) query.category = category;
     if (difficulty) query.difficulty = difficulty;
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.title = new RegExp(escaped, 'i');
+    }
 
-    const assignments = await Assignment.find(query)
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+    const [assignments, total] = await Promise.all([
+      Assignment.find(query)
+        .select(
+          'title category difficulty duration status totalMarks totalAssigned totalSubmitted totalEvaluated createdAt'
+        )
+        .populate('createdBy', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Assignment.countDocuments(query),
+    ]);
 
     res.json({
       success: true,
-      assignments
+      ...paginatedResponse({ items: assignments, page, limit, total }),
+      assignments,
     });
   } catch (error) {
     console.error('Error fetching assignments:', error);

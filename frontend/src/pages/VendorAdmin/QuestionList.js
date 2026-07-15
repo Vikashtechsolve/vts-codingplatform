@@ -16,9 +16,21 @@ import axiosInstance from '../../utils/axios';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import QuestionHubRow from '../../components/VendorAdmin/QuestionHubRow';
 import QuestionTagFilters from '../../components/VendorAdmin/QuestionTagFilters';
+import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
+import { useVendorPanel } from '../../context/VendorPanelContext';
+import { useListFetchLoading } from '../../hooks/useListFetchLoading';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/paginatedApi';
 import { htmlToListPreview } from '../../components/RichTextDisplay';
+
+const QUESTION_API = {
+  coding: '/questions/coding',
+  mcq: '/questions/mcq',
+  aptitude: '/questions/aptitude',
+  theory: '/questions/theory',
+};
 
 const QUESTION_TYPES = [
   { id: 'coding', label: 'Coding', accent: '#2563eb', icon: FiCode, create: '/vendor-admin/questions/coding/create', edit: (id) => `/vendor-admin/questions/coding/edit/${id}` },
@@ -29,77 +41,114 @@ const QUESTION_TYPES = [
 ];
 
 const QuestionList = () => {
-  const [myByType, setMyByType] = useState({ coding: [], mcq: [], aptitude: [], theory: [] });
-  const [globalByType, setGlobalByType] = useState({ coding: [], mcq: [], aptitude: [], theory: [] });
+  const { stats: panelStats } = useVendorPanel();
+  const [questions, setQuestions] = useState([]);
   const [activeTab, setActiveTab] = useState('my');
   const [questionType, setQuestionType] = useState('coding');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
-  const [loading, setLoading] = useState(true);
+  const {
+    initialLoading,
+    refreshing,
+    loadingMore,
+    beginFetch,
+    endFetch,
+  } = useListFetchLoading();
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [vendorTotal, setVendorTotal] = useState(0);
+  const [globalTotal, setGlobalTotal] = useState(0);
   const { registryTags } = useQuestionTagRegistry();
 
   useEffect(() => {
-    fetchQuestions();
-  }, []);
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const fetchQuestions = async () => {
-    try {
-      const [codingRes, mcqRes, aptitudeRes, theoryRes] = await Promise.all([
-        axiosInstance.get('/questions/coding'),
-        axiosInstance.get('/questions/mcq'),
-        axiosInstance.get('/questions/aptitude'),
-        axiosInstance.get('/questions/theory'),
-      ]);
+  const fetchQuestions = useCallback(
+    async ({ pageNum = 1, append = false } = {}) => {
+      if (questionType === 'english') {
+        setQuestions([]);
+        endFetch();
+        return;
+      }
 
-      const split = (list) => ({
-        vendor: (list || []).filter((q) => q.source === 'vendor'),
-        global: (list || []).filter((q) => q.source === 'global'),
-      });
+      const endpoint = QUESTION_API[questionType];
+      if (!endpoint) return;
 
-      const c = split(codingRes.data);
-      const m = split(mcqRes.data);
-      const a = split(aptitudeRes.data);
-      const t = split(theoryRes.data);
+      try {
+        beginFetch(append);
 
-      setMyByType({
-        coding: c.vendor,
-        mcq: m.vendor,
-        aptitude: a.vendor,
-        theory: t.vendor,
-      });
-      setGlobalByType({
-        coding: c.global,
-        mcq: m.global,
-        aptitude: a.global,
-        theory: t.global,
-      });
-    } catch (error) {
-      console.error('Error fetching questions:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const { data } = await axiosInstance.get(endpoint, {
+          params: {
+            source: activeTab === 'my' ? 'vendor' : 'global',
+            page: pageNum,
+            limit: 40,
+            search: debouncedSearch.trim() || undefined,
+          },
+        });
+
+        const parsed = normalizePaginatedResponse(data);
+        setQuestions((prev) =>
+          append ? mergePaginatedPages(prev, parsed.items) : parsed.items
+        );
+        setPage(parsed.page);
+        setHasMore(parsed.hasMore);
+        setTotal(parsed.total);
+        if (parsed.vendorTotal != null) setVendorTotal(parsed.vendorTotal);
+        if (parsed.globalTotal != null) setGlobalTotal(parsed.globalTotal);
+      } catch (error) {
+        console.error('Error fetching questions:', error);
+      } finally {
+        endFetch();
+      }
+    },
+    [questionType, activeTab, debouncedSearch, beginFetch, endFetch]
+  );
+
+  useEffect(() => {
+    fetchQuestions({ pageNum: 1, append: false });
+  }, [fetchQuestions]);
 
   const counts = useMemo(() => {
-    const my = myByType;
-    const gl = globalByType;
-    return {
-      myTotal: Object.values(my).reduce((s, arr) => s + arr.length, 0),
-      globalTotal: Object.values(gl).reduce((s, arr) => s + arr.length, 0),
-      myByType: Object.fromEntries(Object.keys(my).map((k) => [k, my[k].length])),
-      globalByType: Object.fromEntries(Object.keys(gl).map((k) => [k, gl[k].length])),
+    const qStats = panelStats.questions || {};
+    const myByType = {
+      coding: vendorTotal || qStats.coding || 0,
+      mcq: vendorTotal || qStats.mcq || 0,
+      aptitude: vendorTotal || qStats.aptitude || 0,
+      theory: vendorTotal || qStats.theory || 0,
     };
-  }, [myByType, globalByType]);
+    if (questionType !== 'english' && activeTab === 'my' && vendorTotal) {
+      myByType[questionType] = vendorTotal;
+    }
+    const globalByType = {
+      coding: globalTotal,
+      mcq: globalTotal,
+      aptitude: globalTotal,
+      theory: globalTotal,
+    };
+    if (questionType !== 'english' && activeTab === 'global' && globalTotal) {
+      globalByType[questionType] = globalTotal;
+    }
+    return {
+      myTotal: Object.values(qStats).reduce((s, n) => s + (n || 0), 0),
+      globalTotal: globalTotal || 0,
+      myByType: {
+        coding: qStats.coding || 0,
+        mcq: qStats.mcq || 0,
+        aptitude: qStats.aptitude || 0,
+        theory: qStats.theory || 0,
+      },
+      globalByType,
+    };
+  }, [panelStats.questions, vendorTotal, globalTotal, questionType, activeTab]);
 
   const currentType = QUESTION_TYPES.find((t) => t.id === questionType) || QUESTION_TYPES[0];
   const rawQuestions = useMemo(
-    () =>
-      questionType === 'english'
-        ? []
-        : activeTab === 'my'
-          ? myByType[questionType] || []
-          : globalByType[questionType] || [],
-    [questionType, activeTab, myByType, globalByType]
+    () => (questionType === 'english' ? [] : questions),
+    [questionType, questions]
   );
 
   useEffect(() => {
@@ -132,11 +181,11 @@ const QuestionList = () => {
   const filteredQuestions = useMemo(
     () =>
       filterQuestionsBySearchAndTag(rawQuestions, {
-        term: search,
+        term: '',
         selectedTag,
         textFieldsFor: getTextFields,
       }),
-    [rawQuestions, search, selectedTag, getTextFields]
+    [rawQuestions, selectedTag, getTextFields]
   );
 
   const renderDifficultyBadge = (d) => ({
@@ -154,7 +203,6 @@ const QuestionList = () => {
           badges: [renderDifficultyBadge(q.difficulty)],
           meta: [
             { key: 'lang', label: `${(q.allowedLanguages || []).length} languages` },
-            { key: 'cases', label: `${q.testCases?.length || 0} test cases` },
           ],
         };
       case 'mcq':
@@ -263,7 +311,7 @@ const QuestionList = () => {
   return (
     <VendorHubPage
       className="vh-questions-page"
-      loading={loading}
+      loading={initialLoading}
       eyebrow="Question bank"
       title="Questions"
       subtitle="Create and manage coding, MCQ, aptitude, theory, and English items. Use My Questions for your bank or browse shared global content."
@@ -390,7 +438,18 @@ const QuestionList = () => {
           </div>
         </div>
         <div className="vh-panel-body vh-panel-body--flush">
+          <VendorDataSection refreshing={refreshing}>
           {renderQuestionList()}
+          {questionType !== 'english' && (
+            <VendorLoadMore
+              hasMore={hasMore}
+              loading={loadingMore || refreshing}
+              loadedCount={filteredQuestions.length}
+              total={total}
+              onLoadMore={() => fetchQuestions({ pageNum: page + 1, append: true })}
+            />
+          )}
+          </VendorDataSection>
         </div>
       </div>
     </VendorHubPage>

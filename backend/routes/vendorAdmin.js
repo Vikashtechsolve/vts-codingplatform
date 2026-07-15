@@ -24,6 +24,7 @@ const {
   sanitizeFilename,
   getColumnDefs,
 } = require('../utils/reports');
+const { parsePagination, paginatedResponse } = require('../utils/pagination');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -254,38 +255,72 @@ router.get('/dashboard/stats', async (req, res) => {
   }
 });
 
-// Get all students with classroom information
+// Get students with optional pagination (default page size for large orgs)
 router.get('/students', async (req, res) => {
   try {
     console.log('📥 Fetching students for vendor:', req.vendorId);
     const Classroom = require('../models/Classroom');
-    
-    const students = await User.find({
+    const { page, limit, skip, search } = parsePagination(req.query, {
+      defaultLimit: 50,
+      maxLimit: 100,
+    });
+    const classroomId = String(req.query.classroomId || '').trim();
+
+    const filter = {
       vendorId: req.vendorId,
       role: 'student',
       accountOrigin: { $ne: 'contest' },
-    })
-      .select('-password')
-      .sort({ createdAt: -1 });
-    
-    // Get classrooms for this vendor
+    };
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      filter.$or = [
+        { name: regex },
+        { email: regex },
+        { enrollmentNumber: regex },
+      ];
+    }
+
     const classrooms = await Classroom.find({ vendorId: req.vendorId, isActive: true })
-      .select('name _id students');
-    
-    // Map students with their classroom information
-    const studentsWithClassrooms = students.map(student => {
-      const studentObj = student.toObject();
-      // Find which classrooms this student belongs to
-      const studentClassrooms = classrooms.filter(classroom => 
-        classroom.students.some(s => s.toString() === student._id.toString())
-      ).map(c => ({ id: c._id, name: c.name }));
-      
-      studentObj.classrooms = studentClassrooms;
-      return studentObj;
+      .select('name students')
+      .lean();
+
+    if (classroomId) {
+      const classroom = classrooms.find((c) => String(c._id) === classroomId);
+      const memberIds = (classroom?.students || []).map((id) => String(id));
+      if (!memberIds.length) {
+        return res.json(paginatedResponse({ items: [], page, limit, total: 0 }));
+      }
+      filter._id = { $in: memberIds };
+    }
+
+    const studentClassroomMap = new Map();
+    classrooms.forEach((classroom) => {
+      (classroom.students || []).forEach((studentId) => {
+        const key = String(studentId);
+        if (!studentClassroomMap.has(key)) studentClassroomMap.set(key, []);
+        studentClassroomMap.get(key).push({ id: classroom._id, name: classroom.name });
+      });
     });
-    
-    console.log(`✅ Found ${students.length} students`);
-    res.json(studentsWithClassrooms);
+
+    const [students, total] = await Promise.all([
+      User.find(filter)
+        .select('name email enrollmentNumber isActive createdAt enrolledTests')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
+
+    const items = students.map((student) => ({
+      ...student,
+      classrooms: studentClassroomMap.get(String(student._id)) || [],
+    }));
+
+    console.log(`✅ Found ${items.length}/${total} students (page ${page})`);
+    res.json(paginatedResponse({ items, page, limit, total }));
   } catch (error) {
     console.error('❌ Error fetching students:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -510,28 +545,126 @@ router.post('/students/enroll', async (req, res) => {
   }
 });
 
-// Get all tests
+// Get tests (paginated list for vendor panel)
 router.get('/tests', async (req, res) => {
   try {
-    const tests = await Test.find({ vendorId: req.vendorId })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(tests);
+    const { page, limit, skip, search } = parsePagination(req.query, {
+      defaultLimit: 30,
+      maxLimit: 100,
+    });
+    const type = String(req.query.type || '').trim();
+
+    const filter = { vendorId: req.vendorId };
+    if (type) filter.type = type;
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.title = new RegExp(escaped, 'i');
+    }
+
+    const [tests, total] = await Promise.all([
+      Test.find(filter)
+        .select('title type duration isActive createdAt updatedAt questions createdBy')
+        .populate('createdBy', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Test.countDocuments(filter),
+    ]);
+
+    res.json(paginatedResponse({ items: tests, page, limit, total }));
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get test results
+// Get test results (paginated — excludes heavy answer payloads in list view)
 router.get('/tests/:testId/results', async (req, res) => {
   try {
-    const results = await Result.find({
+    const { page, limit, skip, search } = parsePagination(req.query, {
+      defaultLimit: 50,
+      maxLimit: 100,
+    });
+
+    const filter = {
       testId: req.params.testId,
-      vendorId: req.vendorId
-    })
-      .populate('studentId', 'name email enrollmentNumber')
-      .sort({ submittedAt: -1 });
-    res.json(results);
+      vendorId: req.vendorId,
+    };
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const matchingStudents = await User.find({
+        vendorId: req.vendorId,
+        role: 'student',
+        $or: [
+          { name: new RegExp(escaped, 'i') },
+          { email: new RegExp(escaped, 'i') },
+          { enrollmentNumber: new RegExp(escaped, 'i') },
+        ],
+      })
+        .select('_id')
+        .lean();
+
+      const studentIds = matchingStudents.map((s) => s._id);
+      if (!studentIds.length) {
+        const emptySummary = { total: 0, completed: 0, average: 0, highest: 0, lowest: 0 };
+        return res.json(
+          paginatedResponse({
+            items: [],
+            page,
+            limit,
+            total: 0,
+            extra: { summary: emptySummary },
+          })
+        );
+      }
+      filter.studentId = { $in: studentIds };
+    }
+
+    const summaryFilter = {
+      testId: req.params.testId,
+      vendorId: req.vendorId,
+    };
+
+    const [results, total, summaryRows] = await Promise.all([
+      Result.find(filter)
+        .select(
+          'studentId status totalScore maxScore percentage submittedAt startedAt timeSpent autoSubmitted violationCount'
+        )
+        .populate('studentId', 'name email enrollmentNumber')
+        .sort({ submittedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Result.countDocuments(filter),
+      Result.aggregate([
+        { $match: summaryFilter },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            completed: {
+              $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+            },
+            average: { $avg: '$percentage' },
+            highest: { $max: '$percentage' },
+            lowest: { $min: '$percentage' },
+          },
+        },
+      ]),
+    ]);
+
+    const raw = summaryRows[0] || {};
+    const summary = {
+      total: raw.total || 0,
+      completed: raw.completed || 0,
+      average: raw.average != null ? Math.round(raw.average) : 0,
+      highest: raw.highest != null ? Math.round(raw.highest) : 0,
+      lowest: raw.lowest != null ? Math.round(raw.lowest) : 0,
+    };
+
+    res.json(paginatedResponse({ items: results, page, limit, total, extra: { summary } }));
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

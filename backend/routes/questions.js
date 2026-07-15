@@ -10,6 +10,16 @@ const TheoryQuestion = require('../models/TheoryQuestion');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
 const { resolveTagsForSave } = require('../utils/questionTags');
+const { fetchPaginatedQuestions } = require('../utils/questionListQuery');
+
+const CODING_LIST_SELECT =
+  'title description difficulty allowedLanguages tags createdAt updatedAt vendorId isGlobal createdBy';
+const MCQ_LIST_SELECT =
+  'question category difficulty tags createdAt updatedAt vendorId isGlobal createdBy options correctOptions';
+const APTITUDE_LIST_SELECT =
+  'question section subCategory questionType difficulty tags createdAt updatedAt vendorId isGlobal createdBy';
+const THEORY_LIST_SELECT =
+  'questionText subjectId topicId difficulty tags createdAt updatedAt vendorId isGlobal createdBy';
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -151,35 +161,22 @@ router.post('/coding', [
   }
 });
 
-// Get all coding questions (vendor-specific + global)
+// Get coding questions (paginated list — lean fields for vendor panel)
 router.get('/coding', async (req, res) => {
   try {
     console.log('📥 Fetching coding questions for vendor:', req.vendorId);
-    // Get vendor-specific questions (include old questions without isGlobal field)
-    const vendorQuestions = await CodingQuestion.find({
+    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const payload = await fetchPaginatedQuestions({
+      Model: CodingQuestion,
       vendorId: req.vendorId,
-      $or: [
-        { isGlobal: false },
-        { isGlobal: { $exists: false } } // Include old questions without isGlobal field
-      ]
-    })
-      .select('-solution')
-      .sort({ createdAt: -1 });
-    
-    // Get global questions
-    const globalQuestions = await CodingQuestion.find({ isGlobal: true })
-      .select('-solution')
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-    
-    // Combine and mark source
-    const allQuestions = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    
-    console.log(`✅ Found ${vendorQuestions.length} vendor questions, ${globalQuestions.length} global questions`);
-    res.json(allQuestions);
+      source,
+      query: req.query,
+      listSelect: CODING_LIST_SELECT,
+      searchFields: ['title', 'description', 'difficulty'],
+      populateGlobal: { path: 'createdBy', select: 'name email' },
+    });
+    console.log(`✅ Coding ${source}: ${payload.items.length}/${payload.total}`);
+    res.json(payload);
   } catch (error) {
     console.error('❌ Error fetching coding questions:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -325,31 +322,20 @@ router.post('/mcq', [
   }
 });
 
-// Get all MCQ questions (vendor-specific + global)
+// Get MCQ questions (paginated list)
 router.get('/mcq', async (req, res) => {
   try {
-    // Get vendor-specific questions (include old questions without isGlobal field)
-    const vendorQuestions = await MCQQuestion.find({
+    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const payload = await fetchPaginatedQuestions({
+      Model: MCQQuestion,
       vendorId: req.vendorId,
-      $or: [
-        { isGlobal: false },
-        { isGlobal: { $exists: false } } // Include old questions without isGlobal field
-      ]
-    })
-      .sort({ createdAt: -1 });
-    
-    // Get global questions
-    const globalQuestions = await MCQQuestion.find({ isGlobal: true })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-    
-    // Combine and mark source
-    const allQuestions = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    
-    res.json(allQuestions);
+      source,
+      query: req.query,
+      listSelect: MCQ_LIST_SELECT,
+      searchFields: ['question', 'category', 'difficulty'],
+      populateGlobal: { path: 'createdBy', select: 'name email' },
+    });
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -499,28 +485,20 @@ router.post('/aptitude', [
   }
 });
 
-// Get all aptitude questions (vendor-specific + global)
+// Get aptitude questions (paginated list)
 router.get('/aptitude', async (req, res) => {
   try {
-    const vendorQuestions = await AptitudeQuestion.find({
+    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const payload = await fetchPaginatedQuestions({
+      Model: AptitudeQuestion,
       vendorId: req.vendorId,
-      $or: [
-        { isGlobal: false },
-        { isGlobal: { $exists: false } }
-      ]
-    })
-      .sort({ createdAt: -1 });
-
-    const globalQuestions = await AptitudeQuestion.find({ isGlobal: true })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-
-    const allQuestions = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-
-    res.json(allQuestions);
+      source,
+      query: req.query,
+      listSelect: APTITUDE_LIST_SELECT,
+      searchFields: ['question', 'section', 'subCategory', 'questionType'],
+      populateGlobal: { path: 'createdBy', select: 'name email' },
+    });
+    res.json(payload);
   } catch (error) {
     console.error('❌ Error fetching aptitude questions:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -689,32 +667,24 @@ router.post('/theory', [
   }
 });
 
-// Get all theory questions (vendor-specific + global)
+// Get theory questions (paginated list)
 router.get('/theory', async (req, res) => {
   try {
-    const vendorQuestions = await TheoryQuestion.find({
+    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const payload = await fetchPaginatedQuestions({
+      Model: TheoryQuestion,
       vendorId: req.vendorId,
-      $or: [
-        { isGlobal: false },
-        { isGlobal: { $exists: false } }
-      ]
-    })
-      .populate('subjectId', 'name')
-      .populate('topicId', 'name')
-      .sort({ createdAt: -1 });
-
-    const globalQuestions = await TheoryQuestion.find({ isGlobal: true })
-      .populate('subjectId', 'name')
-      .populate('topicId', 'name')
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-
-    const allQuestions = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-
-    res.json(allQuestions);
+      source,
+      query: req.query,
+      listSelect: THEORY_LIST_SELECT,
+      searchFields: ['questionText', 'difficulty'],
+      populateGlobal: { path: 'createdBy', select: 'name email' },
+      populateAll: [
+        { path: 'subjectId', select: 'name' },
+        { path: 'topicId', select: 'name' },
+      ],
+    });
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

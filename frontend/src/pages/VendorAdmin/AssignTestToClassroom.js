@@ -1,9 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiCheckSquare, FiSquare, FiSearch } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
+import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
+import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/paginatedApi';
+import { useListFetchLoading } from '../../hooks/useListFetchLoading';
 import Modal from '../../components/Modal';
 import { formatTopicsCardPreview } from '../../utils/interviewCardText';
 import './AssignTestToClassroom.css';
@@ -34,9 +38,18 @@ const AssignTestToClassroom = () => {
   const { id } = useParams();
   const { refreshStats } = useVendorPanel();
   const [classroom, setClassroom] = useState(null);
-  const [tests, setTests] = useState([]);
-  const [interviews, setInterviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [availablePool, setAvailablePool] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [classroomLoading, setClassroomLoading] = useState(true);
+  const classroomLoadedRef = useRef(false);
+  const {
+    refreshing: listRefreshing,
+    loadingMore,
+    beginFetch,
+    endFetch,
+  } = useListFetchLoading({ startInLoading: false });
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [assigningId, setAssigningId] = useState(null);
   const [bulkAssigning, setBulkAssigning] = useState(false);
@@ -47,9 +60,21 @@ const AssignTestToClassroom = () => {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    fetchClassroom();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when classroom id changes
   }, [id]);
+
+  useEffect(() => {
+    if (classroom) {
+      fetchAvailable({ pageNum: 1, append: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroom, testTypeFilter, debouncedSearch]);
 
   const showModal = (title, message, type = 'info') => {
     setModal({ isOpen: true, title, message, type });
@@ -59,24 +84,98 @@ const AssignTestToClassroom = () => {
     setModal({ isOpen: false, title: '', message: '', type: 'info' });
   };
 
-  const fetchData = async () => {
+  const fetchClassroom = async () => {
     try {
-      setLoading(true);
-      const [classroomRes, testsRes, interviewsRes] = await Promise.all([
-        axiosInstance.get(`/vendor-admin/classrooms/${id}`),
-        axiosInstance.get('/vendor-admin/tests'),
-        axiosInstance.get('/interviews').catch(() => ({ data: [] })),
-      ]);
-
+      if (!classroomLoadedRef.current) setClassroomLoading(true);
+      const classroomRes = await axiosInstance.get(`/vendor-admin/classrooms/${id}`);
       setClassroom(classroomRes.data);
-      setTests(Array.isArray(testsRes.data) ? testsRes.data : []);
-      setInterviews(Array.isArray(interviewsRes?.data) ? interviewsRes.data : []);
+      classroomLoadedRef.current = true;
     } catch (error) {
       console.error('Error fetching data:', error);
       showModal('Error', error.response?.data?.message || 'Failed to load data.', 'error');
     } finally {
-      setLoading(false);
+      setClassroomLoading(false);
     }
+  };
+
+  const fetchAvailable = async ({ pageNum = 1, append = false } = {}) => {
+    try {
+      beginFetch(append);
+      const searchParam = debouncedSearch.trim() || undefined;
+      const params = { page: pageNum, limit: 30, search: searchParam };
+      const assignedTestIds = (classroom?.assignedTests || [])
+        .map((at) => (at.testId?._id || at.testId)?.toString())
+        .filter(Boolean);
+      const assignedInterviewIds = (classroom?.assignedInterviews || [])
+        .map((ai) => (ai.interviewId?._id || ai.interviewId)?.toString())
+        .filter(Boolean);
+
+      let nextItems = [];
+      let nextHasMore = false;
+
+      if (testTypeFilter === 'interview') {
+        const res = await axiosInstance.get('/interviews', { params });
+        const parsed = normalizePaginatedResponse(res.data);
+        nextItems = parsed.items
+          .filter((i) => !assignedInterviewIds.includes(String(i._id)))
+          .map((i) => ({
+            _id: i._id,
+            title: i.title,
+            type: 'interview',
+            kind: 'interview',
+            duration: i.duration,
+            topic: i.topic,
+            description: i.description,
+          }));
+        nextHasMore = parsed.hasMore;
+      } else if (testTypeFilter === 'all') {
+        const [testsRes, interviewsRes] = await Promise.all([
+          axiosInstance.get('/vendor-admin/tests', { params }),
+          axiosInstance.get('/interviews', { params }).catch(() => ({ data: { items: [] } })),
+        ]);
+        const parsedTests = normalizePaginatedResponse(testsRes.data);
+        const parsedInterviews = normalizePaginatedResponse(interviewsRes.data);
+        nextItems = [
+          ...parsedTests.items
+            .filter((t) => !assignedTestIds.includes(String(t._id)))
+            .map((t) => ({ ...t, kind: 'test' })),
+          ...parsedInterviews.items
+            .filter((i) => !assignedInterviewIds.includes(String(i._id)))
+            .map((i) => ({
+              _id: i._id,
+              title: i.title,
+              type: 'interview',
+              kind: 'interview',
+              duration: i.duration,
+              topic: i.topic,
+              description: i.description,
+            })),
+        ];
+        nextHasMore = parsedTests.hasMore || parsedInterviews.hasMore;
+      } else {
+        const res = await axiosInstance.get('/vendor-admin/tests', {
+          params: { ...params, type: testTypeFilter },
+        });
+        const parsed = normalizePaginatedResponse(res.data);
+        nextItems = parsed.items
+          .filter((t) => !assignedTestIds.includes(String(t._id)))
+          .map((t) => ({ ...t, kind: 'test' }));
+        nextHasMore = parsed.hasMore;
+      }
+
+      setAvailablePool((prev) => (append ? mergePaginatedPages(prev, nextItems) : nextItems));
+      setPage(pageNum);
+      setHasMore(nextHasMore);
+    } catch (error) {
+      console.error('Error fetching available assessments:', error);
+    } finally {
+      endFetch();
+    }
+  };
+
+  const fetchData = async () => {
+    await fetchClassroom();
+    await fetchAvailable({ pageNum: 1, append: false });
   };
 
   const handleAssign = async (item) => {
@@ -119,52 +218,31 @@ const AssignTestToClassroom = () => {
     }
   };
 
-  const assignedTestIds = useMemo(
-    () => classroom?.assignedTests?.map((at) => (at.testId?._id || at.testId)?.toString()).filter(Boolean) || [],
-    [classroom?.assignedTests]
-  );
-  const assignedInterviewIds = useMemo(
-    () =>
-      (classroom?.assignedInterviews || [])
-        .map((ai) => (ai.interviewId?._id || ai.interviewId)?.toString())
-        .filter(Boolean),
-    [classroom?.assignedInterviews]
-  );
-
   const assignedItems = useMemo(() => {
-    const testItems = tests
-      .filter((t) => assignedTestIds.includes(t._id.toString()))
-      .map((t) => ({ ...t, kind: 'test' }));
-    const interviewItems = interviews
-      .filter((i) => assignedInterviewIds.includes(i._id.toString()))
-      .map((i) => ({
-        _id: i._id,
-        title: i.title,
-        type: 'interview',
-        kind: 'interview',
-        duration: i.duration,
-        topic: i.topic,
-      }));
+    const testItems = (classroom?.assignedTests || [])
+      .map((at) => {
+        const t = at.testId && typeof at.testId === 'object' ? at.testId : { _id: at.testId };
+        return t?._id ? { ...t, kind: 'test' } : null;
+      })
+      .filter(Boolean);
+    const interviewItems = (classroom?.assignedInterviews || [])
+      .map((ai) => {
+        const i = ai.interviewId && typeof ai.interviewId === 'object' ? ai.interviewId : { _id: ai.interviewId };
+        if (!i?._id) return null;
+        return {
+          _id: i._id,
+          title: i.title,
+          type: 'interview',
+          kind: 'interview',
+          duration: i.duration,
+          topic: i.topic,
+        };
+      })
+      .filter(Boolean);
     return [...testItems, ...interviewItems];
-  }, [tests, interviews, assignedTestIds, assignedInterviewIds]);
+  }, [classroom]);
 
-  const availableItems = useMemo(() => {
-    const testItems = tests
-      .filter((t) => !assignedTestIds.includes(t._id.toString()))
-      .map((t) => ({ ...t, kind: 'test' }));
-    const interviewItems = interviews
-      .filter((i) => !assignedInterviewIds.includes(i._id.toString()))
-      .map((i) => ({
-        _id: i._id,
-        title: i.title,
-        type: 'interview',
-        kind: 'interview',
-        duration: i.duration,
-        topic: i.topic,
-        description: i.description,
-      }));
-    return [...testItems, ...interviewItems];
-  }, [tests, interviews, assignedTestIds, assignedInterviewIds]);
+  const availableItems = availablePool;
 
   const filteredAssigned = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -179,18 +257,7 @@ const AssignTestToClassroom = () => {
     });
   }, [assignedItems, testTypeFilter, search]);
 
-  const filteredAvailable = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return availableItems.filter((t) => {
-      if (testTypeFilter !== 'all' && t.type !== testTypeFilter) return false;
-      if (!q) return true;
-      return (
-        t.title?.toLowerCase().includes(q) ||
-        t.type?.toLowerCase().includes(q) ||
-        t.topic?.toLowerCase().includes(q)
-      );
-    });
-  }, [availableItems, testTypeFilter, search]);
+  const filteredAvailable = availableItems;
 
   const handleToggleAvailable = (id) => {
     const sid = String(id);
@@ -287,7 +354,7 @@ const AssignTestToClassroom = () => {
     );
   };
 
-  if (!loading && !classroom) {
+  if (!classroomLoading && !classroom) {
     return (
       <VendorHubPage
         className="va-atc-page"
@@ -308,7 +375,7 @@ const AssignTestToClassroom = () => {
   return (
     <VendorHubPage
       className="va-atc-page"
-      loading={loading}
+      loading={classroomLoading && !classroom}
       backTo="/vendor-admin/classrooms"
       backLabel="Back to classrooms"
       eyebrow="Classroom assignments"
@@ -383,12 +450,14 @@ const AssignTestToClassroom = () => {
             </div>
           </div>
           <div className="vh-panel-body va-atc-list">
-            {filteredAvailable.length === 0 ? (
+            <VendorDataSection refreshing={listRefreshing}>
+            {filteredAvailable.length === 0 && !listRefreshing ? (
               <div className="vh-empty">
                 <p>Nothing available to assign for this filter.</p>
               </div>
             ) : (
-              filteredAvailable.map((item) => (
+              <>
+              {filteredAvailable.map((item) => (
                 <div key={item._id} className="va-atc-item">
                   <div className="va-atc-item-main">
                     <label className="va-atc-check">
@@ -419,8 +488,16 @@ const AssignTestToClassroom = () => {
                     <FiPlus /> {assigningId === item._id ? 'Assigning…' : 'Assign'}
                   </button>
                 </div>
-              ))
+              ))}
+              <VendorLoadMore
+                hasMore={hasMore}
+                loading={loadingMore || listRefreshing}
+                loadedCount={filteredAvailable.length}
+                onLoadMore={() => fetchAvailable({ pageNum: page + 1, append: true })}
+              />
+              </>
             )}
+            </VendorDataSection>
           </div>
         </div>
 

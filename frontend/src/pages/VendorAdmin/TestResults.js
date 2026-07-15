@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FiDownload, FiBarChart2 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import ExportReportModal from '../../components/ExportReportModal';
 import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
+import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
 import VendorScoreBadge from '../../components/VendorAdmin/VendorScoreBadge';
 import VendorStatusBadge from '../../components/VendorAdmin/VendorStatusBadge';
-import { computeResultStats, formatDateTime, scoreTone } from '../../utils/vendorAssessmentUi';
-import { matchesNestedStudentSearch } from '../../utils/studentBulkImport';
+import { formatDateTime, scoreTone } from '../../utils/vendorAssessmentUi';
+import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/paginatedApi';
+import { useListFetchLoading } from '../../hooks/useListFetchLoading';
 
 const SECTION_LABELS = {
   english_grammar: 'Grammar',
@@ -28,41 +31,83 @@ const TYPE_ACCENTS = {
   english: '#db2777',
 };
 
+const EMPTY_SUMMARY = { total: 0, completed: 0, average: 0, highest: 0, lowest: 0 };
+
 const TestResults = () => {
   const { testId } = useParams();
   const [results, setResults] = useState([]);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [test, setTest] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [testLoading, setTestLoading] = useState(true);
+  const {
+    initialLoading: resultsInitialLoading,
+    refreshing,
+    loadingMore,
+    beginFetch,
+    endFetch,
+  } = useListFetchLoading({ startInLoading: true });
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
   const [speakingAnalytics, setSpeakingAnalytics] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   useEffect(() => {
-    fetchResults();
-    fetchTest();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testId]);
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const fetchResults = async () => {
-    try {
-      const response = await axiosInstance.get(`/vendor-admin/tests/${testId}/results`);
-      setResults(response.data);
-    } catch (error) {
-      console.error('Error fetching results:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchResults = useCallback(
+    async ({ pageNum = 1, append = false } = {}) => {
+      try {
+        beginFetch(append);
+
+        const params = { page: pageNum, limit: 50 };
+        if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+
+        const response = await axiosInstance.get(`/vendor-admin/tests/${testId}/results`, {
+          params,
+        });
+        const parsed = normalizePaginatedResponse(response.data);
+        setResults((prev) =>
+          append ? mergePaginatedPages(prev, parsed.items) : parsed.items
+        );
+        setPage(parsed.page);
+        setHasMore(parsed.hasMore);
+        setTotal(parsed.total);
+        if (parsed.summary) setSummary(parsed.summary);
+      } catch (error) {
+        console.error('Error fetching results:', error);
+      } finally {
+        endFetch();
+      }
+    },
+    [testId, debouncedSearch, beginFetch, endFetch]
+  );
+
+  useEffect(() => {
+    fetchResults({ pageNum: 1, append: false });
+  }, [fetchResults]);
 
   const fetchTest = async () => {
     try {
+      setTestLoading(true);
       const response = await axiosInstance.get(`/tests/${testId}`);
       setTest(response.data);
       if (response.data?.type === 'english') fetchSpeakingAnalytics();
     } catch (error) {
       console.error('Error fetching test:', error);
+    } finally {
+      setTestLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchTest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testId]);
 
   const fetchSpeakingAnalytics = async () => {
     try {
@@ -72,17 +117,6 @@ const TestResults = () => {
       /* optional */
     }
   };
-
-  const stats = useMemo(
-    () => computeResultStats(results, (r) => r.percentage),
-    [results]
-  );
-
-  const filteredResults = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return results;
-    return results.filter((r) => matchesNestedStudentSearch(r, q));
-  }, [results, search]);
 
   const sectionAnalytics = useMemo(() => {
     if (test?.type !== 'english' || results.length === 0) return null;
@@ -114,16 +148,18 @@ const TestResults = () => {
   const accent = TYPE_ACCENTS[test?.type] || '#2563eb';
   const backTo = test?.type ? `/vendor-admin/tests?type=${test.type}` : '/vendor-admin/tests';
 
+  const pageLoading = testLoading || resultsInitialLoading;
+
   return (
     <VendorAssessPage
-      loading={loading}
+      loading={pageLoading}
       backTo={backTo}
       backLabel="Back to tests"
       eyebrow="Test results"
       title={test?.title || 'Results'}
       subtitle={
         test
-          ? `${test.type} test · ${test.duration} min · ${results.length} submission${results.length !== 1 ? 's' : ''}`
+          ? `${test.type} test · ${test.duration} min · ${summary.total} submission${summary.total !== 1 ? 's' : ''}`
           : 'Review student submissions and scores.'
       }
       accent={accent}
@@ -141,27 +177,27 @@ const TestResults = () => {
         title={test?.title || 'Test report'}
       />
 
-      {results.length > 0 && (
+      {summary.total > 0 && (
         <div className="va-stats">
           <div className="va-stat va-stat--accent">
             <span className="va-stat-label">Submissions</span>
-            <span className="va-stat-value">{stats.total}</span>
+            <span className="va-stat-value">{summary.total}</span>
           </div>
           <div className="va-stat">
             <span className="va-stat-label">Completed</span>
-            <span className="va-stat-value">{stats.completed}</span>
+            <span className="va-stat-value">{summary.completed}</span>
           </div>
           <div className="va-stat">
             <span className="va-stat-label">Average</span>
-            <span className="va-stat-value">{stats.average}%</span>
+            <span className="va-stat-value">{summary.average}%</span>
           </div>
           <div className="va-stat">
             <span className="va-stat-label">Highest</span>
-            <span className="va-stat-value">{stats.highest}%</span>
+            <span className="va-stat-value">{summary.highest}%</span>
           </div>
           <div className="va-stat">
             <span className="va-stat-label">Lowest</span>
-            <span className="va-stat-value">{stats.lowest}%</span>
+            <span className="va-stat-value">{summary.lowest}%</span>
           </div>
         </div>
       )}
@@ -174,7 +210,7 @@ const TestResults = () => {
           </h2>
         </div>
         <div className="va-panel-body">
-          {results.length > 0 && (
+          {(summary.total > 0 || search) && (
             <div className="va-toolbar" style={{ marginTop: 0 }}>
               <div className="va-search">
                 <input
@@ -187,7 +223,7 @@ const TestResults = () => {
             </div>
           )}
 
-          {filteredResults.length === 0 ? (
+          {results.length === 0 && !refreshing && !resultsInitialLoading ? (
             <div className="va-empty">
               <div className="va-empty-icon">📊</div>
               <h3>{search ? 'No matches' : 'No submissions yet'}</h3>
@@ -198,54 +234,65 @@ const TestResults = () => {
               </p>
             </div>
           ) : (
-            <div className="va-table-wrap">
-              <table className="va-table">
-                <thead>
-                  <tr>
-                    <th>Student</th>
-                    <th>Score</th>
-                    <th>%</th>
-                    <th>Status</th>
-                    <th>Submitted</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredResults.map((result) => (
-                    <tr key={result._id}>
-                      <td>
-                        <strong>{result.studentId?.name || 'N/A'}</strong>
-                        <div className="va-cell-muted">
-                          {result.studentId?.enrollmentNumber
-                            ? `${result.studentId.enrollmentNumber} · ${result.studentId.email}`
-                            : result.studentId?.email}
-                        </div>
-                      </td>
-                      <td>
-                        <strong>
-                          {result.totalScore} / {result.maxScore}
-                        </strong>
-                      </td>
-                      <td>
-                        <VendorScoreBadge value={result.percentage} />
-                      </td>
-                      <td>
-                        <VendorStatusBadge status={result.status} />
-                      </td>
-                      <td className="va-cell-muted">{formatDateTime(result.submittedAt)}</td>
-                      <td>
-                        <Link
-                          to={`/vendor-admin/results/${result._id}`}
-                          className="va-btn va-btn--ghost va-btn--sm"
-                        >
-                          View details
-                        </Link>
-                      </td>
+            <>
+              <VendorDataSection refreshing={refreshing}>
+              <div className="va-table-wrap">
+                <table className="va-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Score</th>
+                      <th>%</th>
+                      <th>Status</th>
+                      <th>Submitted</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {results.map((result) => (
+                      <tr key={result._id}>
+                        <td>
+                          <strong>{result.studentId?.name || 'N/A'}</strong>
+                          <div className="va-cell-muted">
+                            {result.studentId?.enrollmentNumber
+                              ? `${result.studentId.enrollmentNumber} · ${result.studentId.email}`
+                              : result.studentId?.email}
+                          </div>
+                        </td>
+                        <td>
+                          <strong>
+                            {result.totalScore} / {result.maxScore}
+                          </strong>
+                        </td>
+                        <td>
+                          <VendorScoreBadge value={result.percentage} />
+                        </td>
+                        <td>
+                          <VendorStatusBadge status={result.status} />
+                        </td>
+                        <td className="va-cell-muted">{formatDateTime(result.submittedAt)}</td>
+                        <td>
+                          <Link
+                            to={`/vendor-admin/results/${result._id}`}
+                            className="va-btn va-btn--ghost va-btn--sm"
+                          >
+                            View details
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <VendorLoadMore
+                hasMore={hasMore}
+                loading={loadingMore || refreshing}
+                loadedCount={results.length}
+                total={total}
+                onLoadMore={() => fetchResults({ pageNum: page + 1, append: true })}
+              />
+              </VendorDataSection>
+            </>
           )}
         </div>
       </div>

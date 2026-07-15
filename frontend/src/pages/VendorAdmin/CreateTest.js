@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
 import VendorStandardTestBuilder from '../../components/VendorAdmin/VendorStandardTestBuilder';
+import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
 import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
 import '../../components/VendorAdmin/TestScheduleFields.css';
 import {
@@ -12,7 +13,17 @@ import {
 } from '../../utils/datetimeLocal';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/paginatedApi';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
+import { useListFetchLoading } from '../../hooks/useListFetchLoading';
+
+const QUESTION_ENDPOINTS = {
+  coding: '/questions/coding',
+  mcq: '/questions/mcq',
+  aptitude: '/questions/aptitude',
+  theory: '/questions/theory',
+};
 
 const CreateTest = () => {
   const { testId } = useParams();
@@ -40,7 +51,15 @@ const CreateTest = () => {
   const { registryTags } = useQuestionTagRegistry();
   const [selectedTab, setSelectedTab] = useState('coding');
   const [questionSource, setQuestionSource] = useState('my'); // 'my' or 'global'
-  const [loading, setLoading] = useState(false);
+  const {
+    initialLoading: questionsInitialLoading,
+    refreshing: questionsRefreshing,
+    loadingMore: questionsLoadingMore,
+    beginFetch: beginQuestionsFetch,
+    endFetch: endQuestionsFetch,
+  } = useListFetchLoading();
+  const [questionMeta, setQuestionMeta] = useState({});
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -51,8 +70,61 @@ const CreateTest = () => {
   const [testLoading, setTestLoading] = useState(false);
 
   useEffect(() => {
-    fetchQuestions();
-  }, []);
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const fetchTabQuestions = useCallback(
+    async (tab, { pageNum = 1, append = false } = {}) => {
+      const endpoint = QUESTION_ENDPOINTS[tab];
+      if (!endpoint) return;
+
+      const setters = {
+        coding: setCodingQuestions,
+        mcq: setMcqQuestions,
+        aptitude: setAptitudeQuestions,
+        theory: setTheoryQuestions,
+      };
+
+      try {
+        beginQuestionsFetch(append);
+
+        const { data } = await axiosInstance.get(endpoint, {
+          params: {
+            source: questionSource === 'my' ? 'vendor' : 'global',
+            page: pageNum,
+            limit: 50,
+            search: debouncedSearchTerm.trim() || undefined,
+          },
+        });
+
+        const parsed = normalizePaginatedResponse(data);
+        const items = parsed.items.map((q) => ({
+          ...q,
+          source: q.source || (questionSource === 'my' ? 'vendor' : 'global'),
+        }));
+
+        setters[tab]((prev) => (append ? mergePaginatedPages(prev, items) : items));
+        setQuestionMeta((prev) => ({
+          ...prev,
+          [tab]: { page: parsed.page, hasMore: parsed.hasMore, total: parsed.total },
+        }));
+      } catch (error) {
+        console.error('❌ Error fetching questions:', error);
+        const errorMsg =
+          error.response?.data?.message || 'Failed to load questions. Please try again.';
+        setError(errorMsg);
+        setters[tab]([]);
+      } finally {
+        endQuestionsFetch();
+      }
+    },
+    [questionSource, debouncedSearchTerm, beginQuestionsFetch, endQuestionsFetch]
+  );
+
+  useEffect(() => {
+    fetchTabQuestions(selectedTab, { pageNum: 1, append: false });
+  }, [selectedTab, fetchTabQuestions]);
 
   useEffect(() => {
     if (lockedType) {
@@ -116,23 +188,18 @@ const CreateTest = () => {
 
   useEffect(() => {
     // Wait until questions are loaded so selected questions can render titles correctly.
-    if (isEditMode && testId && !loading) fetchTest();
+    if (isEditMode && testId && !questionsInitialLoading) fetchTest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, testId, loading]);
+  }, [isEditMode, testId, questionsInitialLoading]);
 
   useEffect(() => {
     setSelectedTag('');
   }, [selectedTab, questionSource]);
 
   useEffect(() => {
-    const sourceFilter = (list) =>
-      list.filter((q) =>
-        questionSource === 'my' ? q.source === 'vendor' : q.source === 'global'
-      );
-
     const filterPool = (list, textFieldsFor) =>
-      filterQuestionsBySearchAndTag(sourceFilter(list), {
-        term: searchTerm,
+      filterQuestionsBySearchAndTag(list, {
+        term: '',
         selectedTag,
         textFieldsFor,
       });
@@ -156,15 +223,7 @@ const CreateTest = () => {
         q.topicId?.name,
       ])
     );
-  }, [
-    searchTerm,
-    selectedTag,
-    codingQuestions,
-    mcqQuestions,
-    aptitudeQuestions,
-    theoryQuestions,
-    questionSource,
-  ]);
+  }, [selectedTag, codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions]);
 
   const availableTagsByTab = useMemo(() => {
     const byTab = {
@@ -185,49 +244,7 @@ const CreateTest = () => {
     return byTab;
   }, [registryTags, codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions]);
 
-  const fetchQuestions = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      console.log('📥 Fetching questions...');
-      
-      const [codingRes, mcqRes, aptitudeRes, theoryRes] = await Promise.all([
-        axiosInstance.get('/questions/coding'),
-        axiosInstance.get('/questions/mcq'),
-        axiosInstance.get('/questions/aptitude'),
-        axiosInstance.get('/questions/theory')
-      ]);
-      
-      console.log('✅ Coding questions:', codingRes.data?.length || 0);
-      console.log('✅ MCQ questions:', mcqRes.data?.length || 0);
-      console.log('✅ Aptitude questions:', aptitudeRes.data?.length || 0);
-      console.log('✅ Theory questions:', theoryRes.data?.length || 0);
-      
-      setCodingQuestions(codingRes.data || []);
-      setMcqQuestions(mcqRes.data || []);
-      setAptitudeQuestions(aptitudeRes.data || []);
-      setFilteredCoding(codingRes.data || []);
-      setFilteredMcq(mcqRes.data || []);
-      setFilteredAptitude(aptitudeRes.data || []);
-      setTheoryQuestions(theoryRes.data || []);
-      setFilteredTheory(theoryRes.data || []);
-    } catch (error) {
-      console.error('❌ Error fetching questions:', error);
-      const errorMsg = error.response?.data?.message || 'Failed to load questions. Please try again.';
-      setError(errorMsg);
-      // Set empty arrays on error
-      setCodingQuestions([]);
-      setMcqQuestions([]);
-      setAptitudeQuestions([]);
-      setFilteredCoding([]);
-      setFilteredMcq([]);
-      setFilteredAptitude([]);
-      setTheoryQuestions([]);
-      setFilteredTheory([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchQuestions = () => fetchTabQuestions(selectedTab, { pageNum: 1, append: false });
 
   const handleChange = (e) => {
     setFormData({
@@ -480,9 +497,11 @@ const CreateTest = () => {
     </>
   );
 
+  const activeQuestionMeta = questionMeta[selectedTab] || { page: 1, hasMore: false, total: 0 };
+
   return (
     <VendorTestFormPage
-      loading={loading || testLoading}
+      loading={testLoading || questionsInitialLoading}
       backTo={meta.back}
       backLabel="All assessments"
       eyebrow={meta.eyebrow}
@@ -570,6 +589,7 @@ const CreateTest = () => {
         </section>
 
 
+        <VendorDataSection refreshing={questionsRefreshing}>
         <VendorStandardTestBuilder
           formData={formData}
           selectedTab={selectedTab}
@@ -593,6 +613,27 @@ const CreateTest = () => {
           getQuestionTitle={getQuestionTitle}
           isQuestionAdded={isQuestionAdded}
         />
+        <VendorLoadMore
+          hasMore={activeQuestionMeta.hasMore}
+          loading={questionsLoadingMore || questionsRefreshing}
+          loadedCount={
+            selectedTab === 'coding'
+              ? codingQuestions.length
+              : selectedTab === 'mcq'
+                ? mcqQuestions.length
+                : selectedTab === 'aptitude'
+                  ? aptitudeQuestions.length
+                  : theoryQuestions.length
+          }
+          total={activeQuestionMeta.total}
+          onLoadMore={() =>
+            fetchTabQuestions(selectedTab, {
+              pageNum: (activeQuestionMeta.page || 1) + 1,
+              append: true,
+            })
+          }
+        />
+        </VendorDataSection>
       </form>
     </VendorTestFormPage>
   );

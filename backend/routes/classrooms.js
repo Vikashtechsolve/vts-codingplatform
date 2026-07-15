@@ -23,12 +23,19 @@ router.get('/', async (req, res) => {
   try {
     console.log('📥 Fetching classrooms for vendor:', req.vendorId);
     const classrooms = await Classroom.find({ vendorId: req.vendorId, isActive: true })
-      .populate('students', 'name email enrollmentNumber')
+      .select('name description students createdAt assignedTests assignedInterviews createdBy')
       .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const payload = classrooms.map((classroom) => {
+      const studentCount = Array.isArray(classroom.students) ? classroom.students.length : 0;
+      const { students: _students, ...rest } = classroom;
+      return { ...rest, studentCount };
+    });
     
-    console.log(`✅ Found ${classrooms.length} classrooms`);
-    res.json(classrooms);
+    console.log(`✅ Found ${payload.length} classrooms`);
+    res.json(payload);
   } catch (error) {
     console.error('❌ Error fetching classrooms:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

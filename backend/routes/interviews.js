@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const { auth, authorize } = require('../middleware/auth');
 const tenantMiddleware = require('../middleware/tenant');
 const Interview = require('../models/Interview');
+const { parsePagination, paginatedResponse } = require('../utils/pagination');
 const InterviewQuestion = require('../models/InterviewQuestion');
 const InterviewSession = require('../models/InterviewSession');
 const User = require('../models/User');
@@ -114,9 +115,27 @@ router.post('/', [
 // Get interviews (vendor admin)
 router.get('/', authorize('vendor_admin'), tenantMiddleware, async (req, res) => {
   try {
-    const interviews = await Interview.find({ vendorId: req.vendorId })
-      .sort({ createdAt: -1 });
-    res.json(interviews);
+    const { page, limit, skip, search } = parsePagination(req.query, {
+      defaultLimit: 30,
+      maxLimit: 100,
+    });
+    const filter = { vendorId: req.vendorId };
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.title = new RegExp(escaped, 'i');
+    }
+
+    const [interviews, total] = await Promise.all([
+      Interview.find(filter)
+        .select('title interviewType topic difficulty duration isActive createdAt questions')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Interview.countDocuments(filter),
+    ]);
+
+    res.json(paginatedResponse({ items: interviews, page, limit, total }));
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

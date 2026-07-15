@@ -5,7 +5,9 @@ import axiosInstance from '../../utils/axios';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import QuestionHubRow from '../../components/VendorAdmin/QuestionHubRow';
 import QuestionTagFilters from '../../components/VendorAdmin/QuestionTagFilters';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
+import { useListFetchLoading } from '../../hooks/useListFetchLoading';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
 import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
 
@@ -53,8 +55,13 @@ const BULK_SUPPORTED = ['grammar', 'vocabulary', 'essay'];
 const EnglishQuestionList = () => {
   const [activeTab, setActiveTab] = useState('grammar');
   const [sourceTab, setSourceTab] = useState('my');
-  const [questions, setQuestions] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState([]);
+  const {
+    initialLoading,
+    refreshing,
+    beginFetch,
+    endFetch,
+  } = useListFetchLoading();
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkFile, setBulkFile] = useState(null);
   const [bulkResult, setBulkResult] = useState(null);
@@ -66,31 +73,19 @@ const EnglishQuestionList = () => {
   const meta = QUESTION_FORM_META.english;
 
   useEffect(() => {
-    fetchAllQuestions();
-  }, []);
+    fetchTabQuestions(activeTab);
+  }, [activeTab]);
 
-  const fetchAllQuestions = async () => {
+  const fetchTabQuestions = async (tab) => {
     try {
-      const [grammar, vocabulary, reading, essay, speaking, listening] = await Promise.all([
-        axiosInstance.get('/questions/english/grammar'),
-        axiosInstance.get('/questions/english/vocabulary'),
-        axiosInstance.get('/questions/english/reading'),
-        axiosInstance.get('/questions/english/essay'),
-        axiosInstance.get('/questions/english/speaking'),
-        axiosInstance.get('/questions/english/listening'),
-      ]);
-      setQuestions({
-        grammar: grammar.data || [],
-        vocabulary: vocabulary.data || [],
-        reading: reading.data || [],
-        essay: essay.data || [],
-        speaking: speaking.data || [],
-        listening: listening.data || [],
-      });
+      beginFetch(false);
+      const { data } = await axiosInstance.get(`/questions/english/${tab}`);
+      setQuestions(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching English questions:', error);
+      setQuestions([]);
     } finally {
-      setLoading(false);
+      endFetch();
     }
   };
 
@@ -98,7 +93,7 @@ const EnglishQuestionList = () => {
     if (!window.confirm('Are you sure you want to delete this question?')) return;
     try {
       await axiosInstance.delete(`/questions/english/${type}/${id}`);
-      fetchAllQuestions();
+      fetchTabQuestions(activeTab);
     } catch (error) {
       alert(error.response?.data?.message || 'Error deleting question');
     }
@@ -115,7 +110,7 @@ const EnglishQuestionList = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setBulkResult(response.data);
-      fetchAllQuestions();
+      fetchTabQuestions(activeTab);
     } catch (error) {
       setBulkResult({ message: error.response?.data?.message || 'Import failed', errors: [{ error: error.message }] });
     } finally {
@@ -130,10 +125,10 @@ const EnglishQuestionList = () => {
 
   const rawQuestions = useMemo(
     () =>
-      (questions[activeTab] || []).filter((q) =>
+      (Array.isArray(questions) ? questions : []).filter((q) =>
         sourceTab === 'my' ? q.source === 'vendor' : q.source === 'global'
       ),
-    [questions, activeTab, sourceTab]
+    [questions, sourceTab]
   );
 
   const getTextFields = useCallback(
@@ -194,7 +189,7 @@ const EnglishQuestionList = () => {
   return (
     <VendorHubPage
       className="veq-page"
-      loading={loading}
+      loading={initialLoading}
       eyebrow="Question bank"
       title="English & verbal questions"
       subtitle="Create and manage grammar, vocabulary, reading, writing, speaking, and listening items."
@@ -214,9 +209,10 @@ const EnglishQuestionList = () => {
     >
       <div className="veq-type-tabs">
         {TABS.map((tab) => {
-          const count = (questions[tab.key] || []).filter((q) =>
-            sourceTab === 'my' ? q.source === 'vendor' : q.source === 'global'
-          ).length;
+          const count =
+            activeTab === tab.key
+              ? rawQuestions.length
+              : null;
           return (
             <button
               key={tab.key}
@@ -225,7 +221,7 @@ const EnglishQuestionList = () => {
               onClick={() => setActiveTab(tab.key)}
             >
               {tab.label}
-              <span className="veq-count">{count}</span>
+              {count != null && <span className="veq-count">{count}</span>}
             </button>
           );
         })}
@@ -254,7 +250,8 @@ const EnglishQuestionList = () => {
 
       <QuestionTagFilters tags={availableTags} selectedSlug={selectedTag} onSelect={setSelectedTag} />
 
-      {currentQuestions.length === 0 ? (
+      <VendorDataSection refreshing={refreshing}>
+      {currentQuestions.length === 0 && !refreshing ? (
         <div className="veq-empty">
           <h2>No {activeLabel} questions</h2>
           <p>
@@ -323,6 +320,7 @@ const EnglishQuestionList = () => {
           </div>
         </div>
       )}
+      </VendorDataSection>
 
       {showBulkModal && (
         <div className="modal-overlay" onClick={() => setShowBulkModal(false)} role="presentation">

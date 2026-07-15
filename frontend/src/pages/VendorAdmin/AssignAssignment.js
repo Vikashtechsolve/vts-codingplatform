@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
+import { useVendorStudents } from '../../hooks/useVendorStudents';
 import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorAssignStudents from '../../components/VendorAdmin/VendorAssignStudents';
 
@@ -9,30 +10,37 @@ const AssignAssignment = () => {
   const { id: assignmentId } = useParams();
   const navigate = useNavigate();
   const { refreshStats } = useVendorPanel();
+  const {
+    students,
+    refreshing: studentsRefreshing,
+    loadingMore,
+    hasMore,
+    total,
+    search,
+    setSearch,
+    loadMore,
+  } = useVendorStudents();
   const [assignment, setAssignment] = useState(null);
-  const [students, setStudents] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
-      const [assignmentRes, studentsRes, classroomsRes] = await Promise.all([
+      setMetaLoading(true);
+      const [assignmentRes, classroomsRes] = await Promise.all([
         axiosInstance.get(`/assignments/${assignmentId}`),
-        axiosInstance.get('/vendor-admin/students'),
         axiosInstance.get('/vendor-admin/classrooms').catch(() => ({ data: [] })),
       ]);
       if (assignmentRes.data?.success) setAssignment(assignmentRes.data.assignment);
-      setStudents(studentsRes.data || []);
       setClassrooms(classroomsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       alert(error.response?.data?.message || 'Failed to load data');
     } finally {
-      setLoading(false);
+      setMetaLoading(false);
     }
   }, [assignmentId]);
 
@@ -83,6 +91,8 @@ const AssignAssignment = () => {
   };
 
   const accent = '#6366f1';
+
+  const loading = metaLoading;
 
   if (!loading && !assignment) {
     return (
@@ -143,6 +153,13 @@ const AssignAssignment = () => {
         assigning={assigning}
         accent={accent}
         assignEntityLabel="project"
+        studentSearch={search}
+        onStudentSearchChange={setSearch}
+        refreshingStudents={studentsRefreshing}
+        hasMoreStudents={hasMore}
+        loadingMoreStudents={loadingMore}
+        onLoadMoreStudents={loadMore}
+        totalStudents={total}
       />
     </VendorAssessPage>
   );

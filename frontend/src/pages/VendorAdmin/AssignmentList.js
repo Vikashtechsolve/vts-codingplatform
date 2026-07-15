@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { normalizePaginatedResponse } from '../../utils/paginatedApi';
 import RichTextDisplay from '../../components/RichTextDisplay';
 import './AssignmentList.css';
 
@@ -19,9 +20,10 @@ const AssignmentList = () => {
   const fetchAssignments = async () => {
     try {
       setLoading(true);
-      const { data } = await axiosInstance.get('/assignments');
-      if (data.success) {
-        setAssignments(data.assignments);
+      const { data } = await axiosInstance.get('/assignments', { params: { page: 1, limit: 100 } });
+      const parsed = normalizePaginatedResponse(data);
+      if (data.success !== false) {
+        setAssignments(parsed.items);
       } else {
         setError(data.message);
       }

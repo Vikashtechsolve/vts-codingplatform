@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FiPlus,
@@ -14,9 +14,13 @@ import {
 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
+import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
+import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
+import { useVendorPanel } from '../../context/VendorPanelContext';
+import { useListFetchLoading } from '../../hooks/useListFetchLoading';
+import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/paginatedApi';
 import {
   parseBulkStudentText,
-  matchesStudentSearch,
   BULK_STUDENT_FORMAT_HINT,
   BULK_STUDENT_SAMPLE,
 } from '../../utils/studentBulkImport';
@@ -33,11 +37,22 @@ const getInitials = (name) => {
 };
 
 const StudentManagement = () => {
+  const { stats: panelStats } = useVendorPanel();
   const [allStudents, setAllStudents] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [selectedClassroom, setSelectedClassroom] = useState('all');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const {
+    initialLoading,
+    refreshing,
+    loadingMore,
+    beginFetch,
+    endFetch,
+  } = useListFetchLoading();
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [bulkData, setBulkData] = useState('');
@@ -61,26 +76,48 @@ const StudentManagement = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async ({ pageNum = 1, append = false } = {}) => {
     try {
-      setLoading(true);
+      beginFetch(append);
+
+      const params = { page: pageNum, limit: 50 };
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      if (selectedClassroom !== 'all') params.classroomId = selectedClassroom;
+
       const [studentsRes, classroomsRes] = await Promise.all([
-        axiosInstance.get('/vendor-admin/students'),
-        axiosInstance.get('/vendor-admin/classrooms'),
+        axiosInstance.get('/vendor-admin/students', { params }),
+        pageNum === 1
+          ? axiosInstance.get('/vendor-admin/classrooms')
+          : Promise.resolve(null),
       ]);
-      setAllStudents(studentsRes.data || []);
-      setClassrooms(classroomsRes.data || []);
+
+      const parsed = normalizePaginatedResponse(studentsRes.data);
+      setAllStudents((prev) =>
+        append ? mergePaginatedPages(prev, parsed.items) : parsed.items
+      );
+      setPage(parsed.page);
+      setHasMore(parsed.hasMore);
+      setTotalStudents(parsed.total);
+
+      if (classroomsRes?.data) {
+        setClassrooms(classroomsRes.data || []);
+      }
     } catch (err) {
       console.error('Error fetching students:', err);
       setError('Failed to load students. Please refresh.');
     } finally {
-      setLoading(false);
+      endFetch();
     }
-  };
+  }, [debouncedSearch, selectedClassroom, beginFetch, endFetch]);
 
   useEffect(() => {
-    fetchStudents();
-  }, []);
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    fetchStudents({ pageNum: 1, append: false });
+  }, [debouncedSearch, selectedClassroom, fetchStudents]);
 
   useEffect(() => {
     if (!editingStudent) return undefined;
@@ -100,27 +137,18 @@ const StudentManagement = () => {
     };
   }, [editingStudent, editSubmitting]);
 
-  const classroomFiltered = useMemo(() => {
-    if (selectedClassroom === 'all') return allStudents;
-    return allStudents.filter((student) =>
-      (student.classrooms || []).some((c) => {
-        const classroomId = c.id || c._id || c;
-        return String(classroomId) === String(selectedClassroom);
-      })
-    );
-  }, [allStudents, selectedClassroom]);
-
-  const students = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return classroomFiltered;
-    return classroomFiltered.filter((s) => matchesStudentSearch(s, q));
-  }, [classroomFiltered, search]);
+  const students = allStudents;
 
   const stats = useMemo(() => {
     const active = allStudents.filter((s) => s.isActive !== false).length;
     const withClass = allStudents.filter((s) => (s.classrooms || []).length > 0).length;
-    return { total: allStudents.length, active, withClass };
-  }, [allStudents]);
+    return {
+      total: panelStats.totalStudents || totalStudents,
+      active,
+      withClass,
+      loaded: allStudents.length,
+    };
+  }, [allStudents, panelStats.totalStudents, totalStudents]);
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
@@ -154,7 +182,7 @@ const StudentManagement = () => {
       if (response.data.enrolled?.length > 0) {
         setSuccess(`Student "${trimmedData.name}" enrolled successfully.`);
         setFormData({ name: '', email: '', enrollmentNumber: '', password: 'student123' });
-        await fetchStudents();
+        await fetchStudents({ pageNum: 1 });
         setTimeout(() => {
           setShowAddForm(false);
           setSuccess('');
@@ -195,16 +223,17 @@ const StudentManagement = () => {
       );
       setShowBulkForm(false);
       setBulkData('');
-      await fetchStudents();
+      await fetchStudents({ pageNum: 1 });
     } catch (err) {
       setError(err.response?.data?.message || 'Error enrolling students');
     }
   };
 
-  const classroomCount = (classroomId) =>
-    allStudents.filter((s) =>
-      (s.classrooms || []).some((c) => String(c.id || c._id || c) === String(classroomId))
-    ).length;
+  const classroomCount = (classroomId) => {
+    const classroom = classrooms.find((c) => String(c._id) === String(classroomId));
+    if (classroom?.studentCount != null) return classroom.studentCount;
+    return Array.isArray(classroom?.students) ? classroom.students.length : 0;
+  };
 
   const openEditStudent = (student) => {
     setEditingStudent(student);
@@ -258,7 +287,7 @@ const StudentManagement = () => {
       }
 
       await axiosInstance.put(`/vendor-admin/students/${editingStudent._id}`, payload);
-      await fetchStudents();
+      await fetchStudents({ pageNum: 1 });
       closeEditStudent();
       setSuccess(`Student "${payload.name}" updated successfully.`);
       setTimeout(() => setSuccess(''), 2500);
@@ -272,7 +301,7 @@ const StudentManagement = () => {
   return (
     <VendorHubPage
       className="vh-students-page"
-      loading={loading}
+      loading={initialLoading}
       eyebrow="Roster"
       title="Students"
       subtitle="Enroll learners, filter by classroom, and open performance analysis for each student."
@@ -282,7 +311,7 @@ const StudentManagement = () => {
           <button
             type="button"
             className="vh-btn vh-btn--ghost"
-            onClick={() => fetchStudents()}
+            onClick={() => fetchStudents({ pageNum: 1 })}
           >
             <FiRefreshCw /> Refresh
           </button>
@@ -613,7 +642,7 @@ const StudentManagement = () => {
             value={selectedClassroom}
             onChange={(e) => setSelectedClassroom(e.target.value)}
           >
-            <option value="all">All classrooms ({allStudents.length})</option>
+            <option value="all">All classrooms ({panelStats.totalStudents || totalStudents})</option>
             {classrooms.map((c) => (
               <option key={c._id} value={String(c._id)}>
                 {c.name} ({classroomCount(c._id)})
@@ -628,7 +657,8 @@ const StudentManagement = () => {
           <h2 className="vh-panel-title">Student roster</h2>
         </div>
         <div className="vh-panel-body vh-panel-body--flush">
-          {students.length === 0 ? (
+          <VendorDataSection refreshing={refreshing}>
+          {students.length === 0 && !refreshing ? (
             <div className="vh-empty">
               <div className="vh-empty-icon"><FiUsers /></div>
               <h2>
@@ -733,6 +763,14 @@ const StudentManagement = () => {
               </table>
             </div>
           )}
+          <VendorLoadMore
+            hasMore={hasMore}
+            loading={loadingMore || refreshing}
+            loadedCount={students.length}
+            total={totalStudents}
+            onLoadMore={() => fetchStudents({ pageNum: page + 1, append: true })}
+          />
+          </VendorDataSection>
         </div>
       </div>
     </VendorHubPage>

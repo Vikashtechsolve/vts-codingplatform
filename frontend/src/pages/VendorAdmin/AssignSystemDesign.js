@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useVendorPanel } from '../../context/VendorPanelContext';
+import { useVendorStudents } from '../../hooks/useVendorStudents';
 import VendorAssessPage from '../../components/VendorAdmin/VendorAssessPage';
 import VendorAssignStudents from '../../components/VendorAdmin/VendorAssignStudents';
 
@@ -10,30 +11,37 @@ const AssignSystemDesign = () => {
   const { id: problemId } = useParams();
   const navigate = useNavigate();
   const { refreshStats } = useVendorPanel();
+  const {
+    students,
+    refreshing: studentsRefreshing,
+    loadingMore,
+    hasMore,
+    total,
+    search,
+    setSearch,
+    loadMore,
+  } = useVendorStudents();
   const [problem, setProblem] = useState(null);
-  const [students, setStudents] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
-      const [problemRes, studentsRes, classroomsRes] = await Promise.all([
+      setMetaLoading(true);
+      const [problemRes, classroomsRes] = await Promise.all([
         axiosInstance.get(`/system-design-problems/${problemId}`),
-        axiosInstance.get('/vendor-admin/students'),
         axiosInstance.get('/vendor-admin/classrooms').catch(() => ({ data: [] })),
       ]);
       if (problemRes.data?.success) setProblem(problemRes.data.problem);
-      setStudents(studentsRes.data || []);
       setClassrooms(classroomsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       alert('Failed to load data');
     } finally {
-      setLoading(false);
+      setMetaLoading(false);
     }
   }, [problemId]);
 
@@ -84,6 +92,8 @@ const AssignSystemDesign = () => {
   };
 
   const accent = '#ea580c';
+
+  const loading = metaLoading;
 
   if (!loading && !problem) {
     return (
@@ -136,6 +146,13 @@ const AssignSystemDesign = () => {
         assigning={assigning}
         accent={accent}
         assignEntityLabel="system design problem"
+        studentSearch={search}
+        onStudentSearchChange={setSearch}
+        refreshingStudents={studentsRefreshing}
+        hasMoreStudents={hasMore}
+        loadingMoreStudents={loadingMore}
+        onLoadMoreStudents={loadMore}
+        totalStudents={total}
       />
     </VendorAssessPage>
   );
