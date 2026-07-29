@@ -485,6 +485,10 @@ const TestList = () => {
                       <span className={`vendor-tests-status ${item.isActive ? 'active' : 'inactive'}`}>
                         {item.isActive ? 'Active' : 'Inactive'}
                       </span>
+                      {(item.type === 'coding' || item.type === 'mixed') &&
+                        item.settings?.resultDisplay === 'score_only' && (
+                          <span className="vendor-tests-result-pill">Score only</span>
+                        )}
                     </div>
                   </div>
 

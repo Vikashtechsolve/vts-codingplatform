@@ -4,6 +4,7 @@ import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import axiosInstance from '../../utils/axios';
 import QuestionPracticePanel from '../../components/QuestionPracticePanel';
 import RichTextDisplay, { htmlToListPreview } from '../../components/RichTextDisplay';
+import { isScoreOnlyResult } from '../../utils/resultDisplay';
 import './TestResult.css';
 
 const TYPE_META = {
@@ -161,6 +162,7 @@ const TestResult = () => {
   const testType = test?.type || result?.testId?.type || 'mixed';
   const testUi = TEST_TYPE_UI[testType] || TEST_TYPE_UI.mixed;
   const isMixedTest = testType === 'mixed';
+  const scoreOnlyView = isScoreOnlyResult(test || result?.testId, result);
 
   const questionComposition = useMemo(() => {
     if (!result?.answers?.length) return [];
@@ -545,7 +547,7 @@ const TestResult = () => {
               : '—'}
             {result.autoSubmitted && <span className="tr-auto-tag"> · Auto-submitted</span>}
           </p>
-          {questionComposition.length > 0 && (
+          {questionComposition.length > 0 && !scoreOnlyView && (
             <div className="tr-composition">
               {questionComposition.map((c) => (
                 <span
@@ -605,10 +607,12 @@ const TestResult = () => {
             </span>
             <span className="tr-stat-lbl">Time spent</span>
           </div>
-          <div className="tr-stat">
-            <span className="tr-stat-val">{summary.total}</span>
-            <span className="tr-stat-lbl">Questions</span>
-          </div>
+          {!scoreOnlyView && (
+            <div className="tr-stat">
+              <span className="tr-stat-val">{summary.total}</span>
+              <span className="tr-stat-lbl">Questions</span>
+            </div>
+          )}
           {result.violationCount > 0 && (
             <div className="tr-stat tr-stat-warn">
               <span className="tr-stat-val">{result.violationCount}</span>
@@ -618,6 +622,33 @@ const TestResult = () => {
         </div>
       </section>
 
+      {scoreOnlyView ? (
+        <section className="tr-score-only-panel">
+          <div className="tr-score-only-icon" aria-hidden="true">
+            🎯
+          </div>
+          <h2 className="tr-score-only-title">Score summary</h2>
+          <p className="tr-score-only-text">
+            Your instructor chose to share your overall score for this assessment. Per-question
+            breakdown, answers, and solutions are not shown.
+          </p>
+          <div className="tr-score-only-metrics">
+            <div className="tr-score-only-metric">
+              <span className="tr-score-only-metric-val">{result.totalScore ?? 0}</span>
+              <span className="tr-score-only-metric-lbl">Points earned</span>
+            </div>
+            <div className="tr-score-only-metric">
+              <span className="tr-score-only-metric-val">{result.maxScore ?? 0}</span>
+              <span className="tr-score-only-metric-lbl">Maximum points</span>
+            </div>
+            <div className="tr-score-only-metric">
+              <span className="tr-score-only-metric-val">{pct}%</span>
+              <span className="tr-score-only-metric-lbl">Percentage</span>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
       <section className="tr-breakdown">
         <div className="tr-breakdown-pill correct">
           <span className="tr-breakdown-num">{summary.correct}</span>
@@ -717,8 +748,10 @@ const TestResult = () => {
           )}
         </div>
       </section>
+        </>
+      )}
 
-      {practiceQuestion && resolvedResultId && (
+      {practiceQuestion && resolvedResultId && !scoreOnlyView && (
         <QuestionPracticePanel
           resultId={resolvedResultId}
           questionId={practiceQuestion.questionId}

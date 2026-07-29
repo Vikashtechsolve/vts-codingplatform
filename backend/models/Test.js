@@ -108,6 +108,11 @@ const testSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    resultDisplay: {
+      type: String,
+      enum: ['detailed', 'score_only'],
+      default: 'detailed'
+    },
     shuffleQuestions: {
       type: Boolean,
       default: false

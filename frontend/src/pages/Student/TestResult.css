@@ -1028,3 +1028,81 @@
     width: 100%;
   }
 }
+
+/* Score-only result view (coding / mixed tests) */
+.tr-score-only-panel {
+  margin-top: 8px;
+  padding: 28px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--tr-border);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--tr-accent) 6%, var(--tr-surface)),
+    var(--tr-surface)
+  );
+  text-align: center;
+}
+
+.tr-score-only-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 1.5rem;
+  background: color-mix(in srgb, var(--tr-accent) 14%, var(--tr-surface-muted));
+}
+
+.tr-score-only-title {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tr-score-only-text {
+  margin: 0 auto 22px;
+  max-width: 520px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.tr-score-only-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tr-score-only-metric {
+  padding: 16px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--tr-border);
+  background: var(--tr-surface);
+}
+
+.tr-score-only-metric-val {
+  display: block;
+  font-size: 1.45rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--tr-accent, #3b82f6);
+  margin-bottom: 4px;
+}
+
+.tr-score-only-metric-lbl {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .tr-score-only-metrics {
+    grid-template-columns: 1fr;
+  }
+}

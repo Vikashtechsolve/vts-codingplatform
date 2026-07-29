@@ -564,7 +564,7 @@ router.get('/tests', async (req, res) => {
 
     const [tests, total] = await Promise.all([
       Test.find(filter)
-        .select('title type duration isActive createdAt updatedAt questions createdBy')
+        .select('title type duration isActive createdAt updatedAt questions createdBy settings')
         .populate('createdBy', 'name email')
         .sort({ createdAt: -1 })
         .skip(skip)

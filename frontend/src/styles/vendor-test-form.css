@@ -1158,3 +1158,94 @@
     width: 100%;
   }
 }
+
+/* Result display option cards (coding / mixed tests) */
+.vtf-result-display-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.vtf-result-display-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1.5px solid var(--vtf-border);
+  background: var(--vtf-surface-2);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.vtf-result-display-card:hover {
+  border-color: color-mix(in srgb, var(--vtf-accent) 35%, var(--vtf-border));
+}
+
+.vtf-result-display-card.selected {
+  border-color: color-mix(in srgb, var(--vtf-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--vtf-accent) 8%, var(--vtf-surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vtf-accent) 12%, transparent);
+}
+
+.vtf-result-display-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  background: color-mix(in srgb, var(--vtf-accent) 10%, var(--vtf-surface));
+}
+
+.vtf-result-display-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vtf-result-display-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--vtf-text);
+}
+
+.vtf-result-display-desc {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--vtf-muted);
+}
+
+.vtf-result-display-check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--vtf-accent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.vtf-result-display-card.selected .vtf-result-display-check {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .vtf-result-display-grid {
+    grid-template-columns: 1fr;
+  }
+}

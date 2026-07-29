@@ -17,6 +17,7 @@ import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/pag
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
 import { useListFetchLoading } from '../../hooks/useListFetchLoading';
+import ResultDisplaySettings from '../../components/VendorAdmin/ResultDisplaySettings';
 
 const QUESTION_ENDPOINTS = {
   coding: '/questions/coding',
@@ -37,6 +38,7 @@ const CreateTest = () => {
     startDate: '',
     endDate: '',
     autoSubmitAtWindowEnd: true,
+    resultDisplay: 'detailed',
   });
   const [codingQuestions, setCodingQuestions] = useState([]);
   const [mcqQuestions, setMcqQuestions] = useState([]);
@@ -175,6 +177,7 @@ const CreateTest = () => {
         startDate: toLocalDateTimeInput(test.startDate),
         endDate: toLocalDateTimeInput(test.endDate),
         autoSubmitAtWindowEnd: test.settings?.autoSubmitAtWindowEnd !== false,
+        resultDisplay: test.settings?.resultDisplay === 'score_only' ? 'score_only' : 'detailed',
         questions: mappedQuestions,
       });
       setSelectedTab(nextType === 'mixed' ? 'coding' : nextType);
@@ -384,9 +387,13 @@ const CreateTest = () => {
         questions: formData.questions.map(({ questionData, ...q }) => q),
         settings: {
           autoSubmitAtWindowEnd: formData.autoSubmitAtWindowEnd,
+          ...(formData.type === 'coding' || formData.type === 'mixed'
+            ? { resultDisplay: formData.resultDisplay }
+            : {}),
         },
       };
       delete submitData.autoSubmitAtWindowEnd;
+      delete submitData.resultDisplay;
 
       if (isEditMode) {
         console.log('📤 Updating test:', submitData);
@@ -583,6 +590,13 @@ const CreateTest = () => {
             endId="test-end"
             fieldClassName="vtf-field"
             rowClassName="vtf-row"
+          />
+          <ResultDisplaySettings
+            testType={testType}
+            value={formData.resultDisplay}
+            onChange={(resultDisplay) =>
+              setFormData((prev) => ({ ...prev, resultDisplay }))
+            }
           />
         </section>
 

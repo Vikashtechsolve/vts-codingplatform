@@ -29,6 +29,11 @@ const {
   finalizeInProgressTestResult,
 } = require('../utils/contestService');
 const {
+  getResultDisplay,
+  isScoreOnlyForStudent,
+  stripDetailedResultForStudent,
+} = require('../utils/resultDisplay');
+const {
   assertCanStartScheduledTest,
   getAttemptWindowEndForClient,
 } = require('../utils/testSchedule');
@@ -146,6 +151,27 @@ async function attachStandardQuestionDetails(out) {
 
   return out;
 }
+
+async function resolveTestForResult(out) {
+  if (out.testId?.settings !== undefined && out.testId?.type) {
+    return out.testId;
+  }
+  const testId = out.testId?._id || out.testId;
+  if (!testId) return null;
+  return Test.findById(testId).select('type settings title').lean();
+}
+
+async function applyStudentResultDisplayPolicy(out, userRole) {
+  const testDoc = await resolveTestForResult(out);
+  if (!testDoc || !isScoreOnlyForStudent(testDoc, userRole)) {
+    if (testDoc) {
+      out.resultDisplay = getResultDisplay(testDoc);
+    }
+    return out;
+  }
+  return stripDetailedResultForStudent(out);
+}
+
 const {
   evaluateGrammarSubjective,
   evaluateReadingShortAnswer,
@@ -979,7 +1005,12 @@ router.post('/:resultId/submit', auth, async (req, res) => {
       }
     }
 
-    res.json(result);
+    const testForDisplay = await Test.findById(result.testId).select('type settings').lean();
+    let submitOut = result.toObject();
+    submitOut.testId = testForDisplay || submitOut.testId;
+    submitOut = await applyStudentResultDisplayPolicy(submitOut, req.user.role);
+
+    res.json(submitOut);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -997,7 +1028,7 @@ router.get('/test/:testId', auth, async (req, res) => {
       studentId: req.user._id,
       status: 'completed'
     })
-      .populate('testId', 'title type')
+      .populate('testId', 'title type settings')
       .populate('studentId', 'name email enrollmentNumber')
       .sort({ submittedAt: -1 }); // Get the most recent completed result
 
@@ -1006,8 +1037,16 @@ router.get('/test/:testId', auth, async (req, res) => {
     }
 
     const out = result.toObject();
-    await attachStandardQuestionDetails(out);
-    await ensureSectionScores(out);
+    const testDoc = await resolveTestForResult(out);
+    const scoreOnly = isScoreOnlyForStudent(testDoc, req.user.role);
+
+    if (out.status === 'completed' && out.testId?.type !== 'english' && !scoreOnly) {
+      await attachStandardQuestionDetails(out);
+      await ensureSectionScores(out);
+    }
+
+    await applyStudentResultDisplayPolicy(out, req.user.role);
+    stampExamSecurityMeta(out);
     res.json(out);
   } catch (error) {
     console.error('❌ Error fetching result by test ID:', error);
@@ -1019,7 +1058,7 @@ router.get('/test/:testId', auth, async (req, res) => {
 router.get('/:resultId/questions', auth, async (req, res) => {
   try {
     const result = await Result.findById(req.params.resultId)
-      .populate('testId', 'title type')
+      .populate('testId', 'title type settings')
       .populate('studentId', 'name email enrollmentNumber');
 
     if (!result) {
@@ -1032,6 +1071,11 @@ router.get('/:resultId/questions', auth, async (req, res) => {
 
     if (req.user.role === 'vendor_admin' && result.vendorId.toString() !== req.user.vendorId.toString()) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const testDoc = await resolveTestForResult(result.toObject());
+    if (isScoreOnlyForStudent(testDoc, req.user.role)) {
+      return res.status(403).json({ message: 'Detailed review is not available for this test' });
     }
 
     const mcqIds = result.answers
@@ -1095,7 +1139,7 @@ router.get('/:resultId', auth, async (req, res) => {
     }
 
     const result = await Result.findById(req.params.resultId)
-      .populate('testId', 'title type')
+      .populate('testId', 'title type settings')
       .populate('studentId', 'name email enrollmentNumber');
 
     if (!result) {
@@ -1161,9 +1205,15 @@ router.get('/:resultId', auth, async (req, res) => {
     }
 
     if (out.status === 'completed' && out.testId?.type !== 'english') {
-      await attachStandardQuestionDetails(out);
-      await ensureSectionScores(out);
+      const testDoc = await resolveTestForResult(out);
+      const scoreOnly = isScoreOnlyForStudent(testDoc, req.user.role);
+      if (!scoreOnly) {
+        await attachStandardQuestionDetails(out);
+        await ensureSectionScores(out);
+      }
     }
+
+    await applyStudentResultDisplayPolicy(out, req.user.role);
 
     stampExamSecurityMeta(out);
 
@@ -1189,6 +1239,11 @@ router.get('/:resultId/practice/:questionId', auth, async (req, res) => {
 
     if (!result) {
       return res.status(404).json({ message: 'Result not found' });
+    }
+
+    const testDoc = await Test.findById(result.testId).select('type settings').lean();
+    if (isScoreOnlyForStudent(testDoc, req.user.role)) {
+      return res.status(403).json({ message: 'Detailed review is not available for this test' });
     }
 
     const qid = req.params.questionId;
@@ -1309,7 +1364,7 @@ router.get('/student/:studentId', [
       studentId: req.params.studentId,
       vendorId: req.vendorId
     })
-      .populate('testId', 'title type')
+      .populate('testId', 'title type settings')
       .sort({ submittedAt: -1 });
 
     res.json(results);
