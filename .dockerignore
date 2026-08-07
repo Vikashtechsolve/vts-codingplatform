@@ -1,0 +1,28 @@
+.git
+.gitignore
+.DS_Store
+.cursor
+.vscode
+
+# Frontend and monorepo root deps — not needed for backend image
+frontend
+node_modules
+package.json
+package-lock.json
+README.md
+
+# Backend local/dev artifacts (also mirrored in backend/.dockerignore)
+backend/node_modules
+backend/npm-debug.log
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/temp
+backend/temp-repos
+backend/uploads
+backend/logs
+backend/*.log
+backend/.DS_Store
+backend/Dockerfile.worker
+backend/railway-worker.json
+backend/deploy
