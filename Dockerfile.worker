@@ -1,7 +1,5 @@
-# Code-execution worker. Build from the monorepo root (Ownkube has no Base Directory):
-#   podman build -f backend/Dockerfile.worker -t platform-code-worker:latest .
-#
-# WORKDIR is /srv/backend (not /app) so a platform volume on /app cannot hide image files.
+# Same as backend/Dockerfile.worker — use when Ownkube points at ./Dockerfile.worker
+# Build context must be the monorepo root.
 
 FROM node:20-slim
 

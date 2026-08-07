@@ -25,6 +25,4 @@ backend/uploads
 backend/logs
 backend/*.log
 backend/.DS_Store
-backend/Dockerfile.worker
-backend/railway-worker.json
 backend/deploy

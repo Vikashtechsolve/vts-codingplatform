@@ -35,8 +35,8 @@ cd ~/vts-codingplatform
 git pull
 chmod +x backend/deploy/install-podman-code-worker-user.sh
 
-# worker Dockerfile still expects context = backend/
-podman build --no-cache -f backend/Dockerfile.worker -t platform-code-worker:latest backend/
+# build from monorepo root (same as API)
+podman build --no-cache -f backend/Dockerfile.worker -t platform-code-worker:latest .
 
 ./backend/deploy/install-podman-code-worker-user.sh
 ```
