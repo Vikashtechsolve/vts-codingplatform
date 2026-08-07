@@ -7,9 +7,11 @@
 # Frontend and monorepo root deps — not needed for backend image
 frontend
 node_modules
-package.json
-package-lock.json
-README.md
+# Anchor to repo root only. Bare "package.json" also excludes backend/package.json
+# under BuildKit (gitignore rules) → npm install fails with exit 254 (ENOENT).
+/package.json
+/package-lock.json
+/README.md
 
 # Backend local/dev artifacts (also mirrored in backend/.dockerignore)
 backend/node_modules
