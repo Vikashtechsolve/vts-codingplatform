@@ -18,26 +18,27 @@ SSH as `ubuntu`, then:
 ### API server
 
 ```bash
-cd ~/vts-codingplatform/backend
+cd ~/vts-codingplatform
 git pull
-chmod +x deploy/install-podman-api-user.sh
+chmod +x backend/deploy/install-podman-api-user.sh
 
-# build image (your usual command)
-podman build --no-cache -f Dockerfile -t platform-api:latest .
+# build from monorepo root (Dockerfile copies backend/)
+podman build --no-cache -f backend/Dockerfile -t platform-api:latest .
 
-./deploy/install-podman-api-user.sh
+./backend/deploy/install-podman-api-user.sh
 ```
 
 ### Code-worker server
 
 ```bash
-cd ~/vts-codingplatform/backend
+cd ~/vts-codingplatform
 git pull
-chmod +x deploy/install-podman-code-worker-user.sh
+chmod +x backend/deploy/install-podman-code-worker-user.sh
 
-podman build --no-cache -f Dockerfile.worker -t platform-code-worker:latest .
+# worker Dockerfile still expects context = backend/
+podman build --no-cache -f backend/Dockerfile.worker -t platform-code-worker:latest backend/
 
-./deploy/install-podman-code-worker-user.sh
+./backend/deploy/install-podman-code-worker-user.sh
 ```
 
 ### Verify (both servers)

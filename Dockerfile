@@ -1,5 +1,4 @@
-# Backend image for platforms that build from the monorepo root
-# (no Base Directory option). Local Podman can keep using backend/Dockerfile.
+# Same image as backend/Dockerfile — use either path when build context is the monorepo root.
 
 # Stage 1: Build native modules (better-sqlite3 needs make/g++/python3)
 FROM node:20-slim AS builder

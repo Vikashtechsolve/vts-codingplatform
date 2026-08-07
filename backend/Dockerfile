@@ -1,3 +1,7 @@
+# Build from the monorepo root (required when the host has no Base Directory option):
+#   podman build -f backend/Dockerfile -t platform-api:latest .
+# Ownkube/Coolify: set Dockerfile path to backend/Dockerfile or ./Dockerfile (same COPY paths).
+
 # Stage 1: Build native modules (better-sqlite3 needs make/g++/python3)
 FROM node:20-slim AS builder
 
@@ -8,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package*.json ./
+COPY backend/package*.json ./
 RUN npm install --omit=dev
 
 # Stage 2: Production image — only runtime deps, no compilers
@@ -23,7 +27,7 @@ WORKDIR /app
 
 # Copy pre-built node_modules from builder (includes compiled better-sqlite3)
 COPY --from=builder /app/node_modules ./node_modules
-COPY . .
+COPY backend/ .
 
 RUN mkdir -p temp uploads/logos logs && chmod 755 temp uploads/logos logs
 
