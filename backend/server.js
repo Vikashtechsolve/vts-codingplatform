@@ -282,6 +282,15 @@ app.use('/api/contests', require('./routes/contests'));
 
 // Load workers and test Redis connection on startup
 const { testRedisConnection } = require('./config/redis');
+
+/** Ownkube/UI sometimes stores True / "true" / 1 — only exact 'true' used to match. */
+function isCodeWorkerStandalone() {
+  const raw = process.env.CODE_WORKER_STANDALONE;
+  if (raw === undefined || raw === null) return false;
+  const v = String(raw).trim().replace(/^["']|["']$/g, '').toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes';
+}
+
 const loadWorkers = async () => {
   const connected = await testRedisConnection();
   if (connected) {
@@ -290,8 +299,12 @@ const loadWorkers = async () => {
     } catch (err) {
       console.warn('⚠️ Evaluation worker failed to load:', err.message);
     }
-    // Start code execution worker in-process when not running as separate PM2 service
-    if (process.env.CODE_WORKER_STANDALONE !== 'true') {
+    // Start code execution worker in-process when not running as separate service
+    const standalone = isCodeWorkerStandalone();
+    console.log(
+      `ℹ️  CODE_WORKER_STANDALONE raw=${JSON.stringify(process.env.CODE_WORKER_STANDALONE)} → standalone=${standalone}`
+    );
+    if (!standalone) {
       try {
         require('./workers/codeExecutionWorker');
         console.log('✅ Code execution worker loaded (in-process mode)');
