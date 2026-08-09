@@ -1,5 +1,5 @@
 const Queue = require('bull');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
@@ -23,6 +23,32 @@ const TEMP_DIR = path.join(__dirname, '../temp');
 const MAX_OUTPUT_SIZE = 64 * 1024;
 const CLEANUP_INTERVAL = 2 * 60 * 1000;
 const MAX_FILE_AGE = 5 * 60 * 1000;
+
+/** Resolve binary once at boot — avoids PATH / detached-spawn ENOENT flakiness on k8s. */
+function resolveBin(cmd, versionArgs) {
+  const direct = spawnSync(cmd, versionArgs, { encoding: 'utf8', timeout: 8000 });
+  if (!direct.error && (direct.status === 0 || direct.status === null)) {
+    const which = spawnSync('sh', ['-c', `command -v ${cmd}`], { encoding: 'utf8', timeout: 5000 });
+    const resolved = (which.stdout || '').trim().split('\n')[0];
+    if (resolved) return resolved;
+  }
+  for (const candidate of [`/usr/bin/${cmd}`, `/bin/${cmd}`, `/usr/local/bin/${cmd}`]) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      /* skip */
+    }
+  }
+  return null;
+}
+
+const BIN = {
+  python3: resolveBin('python3', ['--version']),
+  javac: resolveBin('javac', ['-version']),
+  java: resolveBin('java', ['-version']),
+  gcc: resolveBin('gcc', ['--version']),
+  gpp: resolveBin('g++', ['--version']),
+};
 
 // --- Bull Queues ---
 const singleQueue = new Queue(CODE_EXECUTION_SINGLE, getBullQueueOptions());
@@ -77,15 +103,17 @@ cleanupTempDir();
 setInterval(cleanupTempDir, CLEANUP_INTERVAL);
 
 // --- Process runner with output cap + timeout ---
-function runProcess(cmd, args, opts, input) {
+// detachProcessGroup: only for running student code (kill process tree on timeout).
+// Compilers must use detachProcessGroup=false — detached spawn can report false ENOENT on some hosts.
+function runProcess(cmd, args, opts, input, { detachProcessGroup = true } = {}) {
   return new Promise((resolve, reject) => {
     const isWin = process.platform === 'win32';
     const spawnOpts = {
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env,
       ...opts,
     };
-    // Own process group on Unix so timeouts kill child processes spawned by student code.
-    if (!isWin) {
+    if (!isWin && detachProcessGroup) {
       spawnOpts.detached = true;
     }
 
@@ -217,21 +245,50 @@ async function compileCode(prepared) {
   if (prepared.type === 'interpreted') return { success: true };
 
   if (prepared.type === 'java') {
+    if (!BIN.javac) {
+      return { success: false, error: 'Java compiler (javac) not found on worker image. Use backend/Dockerfile.worker.' };
+    }
     try {
-      const r = await runProcess('javac', [prepared.filePath], { cwd: prepared.execDir }, null);
+      const r = await runProcess(
+        BIN.javac,
+        [prepared.filePath],
+        { cwd: prepared.execDir },
+        null,
+        { detachProcessGroup: false }
+      );
       return r.success ? { success: true } : { success: false, error: r.error || 'Compilation failed' };
     } catch (err) {
-      if (err.code === 'ENOENT') return { success: false, error: 'Java compiler (javac) not found.' };
+      if (err.code === 'ENOENT') {
+        return { success: false, error: `Java compiler (javac) not found (resolved=${BIN.javac}, PATH=${process.env.PATH}).` };
+      }
       return { success: false, error: `Compilation error: ${err.message}` };
     }
   }
 
   if (prepared.type === 'compiled') {
+    const bin = prepared.compiler === 'g++' ? BIN.gpp : BIN.gcc;
+    if (!bin) {
+      return {
+        success: false,
+        error: `${prepared.compilerName} compiler not found on worker image. Use backend/Dockerfile.worker.`,
+      };
+    }
     try {
-      const r = await runProcess(prepared.compiler, [prepared.filePath, '-o', prepared.executablePath], {}, null);
+      const r = await runProcess(
+        bin,
+        [prepared.filePath, '-o', prepared.executablePath],
+        {},
+        null,
+        { detachProcessGroup: false }
+      );
       return r.success ? { success: true } : { success: false, error: r.error || 'Compilation failed' };
     } catch (err) {
-      if (err.code === 'ENOENT') return { success: false, error: `${prepared.compilerName} compiler not found.` };
+      if (err.code === 'ENOENT') {
+        return {
+          success: false,
+          error: `${prepared.compilerName} compiler not found (resolved=${bin}, PATH=${process.env.PATH}).`,
+        };
+      }
       return { success: false, error: `Compilation error: ${err.message}` };
     }
   }
@@ -240,19 +297,21 @@ async function compileCode(prepared) {
 
 async function runCode(prepared, input) {
   if (prepared.type === 'interpreted') {
-    const cmd = process.platform === 'win32' ? 'python' : 'python3';
+    const cmd = process.platform === 'win32' ? 'python' : BIN.python3;
+    if (!cmd) throw new Error('Python 3 not found on worker image. Use backend/Dockerfile.worker.');
     try {
       return await runProcess(cmd, [prepared.filePath], { cwd: path.dirname(prepared.filePath) }, input);
     } catch (err) {
-      if (err.code === 'ENOENT') throw new Error('Python 3 not found.');
+      if (err.code === 'ENOENT') throw new Error(`Python 3 not found (resolved=${cmd}).`);
       throw err;
     }
   }
   if (prepared.type === 'java') {
+    if (!BIN.java) throw new Error('Java runtime not found on worker image. Use backend/Dockerfile.worker.');
     try {
-      return await runProcess('java', ['-cp', prepared.execDir, prepared.className], {}, input);
+      return await runProcess(BIN.java, ['-cp', prepared.execDir, prepared.className], {}, input);
     } catch (err) {
-      if (err.code === 'ENOENT') throw new Error('Java runtime not found.');
+      if (err.code === 'ENOENT') throw new Error(`Java runtime not found (resolved=${BIN.java}).`);
       throw err;
     }
   }
@@ -443,24 +502,15 @@ if (isStandaloneCodeWorkerProcess) {
   process.on('SIGINT', () => onShutdownSignal('SIGINT'));
 }
 
-function toolchainPresent(cmd) {
-  try {
-    const { spawnSync } = require('child_process');
-    const r = spawnSync(cmd, ['--version'], { encoding: 'utf8', timeout: 5000 });
-    return r.error?.code === 'ENOENT' ? false : r.status === 0 || r.status === null;
-  } catch {
-    return false;
-  }
-}
-
 console.log('='.repeat(50));
 console.log('Code Execution Worker Started');
 console.log('='.repeat(50));
 console.log(
-  `  Toolchain: python3=${toolchainPresent('python3') ? 'ok' : 'MISSING'} ` +
-    `javac=${toolchainPresent('javac') ? 'ok' : 'MISSING'} ` +
-    `gcc=${toolchainPresent('gcc') ? 'ok' : 'MISSING'} ` +
-    `g++=${toolchainPresent('g++') ? 'ok' : 'MISSING'}`
+  `  Toolchain: python3=${BIN.python3 || 'MISSING'} ` +
+    `javac=${BIN.javac || 'MISSING'} ` +
+    `java=${BIN.java || 'MISSING'} ` +
+    `gcc=${BIN.gcc || 'MISSING'} ` +
+    `g++=${BIN.gpp || 'MISSING'}`
 );
 console.log(`  Single concurrency: ${WORKER_SINGLE_CONCURRENCY} parallel jobs`);
 console.log(`  Batch concurrency: ${WORKER_BATCH_CONCURRENCY} parallel jobs`);
