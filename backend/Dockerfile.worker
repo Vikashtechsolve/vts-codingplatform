@@ -22,7 +22,11 @@ RUN npm install --omit=dev && npm cache clean --force
 COPY backend/ .
 
 RUN mkdir -p temp logs && chmod 755 temp logs \
-  && test -f /srv/backend/workers/codeExecutionWorker.js
+  && test -f /srv/backend/workers/codeExecutionWorker.js \
+  && python3 --version \
+  && javac -version \
+  && gcc --version \
+  && g++ --version
 
 # No HEALTHCHECK — this is a queue worker with no HTTP server
 

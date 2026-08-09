@@ -382,7 +382,18 @@ singleQueue.on('failed', (job, err) => console.error(`  Single job ${job.id} fai
 
 batchQueue.on('completed', (job) => {
   const rv = job.returnvalue;
-  console.log(`[code-worker] batch job ${job.id} done: ${rv?.testCasesPassed ?? '?'}/${rv?.total ?? '?'} passed`);
+  const passed = rv?.testCasesPassed ?? '?';
+  const total = rv?.total ?? '?';
+  let detail = '';
+  if (rv?.compilationError) {
+    detail = ` — compile: ${rv.compilationError}`;
+  } else if (Array.isArray(rv?.results)) {
+    const firstErr = rv.results.find((r) => r && r.error);
+    if (firstErr?.error) detail = ` — error: ${firstErr.error}`;
+  } else if (rv?.error) {
+    detail = ` — error: ${rv.error}`;
+  }
+  console.log(`[code-worker] batch job ${job.id} done: ${passed}/${total} passed${detail}`);
 });
 batchQueue.on('failed', (job, err) => console.error(`  Batch job ${job.id} failed:`, err.message));
 
@@ -432,9 +443,25 @@ if (isStandaloneCodeWorkerProcess) {
   process.on('SIGINT', () => onShutdownSignal('SIGINT'));
 }
 
+function toolchainPresent(cmd) {
+  try {
+    const { spawnSync } = require('child_process');
+    const r = spawnSync(cmd, ['--version'], { encoding: 'utf8', timeout: 5000 });
+    return r.error?.code === 'ENOENT' ? false : r.status === 0 || r.status === null;
+  } catch {
+    return false;
+  }
+}
+
 console.log('='.repeat(50));
 console.log('Code Execution Worker Started');
 console.log('='.repeat(50));
+console.log(
+  `  Toolchain: python3=${toolchainPresent('python3') ? 'ok' : 'MISSING'} ` +
+    `javac=${toolchainPresent('javac') ? 'ok' : 'MISSING'} ` +
+    `gcc=${toolchainPresent('gcc') ? 'ok' : 'MISSING'} ` +
+    `g++=${toolchainPresent('g++') ? 'ok' : 'MISSING'}`
+);
 console.log(`  Single concurrency: ${WORKER_SINGLE_CONCURRENCY} parallel jobs`);
 console.log(`  Batch concurrency: ${WORKER_BATCH_CONCURRENCY} parallel jobs`);
 console.log(`  Batch case parallelism: ${BATCH_CASE_PARALLELISM} cases/job`);
