@@ -121,6 +121,125 @@
   color: var(--text-primary);
 }
 
+.vendor-hero-cta-leetcode {
+  --lc-orange: #ffa116;
+  --lc-orange-deep: #f08900;
+  --lc-ink: #1a1a1a;
+  --lc-surface: #262626;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-decoration: none;
+  color: #f5f5f5;
+  background:
+    linear-gradient(145deg, rgba(255, 161, 22, 0.18) 0%, transparent 42%),
+    linear-gradient(180deg, #2f2f2f 0%, var(--lc-ink) 100%);
+  border: 1px solid rgba(255, 161, 22, 0.45);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.vendor-hero-cta-leetcode::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 161, 22, 0.12) 48%,
+    transparent 62%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.55s ease;
+  pointer-events: none;
+}
+
+.vendor-hero-cta-leetcode:hover {
+  transform: translateY(-2px);
+  color: #fff;
+  border-color: rgba(255, 161, 22, 0.85);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 12px 28px rgba(0, 0, 0, 0.22),
+    0 0 0 3px rgba(255, 161, 22, 0.18);
+}
+
+.vendor-hero-cta-leetcode:hover::before {
+  transform: translateX(120%);
+}
+
+.vendor-hero-cta-leetcode:active {
+  transform: translateY(0);
+}
+
+.vendor-leetcode-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--lc-ink);
+  background: linear-gradient(160deg, #ffc357 0%, var(--lc-orange) 48%, var(--lc-orange-deep) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 4px 10px rgba(255, 161, 22, 0.35);
+  flex-shrink: 0;
+}
+
+.vendor-leetcode-mark svg {
+  display: block;
+}
+
+.vendor-leetcode-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  gap: 1px;
+  min-width: 0;
+}
+
+.vendor-leetcode-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--lc-orange);
+  text-transform: none;
+}
+
+.vendor-leetcode-sub {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.vendor-hero-cta-leetcode-ext {
+  margin-left: 2px;
+  color: rgba(255, 161, 22, 0.9);
+  font-size: 0.95em;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.vendor-hero-cta-leetcode:hover .vendor-hero-cta-leetcode-ext {
+  color: #ffc357;
+  transform: translate(1px, -1px);
+}
+
 .vendor-hero-visual {
   display: flex;
   align-items: center;
@@ -485,6 +604,16 @@
   background: var(--student-dark-surface-2, #222);
   border-color: var(--student-dark-border, #3f3f46);
   color: var(--text-primary, #f4f4f5);
+}
+
+[data-theme='dark'] .vendor-hero-cta-leetcode {
+  background:
+    linear-gradient(145deg, rgba(255, 161, 22, 0.22) 0%, transparent 42%),
+    linear-gradient(180deg, #333 0%, #141414 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 161, 22, 0.2);
 }
 
 [data-theme='dark'] .vendor-btn:hover {

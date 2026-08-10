@@ -82,13 +82,13 @@ export const VendorBrandingProvider = ({ children }) => {
 
   const fetchVendorAdminBranding = useCallback(async () => {
     const { data } = await axiosInstance.get('/vendor-admin/vendor');
-    if (data?.logo) {
+    if (data) {
       commitBranding({
         logo: data.logo,
         companyName: data.companyName,
         settings: data.settings,
       });
-      return data.logo;
+      return data.logo || null;
     }
     return null;
   }, [commitBranding]);

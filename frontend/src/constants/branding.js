@@ -27,6 +27,7 @@ export const DEFAULT_BRANDING = {
   primaryColor: '#ED0331',
   secondaryColor: '#87021C',
   theme: 'light',
+  leetcodeAnalyticsUrl: '',
 };
 
 /** Ensure settings always has complete color fields for API + CSS */
@@ -35,5 +36,6 @@ export function normalizeBrandSettings(settings) {
     primaryColor: settings?.primaryColor || DEFAULT_BRANDING.primaryColor,
     secondaryColor: settings?.secondaryColor || DEFAULT_BRANDING.secondaryColor,
     theme: settings?.theme || DEFAULT_BRANDING.theme,
+    leetcodeAnalyticsUrl: (settings?.leetcodeAnalyticsUrl || '').trim(),
   };
 }

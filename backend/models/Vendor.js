@@ -45,6 +45,11 @@ const vendorSchema = new mongoose.Schema({
       type: String,
       enum: ['light', 'dark'],
       default: 'light'
+    },
+    leetcodeAnalyticsUrl: {
+      type: String,
+      default: '',
+      trim: true
     }
   },
   stats: {

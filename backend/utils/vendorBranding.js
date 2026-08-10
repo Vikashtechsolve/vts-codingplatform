@@ -27,6 +27,7 @@ const formatBrandingPayload = (vendor) => {
       primaryColor: settings.primaryColor || '#ED0331',
       secondaryColor: settings.secondaryColor || '#87021C',
       theme: settings.theme || 'light',
+      leetcodeAnalyticsUrl: settings.leetcodeAnalyticsUrl || '',
     },
   };
 };

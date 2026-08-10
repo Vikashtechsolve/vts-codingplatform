@@ -13,6 +13,7 @@ import {
   FiPlus,
   FiBarChart2,
   FiSettings,
+  FiExternalLink,
 } from 'react-icons/fi';
 import './Dashboard.css';
 
@@ -23,6 +24,7 @@ const VendorAdminDashboard = () => {
 
   const firstName = user?.name?.split(' ')[0] || 'Admin';
   const company = branding?.companyName || 'your organization';
+  const leetcodeAnalyticsUrl = (branding?.settings?.leetcodeAnalyticsUrl || '').trim();
 
   const statCards = [
     {
@@ -102,6 +104,29 @@ const VendorAdminDashboard = () => {
             <Link to="/vendor-admin/analytics" className="vendor-hero-cta-secondary">
               View analytics
             </Link>
+            {leetcodeAnalyticsUrl && (
+              <a
+                href={leetcodeAnalyticsUrl}
+                className="vendor-hero-cta-leetcode"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open LeetCode Analytics in a new tab"
+              >
+                <span className="vendor-leetcode-mark" aria-hidden>
+                  <svg viewBox="0 0 24 24" width="17" height="17">
+                    <path
+                      fill="currentColor"
+                      d="M16.102 17.93l-2.697 2.607c-.466.467-1.111.662-1.823.662s-1.357-.195-1.824-.662l-4.332-4.363c-.467-.467-.702-1.15-.702-1.863s.235-1.357.702-1.824l4.319-4.38c.467-.467 1.111-.662 1.824-.662s1.357.195 1.823.662l2.697 2.606c.514.515 1.365.497 1.9-.038.535-.536.553-1.387.039-1.901l-2.609-2.636a5.055 5.055 0 0 0-2.445-1.337l2.467-2.503c.516-.514.498-1.366-.037-1.901-.535-.535-1.387-.552-1.902-.038l-10.185 10.185c-.933.933-1.395 2.253-1.395 3.637 0 1.383.462 2.703 1.395 3.637l5.185 5.185c.933.933 2.253 1.395 3.637 1.395 1.383 0 2.703-.462 3.637-1.395l2.606-2.697c.514-.514.496-1.365-.039-1.9s-1.386-.553-1.899-.039zM20.811 13.01H10.33c-.727 0-1.314.587-1.314 1.314 0 .728.587 1.314 1.314 1.314h10.482c.728 0 1.314-.586 1.314-1.314 0-.727-.586-1.314-1.314-1.314z"
+                    />
+                  </svg>
+                </span>
+                <span className="vendor-leetcode-copy">
+                  <span className="vendor-leetcode-label">LeetCode</span>
+                  <span className="vendor-leetcode-sub">Analytics</span>
+                </span>
+                <FiExternalLink className="vendor-hero-cta-leetcode-ext" aria-hidden />
+              </a>
+            )}
           </div>
         </div>
         <div className="vendor-hero-visual" aria-hidden>

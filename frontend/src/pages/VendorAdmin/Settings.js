@@ -168,11 +168,40 @@ const VendorSettings = () => {
     applyBrandingToDocument(nextSettings);
   };
 
+  const handleLeetcodeUrlChange = (value) => {
+    setVendor((prev) => ({
+      ...prev,
+      settings: normalizeBrandSettings({
+        ...prev?.settings,
+        leetcodeAnalyticsUrl: value,
+      }),
+    }));
+  };
+
   const handleSettingsUpdate = async (e) => {
     e.preventDefault();
     setSavingTheme(true);
     setMessage({ type: '', text: '' });
     const settingsPayload = normalizeBrandSettings(vendor?.settings);
+    const url = settingsPayload.leetcodeAnalyticsUrl;
+    if (url) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          setMessage({
+            type: 'error',
+            text: 'LeetCode Analytics URL must start with http:// or https://',
+          });
+          setSavingTheme(false);
+          return;
+        }
+        settingsPayload.leetcodeAnalyticsUrl = parsed.toString();
+      } catch {
+        setMessage({ type: 'error', text: 'Invalid LeetCode Analytics URL' });
+        setSavingTheme(false);
+        return;
+      }
+    }
     try {
       const response = await axiosInstance.put('/vendor-admin/vendor', {
         settings: settingsPayload,
@@ -188,7 +217,10 @@ const VendorSettings = () => {
       updateUserBranding(brandingPayload);
       applyBrandingToDocument(savedSettings);
       await refreshBranding();
-      setMessage({ type: 'success', text: 'Brand colors saved. Buttons, links, and accents now use your colors.' });
+      setMessage({
+        type: 'success',
+        text: 'Settings saved. Brand colors and LeetCode Analytics link are updated.',
+      });
     } catch (error) {
       setMessage({
         type: 'error',
@@ -209,7 +241,7 @@ const VendorSettings = () => {
     <div className="container settings-page">
       <h1 className="page-title">Vendor Settings</h1>
       <p className="settings-subtitle">
-        Manage your organization logo and brand colors. Logo and colors apply in the navbar and across the app for your users.
+        Manage your organization logo, brand colors, and optional integrations like LeetCode Analytics.
       </p>
 
       {message.text && (
@@ -345,8 +377,31 @@ const VendorSettings = () => {
               {vendor?.settings?.secondaryColor || DEFAULT_BRANDING.secondaryColor}
             </div>
           </div>
+
+          <div className="settings-integrations-block">
+            <h3 className="settings-integrations-title">Integrations</h3>
+            <p className="settings-card-desc">
+              Optional external links for your vendor dashboard. Leave blank to hide the button.
+            </p>
+            <div className="form-group">
+              <label htmlFor="leetcode-analytics-url">LeetCode Analytics URL</label>
+              <input
+                id="leetcode-analytics-url"
+                type="url"
+                className="settings-url-input"
+                placeholder="https://your-analytics.example.com"
+                value={vendor?.settings?.leetcodeAnalyticsUrl || ''}
+                onChange={(e) => handleLeetcodeUrlChange(e.target.value)}
+                autoComplete="off"
+              />
+              <p className="settings-field-hint">
+                When set, a “LeetCode Analytics” button appears on your Dashboard and opens this link in a new tab.
+              </p>
+            </div>
+          </div>
+
           <button type="submit" className="btn btn-primary" disabled={savingTheme}>
-            {savingTheme ? 'Saving…' : 'Save brand colors'}
+            {savingTheme ? 'Saving…' : 'Save settings'}
           </button>
         </form>
       </div>

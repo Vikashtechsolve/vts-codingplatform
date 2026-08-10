@@ -83,10 +83,29 @@ router.put('/vendor', async (req, res) => {
     }
 
     const current = vendor.settings?.toObject?.() || vendor.settings || {};
+
+    let leetcodeAnalyticsUrl =
+      incoming?.leetcodeAnalyticsUrl !== undefined
+        ? String(incoming.leetcodeAnalyticsUrl || '').trim()
+        : (current.leetcodeAnalyticsUrl || '');
+
+    if (leetcodeAnalyticsUrl) {
+      try {
+        const parsed = new URL(leetcodeAnalyticsUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          return res.status(400).json({ message: 'LeetCode Analytics URL must start with http:// or https://' });
+        }
+        leetcodeAnalyticsUrl = parsed.toString();
+      } catch {
+        return res.status(400).json({ message: 'Invalid LeetCode Analytics URL' });
+      }
+    }
+
     vendor.settings = {
       primaryColor: incoming?.primaryColor ?? current.primaryColor ?? '#ED0331',
       secondaryColor: incoming?.secondaryColor ?? current.secondaryColor ?? '#87021C',
       theme: incoming?.theme ?? current.theme ?? 'light',
+      leetcodeAnalyticsUrl,
     };
     vendor.markModified('settings');
     await vendor.save();
