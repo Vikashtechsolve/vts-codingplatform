@@ -20,7 +20,11 @@ const datasetTemplateSchema = new mongoose.Schema({
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: true
+    default: null
+  },
+  isPlatform: {
+    type: Boolean,
+    default: false
   },
   schemaSql: {
     type: String,

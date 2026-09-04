@@ -31,7 +31,9 @@ const assignmentSchema = new mongoose.Schema({
   // Timing
   deadline: {
     type: Date,
-    required: true
+    required: function deadlineRequired() {
+      return this.source !== 'platform';
+    },
   },
   duration: {
     type: Number, // in minutes
@@ -142,7 +144,13 @@ const assignmentSchema = new mongoose.Schema({
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: true
+    default: null,
+  },
+  /** vendor = vendor-owned; platform = super admin, visible to vendors only when allocated */
+  source: {
+    type: String,
+    enum: ['vendor', 'platform'],
+    default: 'vendor',
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -181,7 +189,21 @@ const assignmentSchema = new mongoose.Schema({
 
 // Index for faster queries
 assignmentSchema.index({ vendorId: 1, status: 1 });
+assignmentSchema.index({ source: 1, status: 1 });
 assignmentSchema.index({ createdBy: 1 });
 assignmentSchema.index({ deadline: 1 });
+
+assignmentSchema.pre('validate', function validateAssignmentVendor(next) {
+  if (this.source === 'platform') {
+    if (this.vendorId) {
+      return next(new Error('platform assignments cannot have vendorId'));
+    }
+    return next();
+  }
+  if (!this.vendorId) {
+    return next(new Error('vendorId is required for vendor assignments'));
+  }
+  return next();
+});
 
 module.exports = mongoose.model('Assignment', assignmentSchema);

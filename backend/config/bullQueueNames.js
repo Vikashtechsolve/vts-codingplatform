@@ -15,5 +15,6 @@
 module.exports = {
   CODE_EXECUTION_SINGLE: '{cp}code-execution-single',
   CODE_EXECUTION_BATCH: '{cp}code-execution-batch',
-  PROJECT_EVALUATION: '{cp}project-evaluation'
+  PROJECT_EVALUATION: '{cp}project-evaluation',
+  HLS_TRANSCODE: '{cp}hls-transcode',
 };

@@ -17,6 +17,8 @@ import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/pag
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
 import { useListFetchLoading } from '../../hooks/useListFetchLoading';
+import { getPlatformTestConfig } from '../../utils/platformMode';
+import { PLATFORM_QUESTION_CREATE_LINKS } from '../../constants/platformTestSections';
 import ResultDisplaySettings from '../../components/VendorAdmin/ResultDisplaySettings';
 
 const QUESTION_ENDPOINTS = {
@@ -50,9 +52,12 @@ const CreateTest = () => {
   const [filteredTheory, setFilteredTheory] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const platformConfig = getPlatformTestConfig(location.pathname);
   const { registryTags } = useQuestionTagRegistry();
   const [selectedTab, setSelectedTab] = useState('coding');
-  const [questionSource, setQuestionSource] = useState('my'); // 'my' or 'global'
+  const [questionSource, setQuestionSource] = useState(platformConfig.lockQuestionSourceToGlobal ? 'global' : 'my'); // 'my' or 'global'
   const {
     initialLoading: questionsInitialLoading,
     refreshing: questionsRefreshing,
@@ -64,8 +69,6 @@ const CreateTest = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
-  const location = useLocation();
   const typeParam = new URLSearchParams(location.search).get('type');
   const queryLockedType = ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(typeParam) ? typeParam : null;
   const [lockedType, setLockedType] = useState(queryLockedType);
@@ -78,7 +81,9 @@ const CreateTest = () => {
 
   const fetchTabQuestions = useCallback(
     async (tab, { pageNum = 1, append = false } = {}) => {
-      const endpoint = QUESTION_ENDPOINTS[tab];
+      const endpoint = platformConfig.isPlatform
+        ? `${platformConfig.questionsApiBase}/${tab}`
+        : QUESTION_ENDPOINTS[tab];
       if (!endpoint) return;
 
       const setters = {
@@ -92,15 +97,21 @@ const CreateTest = () => {
         beginQuestionsFetch(append);
 
         const { data } = await axiosInstance.get(endpoint, {
-          params: {
-            source: questionSource === 'my' ? 'vendor' : 'global',
-            page: pageNum,
-            limit: 50,
-            search: debouncedSearchTerm.trim() || undefined,
-          },
+          params: platformConfig.isPlatform
+            ? undefined
+            : {
+                source: questionSource === 'my' ? 'vendor' : 'global',
+                page: pageNum,
+                limit: 50,
+                search: debouncedSearchTerm.trim() || undefined,
+              },
         });
 
-        const parsed = normalizePaginatedResponse(data);
+        const parsed = normalizePaginatedResponse(
+          platformConfig.isPlatform
+            ? { items: Array.isArray(data) ? data : [], page: 1, hasMore: false, total: Array.isArray(data) ? data.length : 0 }
+            : data
+        );
         const items = parsed.items.map((q) => ({
           ...q,
           source: q.source || (questionSource === 'my' ? 'vendor' : 'global'),
@@ -121,7 +132,7 @@ const CreateTest = () => {
         endQuestionsFetch();
       }
     },
-    [questionSource, debouncedSearchTerm, beginQuestionsFetch, endQuestionsFetch]
+    [questionSource, debouncedSearchTerm, beginQuestionsFetch, endQuestionsFetch, platformConfig.isPlatform, platformConfig.questionsApiBase]
   );
 
   useEffect(() => {
@@ -145,7 +156,7 @@ const CreateTest = () => {
     if (!isEditMode || !testId) return;
     setTestLoading(true);
     try {
-      const res = await axiosInstance.get(`/tests/${testId}`);
+      const res = await axiosInstance.get(`${platformConfig.testsApiBase}/${testId}`);
       const test = res.data;
 
       const supported = ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(test?.type);
@@ -396,12 +407,11 @@ const CreateTest = () => {
       delete submitData.resultDisplay;
 
       if (isEditMode) {
-        console.log('📤 Updating test:', submitData);
-        await axiosInstance.put(`/tests/${testId}`, submitData);
-        navigate(`/vendor-admin/tests?type=${encodeURIComponent(submitData.type || formData.type)}`);
+        await axiosInstance.put(`${platformConfig.testsApiBase}/${testId}`, submitData);
+        navigate(`${platformConfig.testsListPath}?type=${encodeURIComponent(submitData.type || formData.type)}`);
       } else {
-        await axiosInstance.post('/tests', submitData);
-        navigate(`/vendor-admin/tests?type=${encodeURIComponent(formData.type)}`);
+        await axiosInstance.post(platformConfig.testsApiBase, submitData);
+        navigate(`${platformConfig.testsListPath}?type=${encodeURIComponent(formData.type)}`);
       }
     } catch (error) {
       console.error('❌ Error creating test:', error);
@@ -439,7 +449,7 @@ const CreateTest = () => {
   };
 
   const testType = lockedType || formData.type;
-  const meta = getTestFormMeta(testType, isEditMode);
+  const meta = getTestFormMeta(testType, isEditMode, platformConfig.isPlatform);
 
   const questionPools = useMemo(
     () => ({
@@ -577,6 +587,7 @@ const CreateTest = () => {
           </div>
           <h3 className="vtf-subsection-title">Schedule (optional)</h3>
           <p className="vtf-section-hint">Leave blank for an always-available test.</p>
+          {!platformConfig.hideSchedule && (
           <TestScheduleFields
             startDate={formData.startDate}
             endDate={formData.endDate}
@@ -591,6 +602,7 @@ const CreateTest = () => {
             fieldClassName="vtf-field"
             rowClassName="vtf-row"
           />
+          )}
           <ResultDisplaySettings
             testType={testType}
             value={formData.resultDisplay}
@@ -624,6 +636,10 @@ const CreateTest = () => {
           onMoveQuestion={handleMoveQuestion}
           getQuestionTitle={getQuestionTitle}
           isQuestionAdded={isQuestionAdded}
+          globalOnly={platformConfig.lockQuestionSourceToGlobal}
+          questionCreateLinks={
+            platformConfig.isPlatform ? PLATFORM_QUESTION_CREATE_LINKS : undefined
+          }
         />
         <VendorLoadMore
           hasMore={activeQuestionMeta.hasMore}

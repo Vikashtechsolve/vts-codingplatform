@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   FiAlertTriangle,
   FiBarChart2,
@@ -26,6 +26,7 @@ import {
   FiX,
 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
+import { buildCourseAssessmentQuery, buildAssessmentStartBody } from '../../utils/courseAssessment';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
 import { useRegisterExamLock } from '../../hooks/useRegisterExamLock';
 import { useExamLock } from '../../context/ExamLockContext';
@@ -65,6 +66,20 @@ const SystemDesignTaking = () => {
   const { problemId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
+  const contestId = searchParams.get('contestId');
+  const courseQuery = buildCourseAssessmentQuery(courseIdParam, moduleIdParam);
+  const courseBody = useMemo(
+    () =>
+      buildAssessmentStartBody({
+        courseId: courseIdParam,
+        moduleId: moduleIdParam,
+        contestId,
+      }),
+    [courseIdParam, moduleIdParam, contestId]
+  );
   const fromShareLink = isFromShareLink(location);
   const [fullscreenReady, setFullscreenReady] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -98,10 +113,10 @@ const SystemDesignTaking = () => {
       const sub = submissionRef.current;
       if (sub) {
         allowNavigateRef.current();
-        navigate(`/student/system-design/${sub._id}/follow-up`);
+        navigate(`/student/system-design/${sub._id}/follow-up${courseQuery}`);
       }
     }, 2500);
-  }, [navigate]);
+  }, [navigate, courseQuery]);
 
   const handleViolationWarning = useCallback((current, max) => {
     setViolationModal({
@@ -169,7 +184,10 @@ const SystemDesignTaking = () => {
       if (!problemRes.data.success) return;
       setProblem(problemRes.data.problem);
 
-      const { data } = await axiosInstance.post(`/system-design-submissions/start/${problemId}`);
+      const { data } = await axiosInstance.post(
+        `/system-design-submissions/start/${problemId}`,
+        courseBody
+      );
       if (data.success) {
         setSubmission(data.submission);
         if (data.maxViolations != null) setExamMaxViolations(data.maxViolations);
@@ -180,7 +198,7 @@ const SystemDesignTaking = () => {
     } finally {
       setLoading(false);
     }
-  }, [problemId]);
+  }, [problemId, courseBody]);
 
   useEffect(() => {
     startDesign();
@@ -311,7 +329,7 @@ const SystemDesignTaking = () => {
       const { data } = await axiosInstance.post(`/system-design-submissions/${submission._id}/submit`);
       if (data.success) {
         allowNextNavigation();
-        navigate(`/student/system-design/${submission._id}/follow-up`);
+        navigate(`/student/system-design/${submission._id}/follow-up${courseQuery}`);
       }
     } catch (err) {
       alert('Submit failed');

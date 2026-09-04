@@ -240,11 +240,24 @@
 
 [data-theme='dark'] .sa-panel {
   --sa-accent-soft: rgba(99, 102, 241, 0.14);
+  --card-bg: #1a1a1a;
+  --bg-secondary: #222222;
+  --border-color: #3f3f46;
+  --vh-surface: #1a1a1a;
+  --vh-surface-2: #222222;
+  --vh-border: #3f3f46;
+  --vh-text: #f4f4f5;
+  --vh-muted: #a1a1aa;
   background: #121212;
 }
 
 [data-theme='dark'] .sa-main {
   background: #121212;
+  --vh-surface: #1a1a1a;
+  --vh-surface-2: #222222;
+  --vh-border: #3f3f46;
+  --vh-text: #f4f4f5;
+  --vh-muted: #a1a1aa;
 }
 
 [data-theme='dark'] .sa-sidebar {

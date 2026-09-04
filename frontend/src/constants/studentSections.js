@@ -38,6 +38,16 @@ export const STUDENT_SECTIONS = [
     accent: '#e7210b',
   },
   {
+    id: 'courses',
+    label: 'Courses',
+    shortLabel: 'Courses',
+    path: '/student/courses',
+    icon: FiBookOpen,
+    description: 'Structured modules, lectures, and progress',
+    accent: '#0f766e',
+    isCourse: true,
+  },
+  {
     id: 'coding',
     label: 'Coding Tests',
     shortLabel: 'Coding',
@@ -138,8 +148,12 @@ export const STUDENT_SECTIONS = [
   },
 ];
 
+export const MENU_SECTIONS = STUDENT_SECTIONS.filter((s) => s.isOverview || s.isAnnouncement);
+
+export const COURSE_SECTIONS = STUDENT_SECTIONS.filter((s) => s.isCourse);
+
 export const TEST_SECTIONS = STUDENT_SECTIONS.filter(
-  (s) => !s.isOverview && !s.isAnnouncement
+  (s) => !s.isOverview && !s.isAnnouncement && !s.isCourse
 );
 
 export function getSectionById(id) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   RadarChart,
   PolarGrid,
@@ -9,6 +9,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import axiosInstance from '../../utils/axios';
+import { syncCourseModuleAssessment } from '../../utils/courseAssessment';
 import { getInterviewAnswerScoreDisplay, computeSessionMarksTotals } from '../../utils/interviewScoring';
 import './MockInterviewFeedback.css';
 
@@ -86,10 +87,14 @@ const ScoreBar = ({ label, value, max = 100 }) => {
 
 const MockInterviewFeedback = () => {
   const { sessionId } = useParams();
+  const [searchParams] = useSearchParams();
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedCards, setExpandedCards] = useState({});
   const [filter, setFilter] = useState('all');
+  const [courseSynced, setCourseSynced] = useState(false);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -104,6 +109,21 @@ const MockInterviewFeedback = () => {
     };
     fetchSession();
   }, [sessionId]);
+
+  useEffect(() => {
+    if (
+      courseSynced ||
+      !courseIdParam ||
+      !moduleIdParam ||
+      !session?._id ||
+      session.status !== 'completed'
+    ) {
+      return;
+    }
+    syncCourseModuleAssessment(axiosInstance, courseIdParam, moduleIdParam, session._id)
+      .then(() => setCourseSynced(true))
+      .catch((err) => console.error('Course assessment sync failed:', err));
+  }, [courseIdParam, moduleIdParam, session?._id, session?.status, courseSynced]);
 
   const toggleCard = useCallback((id) => {
     setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));

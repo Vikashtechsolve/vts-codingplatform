@@ -53,6 +53,11 @@
 [data-theme="dark"] .sdfu-progress-dot.answered { background: #6c5ce7; color: #fff; }
 [data-theme="dark"] .sdfu-question-card { background: rgba(108, 92, 231, 0.08); border-color: rgba(108, 92, 231, 0.25); }
 [data-theme="dark"] .sdfu-question-num { color: #a29bfe; }
+[data-theme="dark"] .sdfu-answer-input {
+  background: #27272a;
+  border-color: #3f3f46;
+  color: #f4f4f5;
+}
 [data-theme="dark"] .sdfu-answer-input:focus { border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.15); }
 [data-theme="dark"] .sdfu-submit-btn { background: #6c5ce7; }
 [data-theme="dark"] .sdfu-submit-btn:disabled { background: rgba(108, 92, 231, 0.35); }

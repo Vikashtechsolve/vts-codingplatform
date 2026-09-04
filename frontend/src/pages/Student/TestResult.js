@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import axiosInstance from '../../utils/axios';
 import QuestionPracticePanel from '../../components/QuestionPracticePanel';
@@ -65,6 +65,9 @@ const TEST_TYPE_UI = {
 const TestResult = () => {
   const { resultId, testId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
   const [result, setResult] = useState(null);
   const [test, setTest] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -72,6 +75,8 @@ const TestResult = () => {
   const [expandedCards, setExpandedCards] = useState({});
   const [practiceQuestion, setPracticeQuestion] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [courseQuizSynced, setCourseQuizSynced] = useState(false);
+  const [courseQuizMeta, setCourseQuizMeta] = useState(null);
 
   const fetchResult = useCallback(async () => {
     try {
@@ -120,6 +125,36 @@ const TestResult = () => {
   useEffect(() => {
     setExpandedCards({});
   }, [result?._id]);
+
+  useEffect(() => {
+    if (
+      courseQuizSynced ||
+      !courseIdParam ||
+      !moduleIdParam ||
+      !result?._id ||
+      !['completed', 'timeout'].includes(result.status)
+    ) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await axiosInstance.post(
+          `/student/courses/${courseIdParam}/modules/${moduleIdParam}/quiz/complete`,
+          { resultId: result._id }
+        );
+        if (!cancelled) {
+          setCourseQuizMeta(data || null);
+          setCourseQuizSynced(true);
+        }
+      } catch (err) {
+        console.warn('Course quiz sync failed', err?.response?.data?.message || err.message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [courseIdParam, moduleIdParam, result?._id, result?.status, courseQuizSynced]);
 
   const resolvedResultId = result?._id;
 
@@ -561,14 +596,82 @@ const TestResult = () => {
             </div>
           )}
         </div>
-        <button
-          type="button"
-          className="tr-btn tr-btn-secondary"
-          onClick={() => navigate(testUi.backPath)}
-        >
-          Back to {testUi.backLabel}
-        </button>
+        <div className="tr-header-actions">
+          {courseIdParam ? (
+            <>
+              <button
+                type="button"
+                className="tr-btn tr-btn-secondary"
+                onClick={() => navigate(`/student/courses/${courseIdParam}`)}
+              >
+                Back to course
+              </button>
+              {moduleIdParam && (
+                <button
+                  type="button"
+                  className="tr-btn tr-btn-primary"
+                  onClick={() =>
+                    navigate(
+                      `/student/test/${
+                        typeof result.testId === 'object' ? result.testId?._id : result.testId
+                      }?courseId=${courseIdParam}&moduleId=${moduleIdParam}`
+                    )
+                  }
+                >
+                  Practice again
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              className="tr-btn tr-btn-secondary"
+              onClick={() => navigate(testUi.backPath)}
+            >
+              Back to {testUi.backLabel}
+            </button>
+          )}
+        </div>
       </header>
+
+      {courseIdParam && (
+        <div
+          className={`tr-course-banner ${
+            courseQuizMeta?.practice || result.countsTowardScore === false ? 'is-practice' : 'is-official'
+          }`}
+        >
+          {courseQuizMeta?.practice || result.countsTowardScore === false ? (
+            <>
+              <strong>Practice attempt</strong>
+              <span>
+                This score is not on your course scorecard.
+                {courseQuizMeta?.quizScore
+                  ? ` Official score remains ${courseQuizMeta.quizScore.totalScore}/${courseQuizMeta.quizScore.maxScore} (${courseQuizMeta.quizScore.percentage}%).`
+                  : ' Your first attempt is still the official score.'}
+              </span>
+              {courseQuizMeta?.officialResultId &&
+                String(courseQuizMeta.officialResultId) !== String(result._id) && (
+                  <button
+                    type="button"
+                    className="tr-course-banner-link"
+                    onClick={() =>
+                      navigate(
+                        `/student/result/${courseQuizMeta.officialResultId}?courseId=${courseIdParam}&moduleId=${moduleIdParam}`
+                      )
+                    }
+                  >
+                    View official
+                  </button>
+                )}
+            </>
+          ) : (
+            <>
+              <strong>Official score</strong>
+              <span>This first attempt is what counts on your course scorecard. You can practise again anytime.</span>
+            </>
+          )}
+        </div>
+      )}
 
       <section className="tr-hero">
         <div className="tr-hero-ring-wrap">

@@ -1,12 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import RichTextDisplay from '../../components/RichTextDisplay';
+import { syncCourseModuleAssessment, buildAssessmentStartBody } from '../../utils/courseAssessment';
 import './SubmitAssignment.css';
 
 const SubmitAssignment = () => {
   const { assignmentId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
+  const contestId = searchParams.get('contestId');
+  const courseParams = buildAssessmentStartBody({
+    courseId: courseIdParam,
+    moduleId: moduleIdParam,
+    contestId,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [assignment, setAssignment] = useState(null);
@@ -88,7 +98,7 @@ const SubmitAssignment = () => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await axiosInstance.post(`/assignments/${assignmentId}/start`);
+      const { data } = await axiosInstance.post(`/assignments/${assignmentId}/start`, courseParams);
       if (data.success) {
         await fetchAssignmentDetails();
       } else {
@@ -195,11 +205,24 @@ const SubmitAssignment = () => {
     try {
       const { data } = await axiosInstance.post('/project-submissions', {
         assignmentId,
-        ...formData
+        ...formData,
+        ...(courseParams || {}),
       });
 
       if (data.success) {
         setSubmitSuccessMessage('Project submitted successfully. You can update your repository link until the timer ends.');
+        if (courseIdParam && moduleIdParam && data.submission?._id) {
+          try {
+            await syncCourseModuleAssessment(
+              axiosInstance,
+              courseIdParam,
+              moduleIdParam,
+              data.submission._id
+            );
+          } catch (syncErr) {
+            console.error('Course assessment sync failed:', syncErr);
+          }
+        }
         await fetchAssignmentDetails();
       } else {
         setError(data.message || 'Failed to submit project');

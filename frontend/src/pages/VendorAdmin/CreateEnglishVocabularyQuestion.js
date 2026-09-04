@@ -5,6 +5,7 @@ import axiosInstance from '../../utils/axios';
 import RichTextEditor from '../../components/RichTextEditor';
 import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
 import TagInput from '../../components/TagInput';
+import { useEnglishQuestionFormRoutes } from '../../hooks/useEnglishQuestionFormRoutes';
 import './CreateEnglishQuestion.css';
 
 const SUB_TYPES = [
@@ -22,6 +23,7 @@ const CreateEnglishVocabularyQuestion = () => {
   const isEditMode = !!id;
   useAuth();
   const navigate = useNavigate();
+  const { sectionEndpoint, backTo } = useEnglishQuestionFormRoutes('vocabulary');
 
   const [formData, setFormData] = useState({
     word: '',
@@ -45,7 +47,7 @@ const CreateEnglishVocabularyQuestion = () => {
   const fetchQuestion = useCallback(async () => {
     try {
       setPageLoading(true);
-      const res = await axiosInstance.get(`/questions/english/vocabulary/${id}`);
+      const res = await axiosInstance.get(`${sectionEndpoint}/${id}`);
       const q = res.data;
       setFormData({
         word: q.word || '',
@@ -62,7 +64,7 @@ const CreateEnglishVocabularyQuestion = () => {
     } finally {
       setPageLoading(false);
     }
-  }, [id]);
+  }, [id, sectionEndpoint]);
 
   useEffect(() => {
     if (isEditMode && id) fetchQuestion();
@@ -96,13 +98,13 @@ const CreateEnglishVocabularyQuestion = () => {
     try {
       const data = { ...formData, options: validOpts };
       if (isEditMode) {
-        await axiosInstance.put(`/questions/english/vocabulary/${id}`, data);
+        await axiosInstance.put(`${sectionEndpoint}/${id}`, data);
         showModal('Success', 'Question updated!', 'success');
       } else {
-        await axiosInstance.post('/questions/english/vocabulary', data);
+        await axiosInstance.post(sectionEndpoint, data);
         showModal('Success', 'Question created!', 'success');
       }
-      setTimeout(() => navigate('/vendor-admin/english-questions'), 1500);
+      setTimeout(() => navigate(backTo), 1500);
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving question', 'error');
     } finally {
@@ -118,7 +120,7 @@ const CreateEnglishVocabularyQuestion = () => {
       pageLoading={pageLoading}
       modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
       formId="english-vocab-form"
-      onCancel={() => navigate('/vendor-admin/english-questions')}
+      onCancel={() => navigate(backTo)}
       saving={saving}
       isEditMode={isEditMode}
     >

@@ -171,8 +171,13 @@ const corsOptions =
       };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+// Allow JSON primitives so axios JSON.stringify(null) does not 500 start/submit routes.
+app.use(express.json({ strict: false }));
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (req.body == null) req.body = {};
+  next();
+});
 
 // Serve legacy uploaded files from disk (fallback for files not yet migrated to R2)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -254,10 +259,26 @@ app.get('/api/health/code-execution', async (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/super-admin', require('./routes/superAdmin'));
 app.use('/api/super-admin/global-questions', require('./routes/globalQuestions'));
+app.use('/api/super-admin/tests', require('./routes/superAdminTests'));
+app.use(
+  '/api/super-admin/global-questions/english',
+  (req, res, next) => {
+    req.globalEnglishBank = true;
+    next();
+  },
+  require('./routes/englishQuestions')
+);
 app.use('/api/super-admin/interview-questions', require('./routes/superAdminInterviewQuestions'));
+app.use('/api/super-admin/interviews', require('./routes/superAdminInterviews'));
+app.use('/api/super-admin/assignments', require('./routes/superAdminAssignments'));
+app.use('/api/super-admin/system-design-problems', require('./routes/superAdminSystemDesign'));
+app.use('/api/super-admin/courses', require('./routes/coursesSuperAdmin'));
 // Register classrooms route BEFORE vendor-admin to ensure proper matching
 app.use('/api/vendor-admin/classrooms', require('./routes/classrooms'));
+app.use('/api/vendor-admin/courses', require('./routes/coursesVendorAdmin'));
 app.use('/api/vendor-admin', require('./routes/vendorAdmin'));
+app.use('/api/student/courses', require('./routes/coursesStudent'));
+app.use('/api/courses-media', require('./routes/coursesMedia'));
 app.use('/api/question-tags', require('./routes/questionTags'));
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/questions/english', require('./routes/englishQuestions'));
@@ -299,6 +320,12 @@ const loadWorkers = async () => {
     } catch (err) {
       console.warn('⚠️ Evaluation worker failed to load:', err.message);
     }
+    try {
+      require('./workers/hlsTranscodeWorker');
+      console.log('✅ HLS transcode worker loaded (in-process)');
+    } catch (err) {
+      console.warn('⚠️ HLS transcode worker failed to load:', err.message);
+    }
     // Start code execution worker in-process when not running as separate service
     const standalone = isCodeWorkerStandalone();
     console.log(
@@ -322,6 +349,9 @@ setImmediate(loadWorkers);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && (err.status === 400 || err.type === 'entity.parse.failed')) {
+    return res.status(400).json({ message: 'Invalid JSON in request body' });
+  }
   console.error(err.stack);
   res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
@@ -372,6 +402,12 @@ const httpServer = app.listen(PORT, () => {
   console.log(`🔐 Auth endpoint: http://localhost:${PORT}/api/auth/login`);
   console.log('='.repeat(50));
   console.log('📝 Waiting for requests...\n');
+  const { ensureR2Cors } = require('./utils/r2Storage');
+  ensureR2Cors()
+    .then(() => console.log('✅ R2 CORS configured for HLS playback'))
+    .catch((err) =>
+      console.warn('⚠️ R2 CORS not applied (HLS still proxies via API):', err.message)
+    );
   if (isProbablyContainer()) {
     console.log(
       '[deploy] Running in a container. If the container stops with Exited (0) while idle, the host sent SIGTERM/SIGINT or ended your user session (common with rootless Podman over SSH). Run: sudo loginctl enable-linger ubuntu && manage the container with a systemd user unit (see backend/deploy/systemd/). Shutdown evidence: /app/logs/shutdown-audit.log'

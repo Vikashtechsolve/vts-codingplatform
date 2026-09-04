@@ -59,11 +59,16 @@ router.get('/tests', auth, async (req, res) => {
     }
 
     const student = await User.findById(req.user._id);
-    const testIds = student.enrolledTests.map(et => et.testId);
+    const testIds = student.enrolledTests
+      .filter(et => et.origin !== 'course')
+      .map(et => et.testId);
 
     const tests = await Test.find({
       _id: { $in: testIds },
-      isActive: true
+      isActive: true,
+      // Course quizzes are auto-enrolled for the taking flow but belong to the
+      // course player, not the standalone test list
+      source: { $ne: 'course_module' }
     })
       .select('title description type duration startDate endDate questions.type')
       .sort({ createdAt: -1 });
@@ -79,10 +84,13 @@ router.get('/tests', auth, async (req, res) => {
       let percentage = null;
       let submittedAt = null;
       if (enrollment && enrollment.status === 'completed') {
+        // Prefer the official attempt — course practice retakes are stored
+        // with countsTowardScore: false and must not override the real score
         const result = await Result.findOne({
           testId: test._id,
           studentId: student._id,
-          status: 'completed'
+          status: 'completed',
+          countsTowardScore: { $ne: false }
         })
           .sort({ submittedAt: -1 })
           .select('_id percentage submittedAt');
@@ -141,6 +149,8 @@ router.get('/english-trends', auth, async (req, res) => {
     const results = await Result.find({
       studentId: req.user._id,
       status: 'completed',
+      // Practice/course retakes should not skew the trend chart
+      countsTowardScore: { $ne: false },
       sectionScores: { $exists: true, $ne: [] }
     })
       .populate('testId', 'title type')

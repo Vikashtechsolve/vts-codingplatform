@@ -6,6 +6,11 @@ const EvaluationJob = require('../models/EvaluationJob');
 const EvaluationResult = require('../models/EvaluationResult');
 const User = require('../models/User');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
+const { canVendorAccessAssignment } = require('../utils/platformAssessmentAccess');
+const {
+  resolveCourseModuleAssessment,
+  ensureStudentEnrollmentForCourseAssessment,
+} = require('../utils/courseAssessmentAccess');
 const {
   addEvaluationJob,
   getQueueStats,
@@ -65,9 +70,22 @@ router.post('/', authenticateToken, authorizeRoles('student'), async (req, res) 
 
     // Get student enrollment
     const student = await User.findById(req.user._id);
-    const enrollment = student.enrolledAssignments.find(
+    const courseCtx = await resolveCourseModuleAssessment(req, 'assignment', assignmentId);
+    let enrollment = student.enrolledAssignments.find(
       ea => ea.assignmentId.toString() === assignmentId
     );
+
+    if (courseCtx) {
+      await ensureStudentEnrollmentForCourseAssessment(
+        student,
+        courseCtx,
+        'assignment',
+        assignment
+      );
+      enrollment = student.enrolledAssignments.find(
+        (ea) => ea.assignmentId.toString() === assignmentId
+      );
+    }
 
     if (!enrollment) {
       return res.status(403).json({
@@ -76,8 +94,11 @@ router.post('/', authenticateToken, authorizeRoles('student'), async (req, res) 
       });
     }
 
+    const allowCoursePractice =
+      !!courseCtx && (enrollment.status === 'submitted' || enrollment.status === 'evaluated');
+
     // Check if already submitted
-    if (enrollment.status === 'submitted' || enrollment.status === 'evaluated') {
+    if ((enrollment.status === 'submitted' || enrollment.status === 'evaluated') && !allowCoursePractice) {
       return res.status(400).json({
         success: false,
         message: 'Assignment already submitted. Contact your instructor for resubmission.'
@@ -94,12 +115,15 @@ router.post('/', authenticateToken, authorizeRoles('student'), async (req, res) 
 
     const now = new Date();
     const startedAt = new Date(enrollment.startedAt);
-    const assignmentDeadline = new Date(enrollment.deadline);
+    // deadline can be null (course/platform enrollments) — must not become epoch
+    const assignmentDeadline = enrollment.deadline ? new Date(enrollment.deadline) : null;
     const allowedTimeMs = assignment.duration * 60 * 1000;
-    const timerEndAt = new Date(Math.min(
-      startedAt.getTime() + allowedTimeMs,
-      assignmentDeadline.getTime()
-    ));
+    const timerEndByDuration = startedAt.getTime() + allowedTimeMs;
+    const timerEndAt = new Date(
+      assignmentDeadline
+        ? Math.min(timerEndByDuration, assignmentDeadline.getTime())
+        : timerEndByDuration
+    );
 
     const minutesLate = (now - timerEndAt) / (1000 * 60);
 
@@ -145,11 +169,12 @@ router.post('/', authenticateToken, authorizeRoles('student'), async (req, res) 
       });
     }
 
-    // Create submission
+    // Create submission — platform assignments have no vendorId, fall back to
+    // the student's vendor so the required field is always populated
     const submission = new ProjectSubmission({
       assignmentId,
       studentId: req.user._id,
-      vendorId: assignment.vendorId,
+      vendorId: assignment.vendorId || req.user.vendorId,
       githubRepoUrl: githubRepoUrl.replace(/\.git$/, '').trim(),
       branchName: branchName || 'main',
       liveUrl: liveUrl || '',
@@ -518,7 +543,10 @@ router.get('/assignment/:assignmentId', authenticateToken, authorizeRoles('vendo
       });
     }
 
-    if (assignment.vendorId.toString() !== req.user.vendorId.toString()) {
+    // Handles both vendor-owned and platform-allocated assignments
+    // (platform assignments have no vendorId — .toString() would crash)
+    const allowed = await canVendorAccessAssignment(assignment, req.user.vendorId);
+    if (!allowed) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -526,7 +554,9 @@ router.get('/assignment/:assignmentId', authenticateToken, authorizeRoles('vendo
     }
 
     const submissions = await ProjectSubmission.find({
-      assignmentId: req.params.assignmentId
+      assignmentId: req.params.assignmentId,
+      // Scope to this vendor's students (platform assignments are shared)
+      vendorId: req.user.vendorId
     })
       .populate('studentId', 'name email enrollmentNumber')
       .populate('evaluationJobId')

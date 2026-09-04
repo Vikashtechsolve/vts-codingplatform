@@ -13,7 +13,23 @@ const testSchema = new mongoose.Schema({
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: true
+    default: null
+  },
+  /** vendor = normal vendor test; course_module = course quiz; platform = super admin test allocatable to vendors */
+  source: {
+    type: String,
+    enum: ['vendor', 'course_module', 'platform'],
+    default: 'vendor'
+  },
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+    default: null
+  },
+  courseModuleId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CourseModule',
+    default: null
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -124,6 +140,25 @@ const testSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+testSchema.pre('validate', function validateVendorOrCourse(next) {
+  if (this.source === 'course_module') {
+    if (!this.courseId || !this.courseModuleId) {
+      return next(new Error('course_module tests require courseId and courseModuleId'));
+    }
+    return next();
+  }
+  if (this.source === 'platform') {
+    if (this.vendorId) {
+      return next(new Error('platform tests cannot have vendorId'));
+    }
+    return next();
+  }
+  if (!this.vendorId) {
+    return next(new Error('vendorId is required for vendor tests'));
+  }
+  return next();
 });
 
 module.exports = mongoose.model('Test', testSchema);

@@ -67,6 +67,14 @@ export const VENDOR_MENU_SECTIONS = [
     accent: '#0891b2',
   },
   {
+    id: 'courses',
+    label: 'Courses',
+    shortLabel: 'Courses',
+    path: '/vendor-admin/courses',
+    icon: FiBookOpen,
+    accent: '#0f766e',
+  },
+  {
     id: 'contests',
     label: 'Contests',
     shortLabel: 'Contests',

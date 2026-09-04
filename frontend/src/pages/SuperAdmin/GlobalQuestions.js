@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiEdit2, FiTrash2, FiCode, FiHelpCircle, FiCpu } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiCode, FiHelpCircle, FiCpu, FiBook, FiMessageCircle } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import { SUPER_ADMIN_ACCENT } from '../../constants/superAdminSections';
@@ -10,6 +10,7 @@ const TABS = [
   { id: 'coding', label: 'Coding', icon: FiCode, accent: '#2563eb' },
   { id: 'mcq', label: 'MCQ', icon: FiHelpCircle, accent: '#7c3aed' },
   { id: 'aptitude', label: 'Aptitude', icon: FiCpu, accent: '#059669' },
+  { id: 'theory', label: 'Theory', icon: FiBook, accent: '#475569' },
 ];
 
 const difficultyBadge = (d) => {
@@ -21,6 +22,7 @@ const GlobalQuestions = () => {
   const [codingQuestions, setCodingQuestions] = useState([]);
   const [mcqQuestions, setMcqQuestions] = useState([]);
   const [aptitudeQuestions, setAptitudeQuestions] = useState([]);
+  const [theoryQuestions, setTheoryQuestions] = useState([]);
   const [activeTab, setActiveTab] = useState('coding');
   const [loading, setLoading] = useState(true);
 
@@ -31,14 +33,16 @@ const GlobalQuestions = () => {
   const fetchQuestions = async () => {
     try {
       setLoading(true);
-      const [codingRes, mcqRes, aptitudeRes] = await Promise.all([
+      const [codingRes, mcqRes, aptitudeRes, theoryRes] = await Promise.all([
         axiosInstance.get('/super-admin/global-questions/coding'),
         axiosInstance.get('/super-admin/global-questions/mcq'),
         axiosInstance.get('/super-admin/global-questions/aptitude'),
+        axiosInstance.get('/super-admin/global-questions/theory'),
       ]);
       setCodingQuestions(codingRes.data || []);
       setMcqQuestions(mcqRes.data || []);
       setAptitudeQuestions(aptitudeRes.data || []);
+      setTheoryQuestions(theoryRes.data || []);
     } catch (error) {
       console.error('Error fetching global questions:', error);
     } finally {
@@ -51,15 +55,17 @@ const GlobalQuestions = () => {
       coding: codingQuestions.length,
       mcq: mcqQuestions.length,
       aptitude: aptitudeQuestions.length,
+      theory: theoryQuestions.length,
     }),
-    [codingQuestions, mcqQuestions, aptitudeQuestions]
+    [codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions]
   );
 
   const activeQuestions = useMemo(() => {
     if (activeTab === 'mcq') return mcqQuestions;
     if (activeTab === 'aptitude') return aptitudeQuestions;
+    if (activeTab === 'theory') return theoryQuestions;
     return codingQuestions;
-  }, [activeTab, codingQuestions, mcqQuestions, aptitudeQuestions]);
+  }, [activeTab, codingQuestions, mcqQuestions, aptitudeQuestions, theoryQuestions]);
 
   const handleDelete = async (id, type) => {
     if (!window.confirm('Delete this global question?')) return;
@@ -75,6 +81,7 @@ const GlobalQuestions = () => {
     coding: '/super-admin/global-questions/coding/create',
     mcq: '/super-admin/global-questions/mcq/create',
     aptitude: '/super-admin/global-questions/aptitude/create',
+    theory: '/super-admin/global-questions/theory/create',
   };
 
   const editPath = (type, id) => `/super-admin/global-questions/${type}/edit/${id}`;
@@ -88,9 +95,14 @@ const GlobalQuestions = () => {
       subtitle="Platform-wide questions available to all vendors."
       accent={SUPER_ADMIN_ACCENT}
       actions={
-        <Link to={createLinks[activeTab]} className="vh-btn vh-btn--primary">
-          <FiPlus /> Create {activeTab} question
-        </Link>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link to="/super-admin/global-questions/english" className="vh-btn vh-btn--secondary">
+            <FiMessageCircle /> English bank
+          </Link>
+          <Link to={createLinks[activeTab]} className="vh-btn vh-btn--primary">
+            <FiPlus /> Create {activeTab} question
+          </Link>
+        </div>
       }
     >
       <div className="vh-stats">
@@ -172,6 +184,14 @@ const GlobalQuestions = () => {
                         <th>Section</th>
                         <th>Type</th>
                         <th>Difficulty</th>
+                      </>
+                    )}
+                    {activeTab === 'theory' && (
+                      <>
+                        <th>Question</th>
+                        <th>Created by</th>
+                        <th>Difficulty</th>
+                        <th>Points</th>
                       </>
                     )}
                     <th>Actions</th>
@@ -273,6 +293,37 @@ const GlobalQuestions = () => {
                         </td>
                       </tr>
                     ))}
+                  {activeTab === 'theory' &&
+                    theoryQuestions.map((q) => (
+                      <tr key={q._id}>
+                        <td>
+                          <div className="vh-person-name sa-truncate">{q.questionText}</div>
+                        </td>
+                        <td className="vh-cell-muted">{q.createdBy?.name || '—'}</td>
+                        <td>
+                          <span className={`vh-badge vh-badge--${difficultyBadge(q.difficulty)}`}>
+                            {q.difficulty}
+                          </span>
+                        </td>
+                        <td>{q.points ?? '—'}</td>
+                        <td>
+                          <div className="sa-cell-actions">
+                            <Link to={editPath('theory', q._id)} className="vh-btn vh-btn--ghost vh-btn--sm">
+                              <FiEdit2 /> Edit
+                            </Link>
+                            <button
+                              type="button"
+                              className="vh-btn vh-btn--ghost vh-btn--sm"
+                              onClick={() => handleDelete(q._id, 'theory')}
+                              style={{ color: '#dc2626' }}
+                            >
+                              <FiTrash2 />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
                 </tbody>
               </table>
             </div>

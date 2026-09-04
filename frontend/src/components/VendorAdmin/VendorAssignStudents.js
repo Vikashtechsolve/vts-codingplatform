@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiSearch, FiUsers, FiCheck, FiGrid } from 'react-icons/fi';
 import { matchesStudentSearch } from '../../utils/studentBulkImport';
+import { getStudentRecordId } from '../../utils/enrollmentStudent';
 import VendorLoadMore from './VendorLoadMore';
 import VendorDataSection from './VendorDataSection';
 
@@ -28,7 +29,10 @@ const VendorAssignStudents = ({
   loadingMoreStudents = false,
   onLoadMoreStudents,
   totalStudents = 0,
+  classroomPreviewStudents = null,
+  loadingClassroomPreview = false,
 }) => {
+  const hasClassroomPreview = Array.isArray(classroomPreviewStudents);
   const [localSearch, setLocalSearch] = useState('');
   const search = onStudentSearchChange != null ? studentSearch ?? '' : localSearch;
   const setSearch = onStudentSearchChange || setLocalSearch;
@@ -65,7 +69,7 @@ const VendorAssignStudents = ({
   const allStudentsSelected =
     mode === 'students' &&
     filteredStudents.length > 0 &&
-    filteredStudents.every((s) => selectedStudents.includes(s._id));
+    filteredStudents.every((s) => selectedStudents.includes(getStudentRecordId(s)));
 
   const allClassroomsSelected =
     classroomsWithStudents.length > 0 &&
@@ -75,11 +79,13 @@ const VendorAssignStudents = ({
     if (mode !== 'students') return;
     if (allStudentsSelected) {
       filteredStudents.forEach((s) => {
-        if (selectedStudents.includes(s._id)) onToggleStudent(s._id);
+        const id = getStudentRecordId(s);
+        if (selectedStudents.includes(id)) onToggleStudent(id);
       });
     } else {
       filteredStudents.forEach((s) => {
-        if (!selectedStudents.includes(s._id)) onToggleStudent(s._id);
+        const id = getStudentRecordId(s);
+        if (!selectedStudents.includes(id)) onToggleStudent(id);
       });
     }
   };
@@ -274,13 +280,14 @@ const VendorAssignStudents = ({
                 <VendorDataSection refreshing={refreshingStudents}>
                 <div className="va-student-grid">
                   {filteredStudents.map((student) => {
-                    const selected = selectedStudents.includes(student._id);
+                    const studentId = getStudentRecordId(student);
+                    const selected = selectedStudents.includes(studentId);
                     return (
                       <button
-                        key={student._id}
+                        key={studentId}
                         type="button"
                         className={`va-student-card ${selected ? 'selected' : ''}`}
-                        onClick={() => onToggleStudent(student._id)}
+                        onClick={() => onToggleStudent(studentId)}
                       >
                         <input
                           type="checkbox"
@@ -290,11 +297,11 @@ const VendorAssignStudents = ({
                           aria-hidden
                         />
                         <span>
-                          <span className="va-student-name">{student.name}</span>
+                          <span className="va-student-name">{student.name || 'Student'}</span>
                           <span className="va-student-email">
                             {student.enrollmentNumber
-                              ? `${student.enrollmentNumber} · ${student.email}`
-                              : student.email}
+                              ? `${student.enrollmentNumber} · ${student.email || 'No email'}`
+                              : student.email || 'No email on file'}
                           </span>
                         </span>
                       </button>
@@ -317,13 +324,28 @@ const VendorAssignStudents = ({
         </div>
       )}
 
-      {mode === 'classroom' && selectedClassroomIds.length > 0 && uniqueStudentCount > 0 && (
+      {mode === 'classroom' && selectedClassroomIds.length > 0 && (
         <div className="va-panel va-assign-preview">
           <div className="va-panel-header">
             <h2>
               Students across {selectedClassroomIds.length} classroom
               {selectedClassroomIds.length !== 1 ? 's' : ''}
             </h2>
+            <span className="va-cell-muted">
+              {loadingClassroomPreview
+                ? 'Loading students…'
+                : `${
+                    hasClassroomPreview && classroomPreviewStudents.length
+                      ? classroomPreviewStudents.length
+                      : uniqueStudentCount
+                  } student${
+                    (hasClassroomPreview && classroomPreviewStudents.length
+                      ? classroomPreviewStudents.length
+                      : uniqueStudentCount) !== 1
+                      ? 's'
+                      : ''
+                  }`}
+            </span>
           </div>
           <div className="va-panel-body">
             <div className="va-assign-class-chips">
@@ -341,6 +363,28 @@ const VendorAssignStudents = ({
                 </span>
               ))}
             </div>
+            {hasClassroomPreview && classroomPreviewStudents.length > 0 && (
+              <ul className="va-classroom-student-preview">
+                {classroomPreviewStudents.map((student) => (
+                  <li key={getStudentRecordId(student)}>
+                    <strong>{student.name || 'Student'}</strong>
+                    <span>
+                      {student.enrollmentNumber
+                        ? `${student.enrollmentNumber} · ${student.email || ''}`
+                        : student.email || '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {hasClassroomPreview &&
+              !loadingClassroomPreview &&
+              classroomPreviewStudents.length === 0 && (
+                <p className="va-assign-hint" style={{ marginTop: 12, marginBottom: 0 }}>
+                  No student profiles found for the selected classroom(s). Add students to the
+                  classroom first, or use Pick students to assign individually.
+                </p>
+              )}
           </div>
         </div>
       )}

@@ -16,6 +16,16 @@ const systemDesignSubmissionSchema = new mongoose.Schema({
     ref: 'Vendor',
     required: true
   },
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+    default: null,
+  },
+  moduleId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CourseModule',
+    default: null,
+  },
   status: {
     type: String,
     enum: ['not_started', 'in_progress', 'submitted', 'evaluating', 'follow_up', 'evaluated'],
@@ -264,7 +274,7 @@ const systemDesignSubmissionSchema = new mongoose.Schema({
   timestamps: true
 });
 
-systemDesignSubmissionSchema.index({ problemId: 1, studentId: 1 }, { unique: true });
+systemDesignSubmissionSchema.index({ problemId: 1, studentId: 1, status: 1 });
 systemDesignSubmissionSchema.index({ studentId: 1, status: 1 });
 systemDesignSubmissionSchema.index({ vendorId: 1, problemId: 1 });
 systemDesignSubmissionSchema.index({ status: 1 });

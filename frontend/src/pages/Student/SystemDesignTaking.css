@@ -513,6 +513,51 @@
   line-height: 1.55;
 }
 
+/* Shared form controls — keep native fields from looking like raw browser widgets */
+.sdt-container input[type='text'],
+.sdt-container textarea,
+.sdt-container select {
+  border: 1px solid var(--sdt-border);
+  border-radius: 10px;
+  background: var(--sdt-input-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.sdt-container input[type='text'] {
+  padding: 10px 12px;
+  min-height: 42px;
+}
+
+.sdt-container textarea {
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.sdt-container select {
+  padding: 8px 12px;
+  min-height: 42px;
+  cursor: pointer;
+}
+
+.sdt-container input[type='text']::placeholder,
+.sdt-container textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.sdt-container input[type='text']:focus,
+.sdt-container textarea:focus,
+.sdt-container select:focus {
+  outline: none;
+  border-color: var(--sdt-accent);
+  box-shadow: 0 0 0 3px var(--sdt-accent-soft);
+}
+
 /* Overview */
 .sdt-problem-statement.rich-text-display {
   line-height: 1.7;
@@ -683,6 +728,63 @@
   font-size: 0.9rem;
 }
 
+.sdt-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sdt-field-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.sdt-entity-fields > label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 4px 0 8px;
+}
+
+.sdt-entity-notes {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  min-height: 64px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.sdt-db-type {
+  min-width: 150px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+}
+
+.sdt-tradeoff-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.sdt-tradeoff-col label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sdt-tradeoff-col input {
+  width: 100%;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
 .sdt-nfr-field {
   margin-bottom: 14px;
 }
@@ -804,10 +906,11 @@
 }
 
 .sdt-api-method {
-  width: 100px;
-  padding: 8px;
+  width: 112px;
+  padding: 8px 10px;
   font-weight: 700;
   font-size: 0.85rem;
+  flex-shrink: 0;
 }
 
 .sdt-api-detail-row {
@@ -892,11 +995,15 @@
 .sdt-scaling-card textarea {
   margin-top: 10px;
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--sdt-border);
-  border-radius: 8px;
+  border-radius: 10px;
   box-sizing: border-box;
   resize: vertical;
+  background: var(--sdt-input-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
 }
 
 .sdt-topic-grid {
@@ -1237,6 +1344,7 @@
 [data-theme='dark'] .sdt-db-entity,
 [data-theme='dark'] .sdt-db-type,
 [data-theme='dark'] .sdt-tradeoff-col input,
+[data-theme='dark'] .sdt-scaling-card textarea,
 [data-theme='dark'] .sdt-topic-btn,
 [data-theme='dark'] .sdt-nav-btn.prev {
   background: var(--sdt-input-bg);
@@ -1245,7 +1353,9 @@
 }
 
 [data-theme='dark'] .sdt-nfr-field input::placeholder,
-[data-theme='dark'] .sdt-nfr-field textarea::placeholder {
+[data-theme='dark'] .sdt-nfr-field textarea::placeholder,
+[data-theme='dark'] .sdt-container input[type='text']::placeholder,
+[data-theme='dark'] .sdt-container textarea::placeholder {
   color: #9ca3af;
   opacity: 1;
 }

@@ -7,6 +7,7 @@ import { stripHtml } from '../../components/RichTextDisplay';
 import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
 import { isRichTextEmpty } from '../../utils/richTextUtils';
 import TagInput from '../../components/TagInput';
+import { useEnglishQuestionFormRoutes } from '../../hooks/useEnglishQuestionFormRoutes';
 import './CreateEnglishQuestion.css';
 
 const GENRES = [
@@ -39,6 +40,7 @@ const CreateEnglishReadingQuestion = () => {
   const isEditMode = !!id;
   useAuth();
   const navigate = useNavigate();
+  const { sectionEndpoint, backTo } = useEnglishQuestionFormRoutes('reading');
 
   const [passage, setPassage] = useState({ title: '', content: '', source: '', genre: 'non_fiction' });
   const [questions, setQuestions] = useState([emptySubQuestion()]);
@@ -51,7 +53,7 @@ const CreateEnglishReadingQuestion = () => {
   const fetchQuestion = useCallback(async () => {
     try {
       setPageLoading(true);
-      const res = await axiosInstance.get(`/questions/english/reading/${id}`);
+      const res = await axiosInstance.get(`${sectionEndpoint}/${id}`);
       const q = res.data;
       setPassage(q.passage || { title: '', content: '', source: '', genre: 'non_fiction' });
       setQuestions(q.questions?.length ? q.questions : [emptySubQuestion()]);
@@ -62,7 +64,7 @@ const CreateEnglishReadingQuestion = () => {
     } finally {
       setPageLoading(false);
     }
-  }, [id]);
+  }, [id, sectionEndpoint]);
 
   useEffect(() => {
     if (isEditMode && id) fetchQuestion();
@@ -129,13 +131,13 @@ const CreateEnglishReadingQuestion = () => {
     try {
       const data = { passage, questions, difficulty, tags };
       if (isEditMode) {
-        await axiosInstance.put(`/questions/english/reading/${id}`, data);
+        await axiosInstance.put(`${sectionEndpoint}/${id}`, data);
         showModal('Success', 'Reading passage updated!', 'success');
       } else {
-        await axiosInstance.post('/questions/english/reading', data);
+        await axiosInstance.post(sectionEndpoint, data);
         showModal('Success', 'Reading passage created!', 'success');
       }
-      setTimeout(() => navigate('/vendor-admin/english-questions'), 1500);
+      setTimeout(() => navigate(backTo), 1500);
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving', 'error');
     } finally {
@@ -151,7 +153,7 @@ const CreateEnglishReadingQuestion = () => {
       pageLoading={pageLoading}
       modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
       formId="english-reading-form"
-      onCancel={() => navigate('/vendor-admin/english-questions')}
+      onCancel={() => navigate(backTo)}
       saving={saving}
       isEditMode={isEditMode}
     >

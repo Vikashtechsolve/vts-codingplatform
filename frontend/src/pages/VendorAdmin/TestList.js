@@ -69,8 +69,8 @@ const normalizeInterview = (i) => ({
   questions: i.questions || [],
   isActive: i.isActive !== false,
   interviewType: i.interviewType,
-  topic: i.topic,
   createdAt: i.createdAt,
+  isPlatformInterview: i.isPlatformInterview || i.source === 'platform',
 });
 
 const normalizeAssignment = (a) => ({
@@ -89,6 +89,7 @@ const normalizeAssignment = (a) => ({
   totalEvaluated: a.totalEvaluated || 0,
   status: a.status,
   createdAt: a.createdAt,
+  isPlatformAssignment: a.isPlatformAssignment || a.source === 'platform',
 });
 
 const normalizeSystemDesign = (sd) => ({
@@ -105,6 +106,7 @@ const normalizeSystemDesign = (sd) => ({
   totalSubmitted: sd.totalSubmitted || 0,
   totalEvaluated: sd.totalEvaluated || 0,
   createdAt: sd.createdAt,
+  isPlatformSystemDesign: sd.isPlatformSystemDesign || sd.source === 'platform',
 });
 
 function getTypeAccent(type) {
@@ -489,6 +491,14 @@ const TestList = () => {
                         item.settings?.resultDisplay === 'score_only' && (
                           <span className="vendor-tests-result-pill">Score only</span>
                         )}
+                      {item.isPlatformTest && (
+                        <span className="vendor-tests-result-pill">Platform</span>
+                      )}
+                      {(item.isPlatformInterview ||
+                        item.isPlatformAssignment ||
+                        item.isPlatformSystemDesign) && (
+                        <span className="vendor-tests-result-pill">Platform</span>
+                      )}
                     </div>
                   </div>
 
@@ -600,7 +610,7 @@ const TestList = () => {
                               <FiEdit2 /> Edit SQL test
                             </Link>
                           )}
-                          {item.kind === 'test' && ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(item.type) && (
+                          {item.kind === 'test' && ['coding', 'mcq', 'aptitude', 'theory', 'mixed'].includes(item.type) && !item.isPlatformTest && (
                             <Link
                               to={`/vendor-admin/tests/${item._id}/edit`}
                               onClick={() => setOpenMenuId(null)}
@@ -608,7 +618,7 @@ const TestList = () => {
                               <FiEdit2 /> Edit test
                             </Link>
                           )}
-                          {item.kind === 'assignment' && (
+                          {item.kind === 'assignment' && !item.isPlatformAssignment && (
                             <>
                               <Link
                                 to={`/vendor-admin/assignments/${item._id}`}
@@ -624,7 +634,7 @@ const TestList = () => {
                               </Link>
                             </>
                           )}
-                          {item.kind === 'system_design' && (
+                          {item.kind === 'system_design' && !item.isPlatformSystemDesign && (
                             <Link
                               to={`/vendor-admin/system-designs/${item._id}/edit`}
                               onClick={() => setOpenMenuId(null)}
@@ -632,7 +642,7 @@ const TestList = () => {
                               <FiEdit2 /> Edit problem
                             </Link>
                           )}
-                          {item.kind === 'interview' && (
+                          {item.kind === 'interview' && !item.isPlatformInterview && (
                             <Link
                               to={`/vendor-admin/interviews/${item._id}/edit`}
                               onClick={() => setOpenMenuId(null)}
@@ -640,6 +650,10 @@ const TestList = () => {
                               <FiEdit2 /> Edit interview
                             </Link>
                           )}
+                          {!item.isPlatformTest &&
+                            !item.isPlatformInterview &&
+                            !item.isPlatformAssignment &&
+                            !item.isPlatformSystemDesign && (
                           <button
                             type="button"
                             className="vendor-tests-menu-danger"
@@ -650,6 +664,7 @@ const TestList = () => {
                           >
                             <FiTrash2 /> Delete
                           </button>
+                          )}
                         </div>
                       </>
                     )}

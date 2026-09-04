@@ -52,9 +52,11 @@ const SUB_TYPE_LABELS = {
 
 const BULK_SUPPORTED = ['grammar', 'vocabulary', 'essay'];
 
-const EnglishQuestionList = () => {
+const EnglishQuestionList = ({ globalBankMode = false }) => {
   const [activeTab, setActiveTab] = useState('grammar');
-  const [sourceTab, setSourceTab] = useState('my');
+  const [sourceTab, setSourceTab] = useState(globalBankMode ? 'global' : 'my');
+  const englishApiBase = globalBankMode ? '/super-admin/global-questions/english' : '/questions/english';
+  const questionsBasePath = globalBankMode ? '/super-admin/global-questions/english' : '/vendor-admin/english-questions';
   const [questions, setQuestions] = useState([]);
   const {
     initialLoading,
@@ -76,7 +78,7 @@ const EnglishQuestionList = () => {
     async (tab) => {
       try {
         beginFetch(false);
-        const { data } = await axiosInstance.get(`/questions/english/${tab}`);
+        const { data } = await axiosInstance.get(`${englishApiBase}/${tab}`);
         setQuestions(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Error fetching English questions:', error);
@@ -85,7 +87,7 @@ const EnglishQuestionList = () => {
         endFetch();
       }
     },
-    [beginFetch, endFetch]
+    [beginFetch, endFetch, englishApiBase]
   );
 
   useEffect(() => {
@@ -95,7 +97,7 @@ const EnglishQuestionList = () => {
   const handleDelete = async (type, id) => {
     if (!window.confirm('Are you sure you want to delete this question?')) return;
     try {
-      await axiosInstance.delete(`/questions/english/${type}/${id}`);
+      await axiosInstance.delete(`${englishApiBase}/${type}/${id}`);
       fetchTabQuestions(activeTab);
     } catch (error) {
       alert(error.response?.data?.message || 'Error deleting question');
@@ -109,7 +111,7 @@ const EnglishQuestionList = () => {
     try {
       const formData = new FormData();
       formData.append('file', bulkFile);
-      const response = await axiosInstance.post(`/questions/english/bulk-import/${activeTab}`, formData, {
+      const response = await axiosInstance.post(`${englishApiBase}/bulk-import/${activeTab}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setBulkResult(response.data);
@@ -193,9 +195,13 @@ const EnglishQuestionList = () => {
     <VendorHubPage
       className="veq-page"
       loading={initialLoading}
-      eyebrow="Question bank"
-      title="English & verbal questions"
-      subtitle="Create and manage grammar, vocabulary, reading, writing, speaking, and listening items."
+      eyebrow={globalBankMode ? 'Content library' : 'Question bank'}
+      title={globalBankMode ? 'Global English questions' : 'English & verbal questions'}
+      subtitle={
+        globalBankMode
+          ? 'Platform-wide English questions available to all vendors in their Global tab.'
+          : 'Create and manage grammar, vocabulary, reading, writing, speaking, and listening items.'
+      }
       accent={meta.accent}
       actions={
         <>
@@ -204,7 +210,7 @@ const EnglishQuestionList = () => {
               <FiUpload /> Import CSV/JSON
             </button>
           )}
-          <Link to={`/vendor-admin/english-questions/${activeTab}/create`} className="vh-btn vh-btn--primary">
+          <Link to={`${questionsBasePath}/${activeTab}/create`} className="vh-btn vh-btn--primary">
             <FiPlus /> Create {activeLabel}
           </Link>
         </>
@@ -230,6 +236,7 @@ const EnglishQuestionList = () => {
         })}
       </div>
 
+      {!globalBankMode && (
       <div className="veq-source-tabs">
         <button type="button" className={`veq-source-tab ${sourceTab === 'my' ? 'active' : ''}`} onClick={() => setSourceTab('my')}>
           My questions
@@ -238,6 +245,7 @@ const EnglishQuestionList = () => {
           Global questions
         </button>
       </div>
+      )}
 
       <div className="vh-toolbar">
         <div className="vh-search">
@@ -265,7 +273,7 @@ const EnglishQuestionList = () => {
                 : 'No global questions available for this type.'}
           </p>
           {sourceTab === 'my' && (
-            <Link to={`/vendor-admin/english-questions/${activeTab}/create`} className="vh-btn vh-btn--primary">
+            <Link to={`${questionsBasePath}/${activeTab}/create`} className="vh-btn vh-btn--primary">
               <FiPlus /> Create question
             </Link>
           )}
@@ -297,10 +305,10 @@ const EnglishQuestionList = () => {
                   selectedTag={selectedTag}
                   onTagClick={setSelectedTag}
                   actions={
-                    q.source === 'vendor' ? (
+                    globalBankMode || q.source === 'vendor' ? (
                       <>
                         <Link
-                          to={`/vendor-admin/english-questions/${activeTab}/edit/${q._id}`}
+                          to={`${questionsBasePath}/${activeTab}/edit/${q._id}`}
                           className="vh-btn vh-btn--secondary vh-btn--sm"
                         >
                           Edit

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { flushSync } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { buildCourseAssessmentQuery, buildAssessmentStartBody } from '../../utils/courseAssessment';
 import Modal from '../../components/Modal';
 import InterviewerAvatar from '../../components/interview/InterviewerAvatar';
 import { attachAudioLipSync, runSimulatedLipSync } from '../../utils/audioLipSync';
@@ -40,6 +41,15 @@ function computeRms(analyser) {
 const MockInterviewRoom = () => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
+  const contestId = searchParams.get('contestId');
+  const courseQuery = buildCourseAssessmentQuery(courseIdParam, moduleIdParam);
+  const feedbackPath = useCallback(
+    (id) => `/student/interviews/feedback/${id}${courseQuery}`,
+    [courseQuery]
+  );
   const transcriptRef = useRef('');
   const micStreamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -147,7 +157,14 @@ const MockInterviewRoom = () => {
   }, [interviewId]);
 
   const startInterviewSession = useCallback(async () => {
-    const sessionRes = await axiosInstance.post(`/interview-sessions/start/${interviewId}`);
+    const sessionRes = await axiosInstance.post(
+      `/interview-sessions/start/${interviewId}`,
+      buildAssessmentStartBody({
+        courseId: courseIdParam,
+        moduleId: moduleIdParam,
+        contestId,
+      })
+    );
     const data = sessionRes.data;
     sessionIdRef.current = data.sessionId;
     setSessionId(data.sessionId);
@@ -155,7 +172,7 @@ const MockInterviewRoom = () => {
     setTotalQuestions(data.totalQuestions || interview?.questionCount || 8);
     setTimeRemaining((data.timeLimit || interview?.duration || 20) * 60);
     return data;
-  }, [interviewId, interview?.questionCount, interview?.duration]);
+  }, [interviewId, interview?.questionCount, interview?.duration, courseIdParam, moduleIdParam, contestId]);
 
   useEffect(() => {
     if (!timeRemaining || !isInterviewActive) return;
@@ -173,7 +190,7 @@ const MockInterviewRoom = () => {
       } catch (e) {
         showModal('Error', e.response?.data?.message || 'Failed to submit', 'error');
       }
-      navigate(`/student/interviews/feedback/${sessionId}`);
+      navigate(feedbackPath(sessionId));
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- showModal/stopListening are stable; intentional deps
   }, [timeRemaining, isInterviewActive, sessionId, navigate]);
@@ -367,7 +384,7 @@ const MockInterviewRoom = () => {
       if (response.data.completed) {
         submittedRef.current = true;
         await axiosInstance.post(`/interview-sessions/${sessionId}/submit`);
-        navigate(`/student/interviews/feedback/${sessionId}`);
+        navigate(feedbackPath(sessionId));
         return;
       }
       setCurrentQuestion(response.data.nextQuestion);
@@ -376,7 +393,7 @@ const MockInterviewRoom = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [sessionId, isInterviewActive, isSubmitting, navigate, showModal, stopListening]);
+  }, [sessionId, isInterviewActive, isSubmitting, navigate, showModal, stopListening, feedbackPath]);
 
   const ensureMediaStream = useCallback(async () => {
     if (isStreamActive(micStreamRef.current)) {
@@ -912,7 +929,7 @@ const MockInterviewRoom = () => {
         try {
           await axiosInstance.post(`/interview-sessions/${sessionId}/submit`);
         } catch (e) {}
-        navigate(`/student/interviews/feedback/${sessionId}`);
+        navigate(feedbackPath(sessionId));
       })();
     };
     const handleVisibilityChange = () => {
@@ -930,7 +947,7 @@ const MockInterviewRoom = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [isInterviewActive, sessionId, navigate, stopListening]);
+  }, [isInterviewActive, sessionId, navigate, stopListening, feedbackPath]);
 
   useEffect(() => {
     if (usesBrowserTts && isAiSpeaking) {
@@ -967,7 +984,7 @@ const MockInterviewRoom = () => {
         sessionData = await startInterviewSession();
       } catch (error) {
         if (error.response?.status === 403 && error.response?.data?.alreadyAttempted && error.response?.data?.lastSessionId) {
-          window.location.href = `/student/interviews/feedback/${error.response.data.lastSessionId}`;
+          window.location.href = feedbackPath(error.response.data.lastSessionId);
           return;
         }
         const msg = error.response?.data?.message || 'Failed to start interview';
@@ -1013,7 +1030,8 @@ const MockInterviewRoom = () => {
     requestFullscreen,
     startListening,
     prefetchSpeech,
-    showModal
+    showModal,
+    feedbackPath
   ]);
 
   const canJoinRoom = Boolean(interview) && !isJoining && !loading;
@@ -1043,7 +1061,7 @@ const MockInterviewRoom = () => {
         if (response.data.completed) {
           submittedRef.current = true;
           await axiosInstance.post(`/interview-sessions/${sessionId}/submit`);
-          navigate(`/student/interviews/feedback/${sessionId}`);
+          navigate(feedbackPath(sessionId));
           return;
         }
       } catch (e) {
@@ -1056,9 +1074,9 @@ const MockInterviewRoom = () => {
       try {
         await axiosInstance.post(`/interview-sessions/${sessionId}/submit`);
       } catch (e) {}
-      navigate(`/student/interviews/feedback/${sessionId}`);
+      navigate(feedbackPath(sessionId));
     }
-  }, [sessionId, stopListening, navigate, showModal, finishCapture]);
+  }, [sessionId, stopListening, navigate, showModal, finishCapture, feedbackPath]);
 
   const handleManualSubmit = useCallback(async () => {
     if (isCapturingRef.current) {

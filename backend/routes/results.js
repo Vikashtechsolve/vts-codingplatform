@@ -38,6 +38,7 @@ const {
   getAttemptWindowEndForClient,
 } = require('../utils/testSchedule');
 const Contest = require('../models/Contest');
+const mongoose = require('mongoose');
 
 const sanitizeCodingQuestionForStudent = (q) => {
   if (!q) return null;
@@ -221,6 +222,34 @@ const evaluateAptitudeAnswer = (question, answer) => {
   return { isCorrect };
 };
 
+async function resolveCourseQuizContext(req, test) {
+  const courseId = req.body?.courseId || req.query?.courseId || test.courseId;
+  const moduleId = req.body?.moduleId || req.query?.moduleId || test.courseModuleId;
+  if (
+    !courseId ||
+    !moduleId ||
+    !mongoose.Types.ObjectId.isValid(courseId) ||
+    !mongoose.Types.ObjectId.isValid(moduleId)
+  ) {
+    return null;
+  }
+  const CourseModule = require('../models/CourseModule');
+  const CourseEnrollment = require('../models/CourseEnrollment');
+  const [mod, enroll] = await Promise.all([
+    CourseModule.findOne({ _id: moduleId, courseId, testId: test._id }).select('_id').lean(),
+    CourseEnrollment.findOne({
+      courseId,
+      studentId: req.user._id,
+      vendorId: req.vendorId || req.user.vendorId,
+      status: 'active',
+    })
+      .select('_id')
+      .lean(),
+  ]);
+  if (!mod || !enroll) return null;
+  return { courseId, moduleId };
+}
+
 // Start test (create result)
 router.post('/start/:testId', auth, async (req, res) => {
   try {
@@ -258,7 +287,7 @@ router.post('/start/:testId', auth, async (req, res) => {
       });
     }
 
-    // Check if student is enrolled
+    // Check if student is enrolled (or has course-module quiz access)
     const student = await User.findById(req.user._id);
     let enrollment = student.enrolledTests.find(
       et => et.testId.toString() === test._id.toString()
@@ -270,7 +299,28 @@ router.post('/start/:testId', auth, async (req, res) => {
       await student.save();
     }
 
+    let courseQuizAccess = false;
     if (!enrollment) {
+      // Any test linked as a course module assessment — built-in course_module
+      // quizzes AND bank tests attached via the course CMS — is accessible to
+      // students enrolled in that course. resolveCourseQuizContext validates
+      // both the module linkage and the active course enrollment.
+      const courseCtx = await resolveCourseQuizContext(req, test);
+      if (courseCtx) {
+        courseQuizAccess = true;
+        // Auto-enroll so the existing result flow keeps working; origin
+        // 'course' keeps it out of the student's normal test list
+        student.enrolledTests.push({
+          testId: test._id,
+          status: 'assigned',
+          origin: 'course',
+        });
+        enrollment = student.enrolledTests[student.enrolledTests.length - 1];
+        await student.save();
+      }
+    }
+
+    if (!enrollment && !courseQuizAccess) {
       console.log('❌ Student not enrolled in test');
       return res.status(403).json({ message: 'Test not assigned to you' });
     }
@@ -357,10 +407,13 @@ router.post('/start/:testId', auth, async (req, res) => {
     const completedResult = await Result.findOne({
       testId: test._id,
       studentId: req.user._id,
-      status: "completed"
+      status: { $in: ['completed', 'timeout'] },
     }).sort({ submittedAt: -1, createdAt: -1 });
 
-    if (completedResult) {
+    const courseAttempt = await resolveCourseQuizContext(req, test);
+    const allowCourseRetake = Boolean(courseAttempt) || test.source === 'course_module';
+
+    if (completedResult && (!allowCourseRetake || activeContest)) {
       console.log('⚠️  Test already completed');
       return res.status(400).json({
         message: 'Test already completed',
@@ -368,7 +421,7 @@ router.post('/start/:testId', auth, async (req, res) => {
       });
     }
 
-    if (!activeContest) {
+    if (!activeContest && !allowCourseRetake) {
       const scheduleCheck = assertCanStartScheduledTest(test, enrollment.status);
       if (!scheduleCheck.ok) {
         return res.status(scheduleCheck.status).json({
@@ -393,11 +446,21 @@ router.post('/start/:testId', auth, async (req, res) => {
     // Calculate max score
     const maxScore = test.questions.reduce((sum, q) => sum + (q.points || 10), 0);
 
+    const completedCount = courseAttempt
+      ? await Result.countDocuments({
+          testId: test._id,
+          studentId: req.user._id,
+          courseId: courseAttempt.courseId,
+          moduleId: courseAttempt.moduleId,
+          status: { $in: ['completed', 'timeout'] },
+        })
+      : 0;
+
     // Create new result
     result = new Result({
       testId: test._id,
       studentId: req.user._id,
-      vendorId: test.vendorId,
+      vendorId: test.vendorId || req.user.vendorId,
       startedAt: new Date(),
       maxScore,
       status: 'in_progress',
@@ -406,7 +469,15 @@ router.post('/start/:testId', auth, async (req, res) => {
         questionType: q.type,
         maxPoints: q.points || 10,
         points: 0
-      }))
+      })),
+      ...(courseAttempt
+        ? {
+            courseId: courseAttempt.courseId,
+            moduleId: courseAttempt.moduleId,
+            attemptNumber: completedCount + 1,
+            countsTowardScore: completedCount === 0,
+          }
+        : {}),
     });
 
     await result.save();
@@ -1023,10 +1094,12 @@ router.get('/test/:testId', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    // Prefer official attempts over course practice retakes (countsTowardScore: false)
     const result = await Result.findOne({
       testId: req.params.testId,
       studentId: req.user._id,
-      status: 'completed'
+      status: 'completed',
+      countsTowardScore: { $ne: false }
     })
       .populate('testId', 'title type settings')
       .populate('studentId', 'name email enrollmentNumber')

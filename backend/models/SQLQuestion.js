@@ -9,7 +9,7 @@ const sqlQuestionSchema = new mongoose.Schema({
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: true
+    default: null,
   },
   text: {
     type: String,

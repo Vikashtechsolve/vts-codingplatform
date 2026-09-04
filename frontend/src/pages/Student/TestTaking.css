@@ -44,6 +44,24 @@
   text-transform: uppercase;
 }
 
+.test-attempt-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.test-attempt-pill.is-official {
+  background: #eef2ff;
+  color: #4338ca;
+}
+.test-attempt-pill.is-practice {
+  background: #f1f5f9;
+  color: #475569;
+}
+
 .test-header-right {
   display: flex;
   align-items: center;
@@ -1157,10 +1175,15 @@
   min-height: 0;
   max-height: none;
   overflow: auto;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--text-primary);
-  background: transparent;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* ER diagram: grid layout so entire schema fits; arrows between related tables */
@@ -1366,7 +1389,7 @@
 }
 
 .sql-output-panel.empty {
-  background: #ffffff;
+  background: var(--bg-primary);
   border-top: 2px solid var(--border-color);
   color: var(--text-primary);
 }
@@ -1489,7 +1512,7 @@
 }
 
 .sql-result-table th {
-  background: #ffffff;
+  background: var(--bg-secondary);
   font-weight: 600;
   color: var(--text-primary);
   position: sticky;
@@ -1513,6 +1536,46 @@
   overflow: auto;
   flex: 1;
   min-height: 0;
+}
+
+[data-theme='dark'] .sql-left-panel,
+[data-theme='dark'] .sql-right-panel,
+[data-theme='dark'] .sql-editor-block,
+[data-theme='dark'] .sql-result-table-wrap {
+  background: var(--exam-surface, #18181b);
+  border-color: var(--exam-border, #3f3f46);
+}
+
+[data-theme='dark'] .sql-editor-header {
+  background: var(--exam-surface, #18181b);
+  border-bottom: 1px solid var(--exam-border, #3f3f46);
+  color: var(--exam-text, #f4f4f5);
+}
+
+[data-theme='dark'] .sql-output-panel.empty {
+  background: var(--exam-surface, #18181b);
+}
+
+[data-theme='dark'] .sql-result-table th {
+  background: var(--exam-surface-elevated, #27272a);
+  color: var(--exam-text, #f4f4f5);
+}
+
+[data-theme='dark'] .sql-result-table td {
+  color: var(--exam-text, #f4f4f5);
+}
+
+[data-theme='dark'] .schema-panel-compact {
+  background: var(--exam-surface, #18181b);
+  color: var(--exam-text, #f4f4f5);
+}
+
+[data-theme='dark'] .schema-sql-readonly,
+[data-theme='dark'] .schema-sql-fallback {
+  color: #e4e4e7;
+  background: #111113;
+  border-radius: 8px;
+  padding: 10px;
 }
 
 .q-marks-badge {
@@ -1652,6 +1715,15 @@
   letter-spacing: 0.04em;
   padding: 4px 10px;
   border-radius: 6px;
+}
+
+.test-taking-container .test-attempt-pill.is-official {
+  background: #ecfdf5;
+  color: #047857;
+}
+.test-taking-container .test-attempt-pill.is-practice {
+  background: #eef2ff;
+  color: #4338ca;
 }
 
 .test-taking-container .test-progress-pill {
@@ -2142,6 +2214,15 @@
   background: #252526;
   border-bottom: 1px solid #2d2d2d;
   padding: 10px 14px;
+  color: #e4e4e7;
+}
+
+.test-taking-container .editor-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #e4e4e7;
 }
 
 .test-taking-container .language-select {

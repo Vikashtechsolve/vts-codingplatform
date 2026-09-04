@@ -2,9 +2,10 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStudentPanel } from '../../context/StudentPanelContext';
-import { TEST_SECTIONS, STUDENT_ACCENT } from '../../constants/studentSections';
+import { COURSE_SECTIONS, TEST_SECTIONS, STUDENT_ACCENT } from '../../constants/studentSections';
 import {
   FiArrowRight,
+  FiBookOpen,
   FiCalendar,
   FiCheckCircle,
   FiClock,
@@ -29,6 +30,7 @@ const StudentDashboard = () => {
     interviews,
     assignments,
     systemDesigns,
+    courses,
     englishTrends,
     counts,
     stats,
@@ -100,8 +102,25 @@ const StudentDashboard = () => {
         });
       });
 
+    (courses || [])
+      .filter((c) => {
+        const pct = c.progress?.percentComplete || 0;
+        return pct > 0 && pct < 100 && !c.progress?.completedAt;
+      })
+      .slice(0, 2)
+      .forEach((c) => {
+        items.push({
+          id: `course-${c.enrollmentId || c.course?._id}`,
+          title: c.course?.title,
+          type: 'courses',
+          status: 'in_progress',
+          link: `/student/courses/${c.course?._id}`,
+          label: `Continue course · ${Math.round(c.progress?.percentComplete || 0)}%`,
+        });
+      });
+
     return items.slice(0, 5);
-  }, [tests, interviews, assignments, systemDesigns]);
+  }, [tests, interviews, assignments, systemDesigns, courses]);
 
   if (loading) {
     return (
@@ -136,9 +155,12 @@ const StudentDashboard = () => {
             Track progress, pick up where you left off, and jump into any assessment type from the
             sidebar.
           </p>
-          {totalSections > 0 && (
-            <Link to="/student/tests/coding" className="student-hero-cta">
-              Browse assessments <FiArrowRight />
+          {(counts.courses > 0 || totalSections > 0) && (
+            <Link
+              to={counts.courses > 0 ? '/student/courses' : '/student/tests/coding'}
+              className="student-hero-cta"
+            >
+              {counts.courses > 0 ? 'Open courses' : 'Browse assessments'} <FiArrowRight />
             </Link>
           )}
         </div>
@@ -207,7 +229,10 @@ const StudentDashboard = () => {
           </div>
           <div className="student-continue-list">
             {continueItems.map((item) => {
-              const section = TEST_SECTIONS.find((s) => s.id === item.type) || TEST_SECTIONS[0];
+              const section =
+                item.type === 'courses'
+                  ? COURSE_SECTIONS[0]
+                  : TEST_SECTIONS.find((s) => s.id === item.type) || TEST_SECTIONS[0];
               const Icon = section?.icon || FiTrendingUp;
               return (
                 <Link key={item.id} to={item.link} className="student-continue-card">
@@ -286,6 +311,30 @@ const StudentDashboard = () => {
           <p className="student-section-desc">Select a type to see all assigned work in that area.</p>
         </div>
         <div className="student-category-grid">
+          {COURSE_SECTIONS.map((section) => {
+            const Icon = section.icon || FiBookOpen;
+            const count = counts.courses ?? 0;
+            return (
+              <Link
+                key={section.id}
+                to={section.path}
+                className="student-category-card"
+                style={{ '--card-accent': section.accent }}
+              >
+                <span className="student-category-icon">
+                  <Icon />
+                </span>
+                <div className="student-category-body">
+                  <h3>{section.label}</h3>
+                  <p>{section.description}</p>
+                </div>
+                <div className="student-category-meta">
+                  <span className="student-category-count">{count}</span>
+                  <span className="student-category-unit">assigned</span>
+                </div>
+              </Link>
+            );
+          })}
           {TEST_SECTIONS.map((section) => {
             const Icon = section.icon;
             const count = counts[section.id] ?? 0;
@@ -313,7 +362,7 @@ const StudentDashboard = () => {
         </div>
       </section>
 
-      {stats.totalAssigned === 0 && (
+      {stats.totalAssigned === 0 && !(counts.courses > 0) && (
         <div className="student-empty-card student-empty-hero">
           <div className="student-empty-illustration" aria-hidden>
             <FiTrendingUp />

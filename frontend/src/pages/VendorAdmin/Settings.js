@@ -234,10 +234,15 @@ const VendorSettings = () => {
   const displayLogoSrc = logoPreview || (vendor?.logo ? resolveMediaUrl(vendor.logo) : null);
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return (
+      <div className="vendor-common">
+        <div className="loading">Loading...</div>
+      </div>
+    );
   }
 
   return (
+    <div className="vendor-common">
     <div className="container settings-page">
       <h1 className="page-title">Vendor Settings</h1>
       <p className="settings-subtitle">
@@ -405,6 +410,7 @@ const VendorSettings = () => {
           </button>
         </form>
       </div>
+    </div>
     </div>
   );
 };

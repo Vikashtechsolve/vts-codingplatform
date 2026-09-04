@@ -5,9 +5,9 @@ import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
 import RichTextEditor from '../../components/RichTextEditor';
 import VendorQuestionFormPage from '../../components/VendorAdmin/VendorQuestionFormPage';
-import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
 import { isRichTextEmpty } from '../../utils/richTextUtils';
 import TagInput from '../../components/TagInput';
+import { useEnglishQuestionFormRoutes } from '../../hooks/useEnglishQuestionFormRoutes';
 import './CreateEnglishQuestion.css';
 
 const SUB_TYPES = [
@@ -30,6 +30,7 @@ const CreateEnglishGrammarQuestion = () => {
   const isEditMode = !!id;
   useAuth();
   const navigate = useNavigate();
+  const { sectionEndpoint, backTo, meta } = useEnglishQuestionFormRoutes('grammar');
 
   const [formData, setFormData] = useState({
     questionText: '',
@@ -51,14 +52,12 @@ const CreateEnglishGrammarQuestion = () => {
   });
   const [pageLoading, setPageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const meta = QUESTION_FORM_META.english;
-  const backTo = meta.back;
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   const fetchQuestion = useCallback(async () => {
     try {
       setPageLoading(true);
-      const res = await axiosInstance.get(`/questions/english/grammar/${id}`);
+      const res = await axiosInstance.get(`${sectionEndpoint}/${id}`);
       const q = res.data;
       setFormData({
         questionText: q.questionText || '',
@@ -80,7 +79,7 @@ const CreateEnglishGrammarQuestion = () => {
     } finally {
       setPageLoading(false);
     }
-  }, [id]);
+  }, [id, sectionEndpoint]);
 
   useEffect(() => {
     if (isEditMode && id) fetchQuestion();
@@ -168,13 +167,13 @@ const CreateEnglishGrammarQuestion = () => {
       };
 
       if (isEditMode) {
-        await axiosInstance.put(`/questions/english/grammar/${id}`, data);
+        await axiosInstance.put(`${sectionEndpoint}/${id}`, data);
         showModal('Success', 'Question updated!', 'success');
       } else {
-        await axiosInstance.post('/questions/english/grammar', data);
+        await axiosInstance.post(sectionEndpoint, data);
         showModal('Success', 'Question created!', 'success');
       }
-      setTimeout(() => navigate('/vendor-admin/english-questions'), 1500);
+      setTimeout(() => navigate(backTo), 1500);
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving question', 'error');
     } finally {

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation, useSearchParams } from 'react-rout
 import MonacoCodeEditor from '../../components/MonacoCodeEditor';
 import { preloadMonacoEditor } from '../../utils/monacoLoader';
 import axiosInstance from '../../utils/axios';
+import { buildAssessmentStartBody } from '../../utils/courseAssessment';
 import {
   CODE_REQUEST_TIMEOUT_BATCH_MS,
   CODE_REQUEST_TIMEOUT_EXECUTE_MS
@@ -330,6 +331,9 @@ const TestTaking = () => {
   const { testId } = useParams();
   const [searchParams] = useSearchParams();
   const contestId = searchParams.get('contestId');
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
+  const isCourseQuiz = Boolean(courseIdParam && moduleIdParam);
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
@@ -409,14 +413,23 @@ const TestTaking = () => {
   const goToResult = useCallback((id) => {
     if (!id) return;
     allowNextNavigation();
+    const qs = new URLSearchParams();
     try {
-      navigate(`/student/result/${id}`, { replace: true });
+      const current = new URLSearchParams(window.location.search);
+      if (current.get('courseId')) qs.set('courseId', current.get('courseId'));
+      if (current.get('moduleId')) qs.set('moduleId', current.get('moduleId'));
+    } catch (_) {
+      /* ignore */
+    }
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    try {
+      navigate(`/student/result/${id}${suffix}`, { replace: true });
     } catch (_) {
       // navigation may fail in edge cases; fallback below
     }
     setTimeout(() => {
       if (!window.location.pathname.includes('/student/result/')) {
-        window.location.href = `/student/result/${id}`;
+        window.location.href = `/student/result/${id}${suffix}`;
       }
     }, 300);
   }, [navigate, allowNextNavigation]);
@@ -548,9 +561,14 @@ const TestTaking = () => {
     
     // Show confirmation modal instead of browser confirm
     if (!skipConfirmation) {
+      const practice = isCourseQuiz && result?.countsTowardScore === false;
       showModal(
-        'Confirm Submission', 
-        'Are you sure you want to submit the test? You cannot change your answers after submission.', 
+        'Confirm Submission',
+        practice
+          ? 'Submit this practice attempt? It will not change your official course score from the first attempt.'
+          : isCourseQuiz
+            ? 'Submit this first attempt? This becomes your official course quiz score. You can practise again later, but later scores will not replace it.'
+            : 'Are you sure you want to submit the test? You cannot change your answers after submission.',
         'warning'
       );
       return;
@@ -681,9 +699,17 @@ const TestTaking = () => {
       }
 
       console.log('🚀 Starting test...');
+      const qs = new URLSearchParams(window.location.search);
+      const liveCourseId = qs.get('courseId') || courseIdParam;
+      const liveModuleId = qs.get('moduleId') || moduleIdParam;
+      const liveContestId = qs.get('contestId') || contestId;
       const resultRes = await axiosInstance.post(
         `/results/start/${testId}`,
-        contestId ? { contestId } : {}
+        buildAssessmentStartBody({
+          courseId: liveCourseId,
+          moduleId: liveModuleId,
+          contestId: liveContestId,
+        })
       );
       console.log('✅ Test started:', resultRes.data);
 
@@ -769,7 +795,7 @@ const TestTaking = () => {
         typeof serverMsg === 'string' &&
         serverMsg.toLowerCase().includes('already completed');
 
-      if (alreadyCompleted && existingResultId) {
+      if (alreadyCompleted && existingResultId && !isCourseQuiz) {
         goToResult(existingResultId);
         return;
       }
@@ -1565,6 +1591,13 @@ const TestTaking = () => {
           <div className="test-header-brand">
             <h2>{test.title}</h2>
             <span className="test-type-badge">{test.type}</span>
+            {isCourseQuiz && (
+              <span className={`test-attempt-pill ${result?.countsTowardScore === false ? 'is-practice' : 'is-official'}`}>
+                {result?.countsTowardScore === false
+                  ? `Practice · attempt ${result?.attemptNumber || '—'}`
+                  : 'Official attempt · this score counts'}
+              </span>
+            )}
           </div>
           <span className="test-progress-pill">
             Question {currentQuestionNumber} of {totalQuestions}

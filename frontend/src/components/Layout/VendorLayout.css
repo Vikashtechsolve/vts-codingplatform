@@ -290,11 +290,21 @@
 [data-theme='dark'] .vendor-panel {
   --vendor-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   --vendor-accent-soft: rgba(231, 33, 11, 0.14);
+  --vh-surface: #1a1a1a;
+  --vh-surface-2: #222222;
+  --vh-border: #3f3f46;
+  --vh-text: #f4f4f5;
+  --vh-muted: #a1a1aa;
   background: #121212;
 }
 
 [data-theme='dark'] .vendor-main {
   background: #121212;
+  --vh-surface: #1a1a1a;
+  --vh-surface-2: #222222;
+  --vh-border: #3f3f46;
+  --vh-text: #f4f4f5;
+  --vh-muted: #a1a1aa;
 }
 
 [data-theme='dark'] .vendor-sidebar {

@@ -46,6 +46,8 @@ const VendorStandardTestBuilder = ({
   onMoveQuestion,
   getQuestionTitle,
   isQuestionAdded,
+  globalOnly = false,
+  questionCreateLinks = CREATE_LINKS,
 }) => {
   const pools = useMemo(() => questionPools || {}, [questionPools]);
   const tagsByTab = availableTagsByTab || {};
@@ -254,7 +256,7 @@ const VendorStandardTestBuilder = ({
           : `No ${questionSource === 'my' ? 'custom' : 'global'} ${type} questions in this tab.`}
       </p>
       {questionSource === 'my' && !searchTerm && (
-        <Link to={CREATE_LINKS[type]} className="vtf-btn-add" style={{ width: 'auto', display: 'inline-flex' }}>
+        <Link to={questionCreateLinks[type]} className="vtf-btn-add" style={{ width: 'auto', display: 'inline-flex' }}>
           Create {type} question
         </Link>
       )}
@@ -276,20 +278,24 @@ const VendorStandardTestBuilder = ({
               <h3>No questions in your bank yet</h3>
               <p>Create questions first, then add them to this assessment.</p>
               <div className="vtf-empty-actions">
-                <Link to={CREATE_LINKS.coding} className="vtf-btn-add" style={{ width: 'auto' }}>
+                <Link to={questionCreateLinks.coding} className="vtf-btn-add" style={{ width: 'auto' }}>
                   Coding
                 </Link>
-                <Link to={CREATE_LINKS.mcq} className="vtf-btn-ghost-sm">
+                <Link to={questionCreateLinks.mcq} className="vtf-btn-ghost-sm">
                   MCQ
                 </Link>
-                <Link to={CREATE_LINKS.aptitude} className="vtf-btn-ghost-sm">
+                <Link to={questionCreateLinks.aptitude} className="vtf-btn-ghost-sm">
                   Aptitude
                 </Link>
-                <Link to={CREATE_LINKS.theory} className="vtf-btn-ghost-sm">
+                <Link to={questionCreateLinks.theory} className="vtf-btn-ghost-sm">
                   Theory
                 </Link>
               </div>
             </div>
+          ) : globalOnly ? (
+            <p className="vtf-section-hint" style={{ marginBottom: 12 }}>
+              Questions are loaded from the platform global bank.
+            </p>
           ) : (
             <>
               <div className="vtf-segment">

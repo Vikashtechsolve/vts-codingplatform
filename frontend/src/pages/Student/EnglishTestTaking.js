@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
+import { buildAssessmentStartBody } from '../../utils/courseAssessment';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
 import { useRegisterExamLock } from '../../hooks/useRegisterExamLock';
@@ -19,6 +20,9 @@ const EnglishTestTaking = () => {
   const { testId } = useParams();
   const [searchParams] = useSearchParams();
   const contestId = searchParams.get('contestId');
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
+  const isCourseQuiz = Boolean(courseIdParam && moduleIdParam);
   const navigate = useNavigate();
   const location = useLocation();
   const fromShareLink = isFromShareLink(location);
@@ -111,17 +115,29 @@ const EnglishTestTaking = () => {
 
   const goToResult = useCallback((resultId) => {
     allowNextNavigation();
+    // Course quiz: mark the module assessment complete (server validates state)
+    if (isCourseQuiz && resultId) {
+      axiosInstance
+        .post(
+          `/student/courses/${courseIdParam}/modules/${moduleIdParam}/quiz/complete`,
+          { resultId }
+        )
+        .catch(() => {});
+    }
+    const courseQs = isCourseQuiz
+      ? `?courseId=${encodeURIComponent(courseIdParam)}&moduleId=${encodeURIComponent(moduleIdParam)}`
+      : '';
     try {
-      navigate(`/student/english-result/${resultId}`, { replace: true });
+      navigate(`/student/english-result/${resultId}${courseQs}`, { replace: true });
     } catch (_) {
       // fallback
     }
     setTimeout(() => {
       if (window.location.pathname.indexOf('english-result') === -1) {
-        window.location.href = `/student/english-result/${resultId}`;
+        window.location.href = `/student/english-result/${resultId}${courseQs}`;
       }
     }, 300);
-  }, [navigate, allowNextNavigation]);
+  }, [navigate, allowNextNavigation, isCourseQuiz, courseIdParam, moduleIdParam]);
 
   useEffect(() => {
     if (isFullscreen || isDocumentFullscreen()) {
@@ -184,7 +200,11 @@ const EnglishTestTaking = () => {
 
       const resultRes = await axiosInstance.post(
         `/results/start/${testId}`,
-        contestId ? { contestId } : {}
+        buildAssessmentStartBody({
+          courseId: isCourseQuiz ? courseIdParam : undefined,
+          moduleId: isCourseQuiz ? moduleIdParam : undefined,
+          contestId,
+        })
       );
       setResult(resultRes.data);
       if (resultRes.data?.attemptWindowEnd) {
@@ -244,7 +264,7 @@ const EnglishTestTaking = () => {
     } finally {
       setLoading(false);
     }
-  }, [testId, contestId, buildSections, testMicrophone, goToResult]);
+  }, [testId, contestId, buildSections, testMicrophone, goToResult, isCourseQuiz, courseIdParam, moduleIdParam]);
 
   useEffect(() => {
     fetchTestAndStart();
@@ -688,7 +708,14 @@ const EnglishTestTaking = () => {
           </details>
         )}
         <div className="essay-editor-wrapper">
-          <ReactQuill theme="snow" value={content} onChange={(val) => setAnswers(prev => ({ ...prev, [qId]: val }))} modules={{ toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['clean']] }} placeholder="Start writing..." />
+          <ReactQuill
+            className="essay-editor"
+            theme="snow"
+            value={content}
+            onChange={(val) => setAnswers(prev => ({ ...prev, [qId]: val }))}
+            modules={{ toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['clean']] }}
+            placeholder="Start writing..."
+          />
           <div className={`word-counter ${wordCount < (q.wordLimit?.min || 0) ? 'under' : wordCount > (q.wordLimit?.max || 9999) ? 'over' : 'ok'}`}>
             {wordCount} / {q.wordLimit?.min}-{q.wordLimit?.max} words
           </div>

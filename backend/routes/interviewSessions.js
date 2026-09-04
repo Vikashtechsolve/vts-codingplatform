@@ -30,6 +30,10 @@ const {
   assertCanStartScheduledTest,
   resolveScheduleEnrollmentStatus,
 } = require('../utils/testSchedule');
+const {
+  resolveCourseModuleAssessment,
+  ensureStudentEnrollmentForCourseAssessment,
+} = require('../utils/courseAssessmentAccess');
 const Contest = require('../models/Contest');
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -189,9 +193,23 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
     }
 
     const student = await User.findById(req.user._id);
+    const courseCtx = await resolveCourseModuleAssessment(req, 'interview', interview._id);
+
     let enrollment = student.enrolledInterviews.find(
       ei => ei.interviewId && ei.interviewId.toString() === interview._id.toString()
     );
+
+    if (courseCtx) {
+      await ensureStudentEnrollmentForCourseAssessment(
+        student,
+        courseCtx,
+        'interview',
+        interview
+      );
+      enrollment = student.enrolledInterviews.find(
+        (ei) => ei.interviewId && ei.interviewId.toString() === interview._id.toString()
+      );
+    }
 
     if (!enrollment && activeContest) {
       student.enrolledInterviews.push({ interviewId: interview._id, status: 'assigned' });
@@ -203,7 +221,8 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
       return res.status(403).json({ message: 'Interview not assigned to you' });
     }
 
-    const allowMultipleAttempts = interview.settings?.allowMultipleAttempts === true;
+    const allowMultipleAttempts =
+      interview.settings?.allowMultipleAttempts === true || !!courseCtx;
 
     if (!activeContest) {
       const scheduleEnrollmentStatus = resolveScheduleEnrollmentStatus(enrollment.status, {
@@ -234,7 +253,9 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
       }
     }
 
-    const vendor = await Vendor.findById(interview.vendorId);
+    // Platform interviews have no vendorId — bill credits to the student's vendor
+    const billingVendorId = interview.vendorId || req.user.vendorId;
+    const vendor = await Vendor.findById(billingVendorId);
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });
     }
@@ -274,10 +295,12 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
       session = new InterviewSession({
         interviewId: interview._id,
         studentId: req.user._id,
-        vendorId: interview.vendorId,
+        vendorId: billingVendorId,
         interviewType: interview.interviewType,
         topic: interview.topic,
         difficulty: interview.difficulty,
+        courseId: courseCtx?.courseId || null,
+        moduleId: courseCtx?.moduleId || null,
         currentQuestion: currentQuestion || {
           questionId: null,
           questionText: `Tell me about your experience with ${interview.topic || 'this topic'} in ${interview.interviewType || 'this role'}.`,

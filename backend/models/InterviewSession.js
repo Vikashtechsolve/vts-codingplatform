@@ -127,7 +127,17 @@ const interviewSessionSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  creditChargedAt: Date
+  creditChargedAt: Date,
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+    default: null,
+  },
+  moduleId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CourseModule',
+    default: null,
+  },
 }, {
   timestamps: true
 });

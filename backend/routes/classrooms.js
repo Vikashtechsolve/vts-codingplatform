@@ -623,6 +623,11 @@ async function assignTestToStudents(testId, studentIds, vendorId) {
         });
         await student.save();
         enrolledCount++;
+      } else if (existingEnrollment.origin === 'course') {
+        // Direct assignment overrides an earlier course auto-enroll
+        existingEnrollment.origin = 'direct';
+        await student.save();
+        enrolledCount++;
       }
     } catch (error) {
       console.error(`❌ Error enrolling student ${studentId}:`, error);
@@ -654,6 +659,10 @@ async function assignInterviewToStudents(interviewId, studentIds, vendorId) {
           assignedAt: new Date(),
           status: 'assigned'
         });
+        await student.save();
+        enrolledCount++;
+      } else if (existingEnrollment.origin === 'course') {
+        existingEnrollment.origin = 'direct';
         await student.save();
         enrolledCount++;
       }

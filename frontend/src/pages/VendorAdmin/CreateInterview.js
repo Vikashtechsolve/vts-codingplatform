@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { FiSearch } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
 import VendorTestSelectedPanel from '../../components/VendorAdmin/VendorTestSelectedPanel';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
+import { getPlatformAssessmentConfig } from '../../utils/platformMode';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag, tagSlug } from '../../utils/tagUtils';
 import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
@@ -17,9 +18,11 @@ import { formatTopicsCardPreview } from '../../utils/interviewCardText';
 
 const CreateInterview = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { interviewId } = useParams();
   const isEditMode = !!interviewId;
-  const meta = getTestFormMeta('interview', isEditMode);
+  const platformConfig = getPlatformAssessmentConfig(location.pathname);
+  const meta = getTestFormMeta('interview', isEditMode, false, platformConfig.isPlatform);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -46,13 +49,14 @@ const CreateInterview = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const { registryTags } = useQuestionTagRegistry();
-  const [questionSource, setQuestionSource] = useState('my');
+  const [questionSource, setQuestionSource] = useState(platformConfig.isPlatform ? 'global' : 'my');
   const [submitting, setSubmitting] = useState(false);
   const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchQuestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -60,7 +64,9 @@ const CreateInterview = () => {
     (async () => {
       try {
         setPageLoading(true);
-        const res = await axiosInstance.get(`/interviews/${interviewId}`);
+        const res = await axiosInstance.get(
+          `${platformConfig.interviewsApiBase}/${interviewId}`
+        );
         const interview = res.data;
         setFormData({
           title: interview.title || '',
@@ -92,12 +98,14 @@ const CreateInterview = () => {
         setPageLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, interviewId]);
 
   const fetchQuestions = async () => {
     try {
-      const response = await axiosInstance.get('/interview-questions');
-      setBank(response.data || []);
+      const response = await axiosInstance.get(platformConfig.interviewQuestionsApiBase);
+      const data = response.data?.items || response.data || [];
+      setBank(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching interview questions:', err);
     }
@@ -193,18 +201,22 @@ const CreateInterview = () => {
       return;
     }
 
-    const scheduleError = validateLocalScheduleRange(formData.startDate, formData.endDate);
-    if (scheduleError) {
-      setError(scheduleError);
-      return;
+    if (!platformConfig.hideSchedule) {
+      const scheduleError = validateLocalScheduleRange(formData.startDate, formData.endDate);
+      if (scheduleError) {
+        setError(scheduleError);
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
-      const schedulePayload = buildTestSchedulePayload({
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-      });
+      const schedulePayload = platformConfig.hideSchedule
+        ? {}
+        : buildTestSchedulePayload({
+            startDate: formData.startDate,
+            endDate: formData.endDate,
+          });
       const payload = {
         ...formData,
         ...schedulePayload,
@@ -216,11 +228,15 @@ const CreateInterview = () => {
       };
       delete payload.autoSubmitAtWindowEnd;
       if (isEditMode) {
-        await axiosInstance.put(`/interviews/${interviewId}`, payload);
+        await axiosInstance.put(`${platformConfig.interviewsApiBase}/${interviewId}`, payload);
       } else {
-        await axiosInstance.post('/interviews', payload);
+        await axiosInstance.post(platformConfig.interviewsApiBase, payload);
       }
-      navigate('/vendor-admin/tests?type=interview');
+      navigate(
+        platformConfig.isPlatform
+          ? '/super-admin/assessments?type=interview'
+          : '/vendor-admin/tests?type=interview'
+      );
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save interview');
     } finally {
@@ -407,6 +423,7 @@ const CreateInterview = () => {
               </div>
             </section>
 
+            {!platformConfig.hideSchedule && (
             <section className="vtf-section">
               <h2 className="vtf-section-title">Schedule (optional)</h2>
               <p className="vtf-section-hint">Leave blank for an always-available interview.</p>
@@ -429,12 +446,14 @@ const CreateInterview = () => {
                 rowClassName="vtf-row"
               />
             </section>
+            )}
 
             <section className="vtf-section">
               <h2 className="vtf-section-title">Question pool (optional)</h2>
               <p className="vtf-section-hint">
                 Pin specific questions, or leave empty so AI selects by type, topic, difficulty, and description.
               </p>
+              {!platformConfig.isPlatform && (
               <div className="vtf-segment">
                 <button
                   type="button"
@@ -453,6 +472,7 @@ const CreateInterview = () => {
                   <span className="vtf-segment-count">{globalCount}</span>
                 </button>
               </div>
+              )}
               <div className="vtf-search">
                 <FiSearch />
                 <input
@@ -498,7 +518,11 @@ const CreateInterview = () => {
                   </p>
                   <div className="vtf-empty-actions">
                     <Link
-                      to="/vendor-admin/interview-questions/create"
+                      to={
+                        platformConfig.isPlatform
+                          ? '/super-admin/interview-questions/create'
+                          : '/vendor-admin/interview-questions/create'
+                      }
                       className="vtf-btn-add"
                       style={{ width: 'auto', display: 'inline-flex' }}
                     >

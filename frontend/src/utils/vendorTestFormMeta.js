@@ -52,13 +52,43 @@ export const TEST_FORM_META = {
   },
 };
 
-export function getTestFormMeta(type, isEdit) {
+export function getTestFormMeta(type, isEdit, isPlatformTest = false, isPlatformAssessment = false) {
   const key = TEST_FORM_META[type] ? type : 'mixed';
   const meta = TEST_FORM_META[key];
+  const platformTestBack = `/super-admin/tests${key !== 'mixed' ? `?type=${key}` : ''}`;
+  const platformAssessmentBack =
+    key === 'interview'
+      ? '/super-admin/assessments?type=interview'
+      : key === 'sql'
+        ? platformTestBack
+        : '/super-admin/assessments';
+
+  const isPlatform = isPlatformTest || isPlatformAssessment;
+
   return {
     ...meta,
-    title: isEdit ? meta.editTitle : meta.createTitle,
-    eyebrow: getVendorTestTypeLabel(key),
+    title: isEdit
+      ? isPlatformAssessment
+        ? `Edit platform ${key === 'interview' ? 'interview' : key}`
+        : isPlatformTest
+          ? `Edit platform ${getVendorTestTypeLabel(key).toLowerCase()} test`
+          : meta.editTitle
+      : isPlatformAssessment
+        ? `Create platform ${key === 'interview' ? 'interview' : key}`
+        : isPlatformTest
+          ? `Create platform ${getVendorTestTypeLabel(key).toLowerCase()} test`
+          : meta.createTitle,
+    subtitle: isPlatformAssessment
+      ? 'Built from global content. Allocate to vendors or attach in course modules — no schedule.'
+      : isPlatformTest
+        ? 'Build from the global question bank. No schedule — allocate to vendors when ready.'
+        : meta.subtitle,
+    back: isPlatformAssessment
+      ? platformAssessmentBack
+      : isPlatformTest
+        ? platformTestBack
+        : meta.back,
+    eyebrow: isPlatform ? (isPlatformAssessment ? 'Platform assessment' : 'Platform test') : getVendorTestTypeLabel(key),
     accent: getVendorTestTypeAccent(key),
   };
 }

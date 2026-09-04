@@ -19,6 +19,11 @@ const {
   resolveScheduleEnrollmentStatus,
 } = require('../utils/testSchedule');
 const { findPublishedContestByAssessment } = require('../utils/contestService');
+const {
+  canVendorAccessInterview,
+  getAllocatedPlatformInterviewIds,
+  vendorOwnedOrAllocatedFilter,
+} = require('../utils/platformAssessmentAccess');
 
 router.use(auth);
 
@@ -119,7 +124,10 @@ router.get('/', authorize('vendor_admin'), tenantMiddleware, async (req, res) =>
       defaultLimit: 30,
       maxLimit: 100,
     });
-    const filter = { vendorId: req.vendorId };
+    const allocatedIds = await getAllocatedPlatformInterviewIds(req.vendorId);
+    const filter = {
+      ...vendorOwnedOrAllocatedFilter(req.vendorId, allocatedIds),
+    };
     if (search) {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.title = new RegExp(escaped, 'i');
@@ -127,7 +135,7 @@ router.get('/', authorize('vendor_admin'), tenantMiddleware, async (req, res) =>
 
     const [interviews, total] = await Promise.all([
       Interview.find(filter)
-        .select('title interviewType topic difficulty duration isActive createdAt questions')
+        .select('title interviewType topic difficulty duration isActive createdAt questions source')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -135,7 +143,17 @@ router.get('/', authorize('vendor_admin'), tenantMiddleware, async (req, res) =>
       Interview.countDocuments(filter),
     ]);
 
-    res.json(paginatedResponse({ items: interviews, page, limit, total }));
+    res.json(
+      paginatedResponse({
+        items: interviews.map((item) => ({
+          ...item,
+          isPlatformInterview: item.source === 'platform',
+        })),
+        page,
+        limit,
+        total,
+      })
+    );
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -146,6 +164,8 @@ router.get('/assigned', authorize('student'), async (req, res) => {
   try {
     const student = await User.findById(req.user._id);
     const interviewIds = (student.enrolledInterviews || [])
+      // Course-module interviews live inside the course player, not this list
+      .filter(ei => ei.origin !== 'course')
       .map(ei => ei.interviewId)
       .filter(id => id != null);
 
@@ -216,8 +236,11 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Interview not found' });
     }
 
-    if (req.user.role === 'vendor_admin' && interview.vendorId.toString() !== req.user.vendorId.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (req.user.role === 'vendor_admin') {
+      const allowed = await canVendorAccessInterview(interview, req.user.vendorId);
+      if (!allowed) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
     }
 
     if (req.user.role === 'student') {
@@ -239,8 +262,14 @@ router.get('/:id', async (req, res) => {
 // Update interview
 router.put('/:id', authorize('vendor_admin'), tenantMiddleware, async (req, res) => {
   try {
-    const interview = await Interview.findOne({ _id: req.params.id, vendorId: req.vendorId });
+    const interview = await Interview.findById(req.params.id);
     if (!interview) {
+      return res.status(404).json({ message: 'Interview not found' });
+    }
+    if (interview.source === 'platform') {
+      return res.status(403).json({ message: 'Platform interviews cannot be edited by vendors' });
+    }
+    if (String(interview.vendorId) !== String(req.vendorId)) {
       return res.status(404).json({ message: 'Interview not found' });
     }
 
@@ -278,8 +307,14 @@ router.put('/:id', authorize('vendor_admin'), tenantMiddleware, async (req, res)
 // Delete interview
 router.delete('/:id', authorize('vendor_admin'), tenantMiddleware, async (req, res) => {
   try {
-    const interview = await Interview.findOne({ _id: req.params.id, vendorId: req.vendorId });
+    const interview = await Interview.findById(req.params.id);
     if (!interview) {
+      return res.status(404).json({ message: 'Interview not found' });
+    }
+    if (interview.source === 'platform') {
+      return res.status(403).json({ message: 'Platform interviews cannot be deleted by vendors' });
+    }
+    if (String(interview.vendorId) !== String(req.vendorId)) {
       return res.status(404).json({ message: 'Interview not found' });
     }
     await Interview.findByIdAndDelete(req.params.id);
@@ -302,8 +337,12 @@ router.post('/:id/assign', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const interview = await Interview.findOne({ _id: req.params.id, vendorId: req.vendorId });
+    const interview = await Interview.findById(req.params.id);
     if (!interview) {
+      return res.status(404).json({ message: 'Interview not found' });
+    }
+    const allowed = await canVendorAccessInterview(interview, req.vendorId);
+    if (!allowed) {
       return res.status(404).json({ message: 'Interview not found' });
     }
 

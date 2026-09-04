@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import axiosInstance from '../utils/axios';
 import { formatAuthRequestError } from '../utils/authErrors';
 import { normalizeAuthUser, getUserVendorId } from '../utils/user';
@@ -152,13 +152,40 @@ export const AuthProvider = ({ children }) => {
       if (!prev) return prev;
       const next = normalizeAuthUser({ ...prev, branding });
       const vendorId = getUserVendorId(next);
-      if (vendorId && branding?.logo) {
+      if (vendorId && branding) {
         setCachedBranding(vendorId, branding);
       }
       localStorage.setItem('user', JSON.stringify(next));
       return next;
     });
   };
+
+  const refreshUser = useCallback(async () => {
+    const storedToken = localStorage.getItem('token');
+    if (!storedToken) return null;
+
+    try {
+      const response = await axiosInstance.get('/auth/me');
+      const normalized = normalizeAuthUser(response.data);
+      const vendorId = getUserVendorId(normalized) || response.data?.vendorId;
+      if (vendorId) {
+        normalized.vendorId = String(vendorId);
+        if (normalized?.branding) {
+          setCachedBranding(vendorId, normalized.branding);
+        }
+      }
+      const serialized = JSON.stringify(normalized);
+      // Skip state churn when nothing changed (refresh runs on tab focus/navigation)
+      if (localStorage.getItem('user') !== serialized) {
+        setUser(normalized);
+        localStorage.setItem('user', serialized);
+      }
+      return normalized;
+    } catch (error) {
+      console.error('Session refresh failed:', error);
+      return null;
+    }
+  }, []);
 
   const applySession = (newToken, userData) => {
     const normalized = normalizeAuthUser(userData);
@@ -184,6 +211,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     applySession,
     updateUserBranding,
+    refreshUser,
     isAuthenticated: !!user,
   };
 

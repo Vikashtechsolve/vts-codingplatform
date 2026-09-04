@@ -3,18 +3,21 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStudentPanel } from '../../context/StudentPanelContext';
 import { useAnnouncements } from '../../context/AnnouncementContext';
-import { STUDENT_SECTIONS, TEST_SECTIONS } from '../../constants/studentSections';
-import { FiMenu, FiX } from 'react-icons/fi';
+import { MENU_SECTIONS, COURSE_SECTIONS, TEST_SECTIONS } from '../../constants/studentSections';
+import { FiBookOpen, FiMenu, FiX } from 'react-icons/fi';
 import './StudentLayout.css';
+
+const COURSES_ACCENT = COURSE_SECTIONS[0]?.accent || '#0f766e';
 
 const StudentLayout = () => {
   const { user } = useAuth();
-  const { counts, initialLoading } = useStudentPanel();
+  const { counts, courses, initialLoading } = useStudentPanel();
   const { unreadCount: announcementUnread } = useAnnouncements();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const isActive = (path) => {
+  const isActive = (path, { exact = false } = {}) => {
+    if (exact) return location.pathname === path;
     if (path === '/student/dashboard') {
       return location.pathname === '/student/dashboard';
     }
@@ -24,10 +27,10 @@ const StudentLayout = () => {
     return location.pathname.startsWith(path);
   };
 
-  const menuSections = STUDENT_SECTIONS.filter((s) => s.isOverview || s.isAnnouncement);
-
   const closeSidebar = () => setSidebarOpen(false);
   const firstName = user?.name?.split(' ')[0] || 'Student';
+  const courseCount = counts.courses ?? courses.length ?? 0;
+  const assignedCourses = (courses || []).slice(0, 8);
 
   return (
     <div className="student-panel">
@@ -42,10 +45,10 @@ const StudentLayout = () => {
 
       {sidebarOpen && (
         <button
-          type="button"
           className="student-sidebar-backdrop"
           onClick={closeSidebar}
           aria-label="Close menu"
+          type="button"
         />
       )}
 
@@ -62,9 +65,9 @@ const StudentLayout = () => {
           </div>
 
           <div className="student-sidebar-nav-scroll">
-            <nav className="student-sidebar-nav" aria-label="Assessment sections">
+            <nav className="student-sidebar-nav" aria-label="Student navigation">
               <p className="student-nav-label">Menu</p>
-              {menuSections.map((section) => {
+              {MENU_SECTIONS.map((section) => {
                 const Icon = section.icon;
                 const active = isActive(section.path);
                 const unread = section.isAnnouncement ? announcementUnread : 0;
@@ -88,7 +91,59 @@ const StudentLayout = () => {
                 );
               })}
 
-              <p className="student-nav-label">Assessments</p>
+              <div className="student-nav-label-row">
+                <p className="student-nav-label">Courses</p>
+                {!initialLoading && (
+                  <span className="student-nav-label-meta">
+                    {courseCount} assigned
+                  </span>
+                )}
+              </div>
+              <Link
+                to="/student/courses"
+                className={`student-nav-item ${isActive('/student/courses', { exact: true }) ? 'active' : ''}`}
+                onClick={closeSidebar}
+              >
+                <span className="student-nav-icon" style={{ '--section-accent': COURSES_ACCENT }}>
+                  <FiBookOpen />
+                </span>
+                <span className="student-nav-text">All courses</span>
+                <span
+                  className={`student-nav-badge ${courseCount === 0 ? 'empty' : ''}${
+                    initialLoading ? ' student-nav-badge--loading' : ''
+                  }`}
+                >
+                  {initialLoading ? '—' : courseCount}
+                </span>
+              </Link>
+              {assignedCourses.map((item) => {
+                const id = item.course?._id;
+                if (!id) return null;
+                const href = `/student/courses/${id}`;
+                const active = location.pathname === href || location.pathname.startsWith(`${href}/`);
+                const pct = Math.round(item.progress?.percentComplete || 0);
+                return (
+                  <Link
+                    key={item.enrollmentId || id}
+                    to={href}
+                    className={`student-nav-item student-nav-item--course ${active ? 'active' : ''}`}
+                    onClick={closeSidebar}
+                    title={item.course.title}
+                  >
+                    <span className="student-nav-icon" style={{ '--section-accent': COURSES_ACCENT }}>
+                      <FiBookOpen />
+                    </span>
+                    <span className="student-nav-text">{item.course.title}</span>
+                    <span className={`student-nav-badge ${pct === 0 ? 'empty' : ''}`}>
+                      {pct > 0 ? `${pct}%` : 'New'}
+                    </span>
+                  </Link>
+                );
+              })}
+
+              <div className="student-nav-label-row">
+                <p className="student-nav-label">Assessments</p>
+              </div>
               {TEST_SECTIONS.map((section) => {
                 const Icon = section.icon;
                 const active = isActive(section.path);

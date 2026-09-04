@@ -16,6 +16,15 @@ const EvaluationJob = require('../models/EvaluationJob');
 const EvaluationResult = require('../models/EvaluationResult');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
 const { parsePagination, paginatedResponse } = require('../utils/pagination');
+const {
+  canVendorAccessAssignment,
+  getAllocatedPlatformAssignmentIds,
+  vendorOwnedOrAllocatedFilter,
+} = require('../utils/platformAssessmentAccess');
+const {
+  resolveCourseModuleAssessment,
+  ensureStudentEnrollmentForCourseAssessment,
+} = require('../utils/courseAssessmentAccess');
 
 // ==========================================
 // ADMIN ROUTES - Create & Manage Assignments
@@ -33,7 +42,10 @@ router.get('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, r
       maxLimit: 100,
     });
     
-    const query = { vendorId: req.user.vendorId };
+    const allocatedIds = await getAllocatedPlatformAssignmentIds(req.user.vendorId);
+    const query = {
+      ...vendorOwnedOrAllocatedFilter(req.user.vendorId, allocatedIds),
+    };
     
     if (status) query.status = status;
     if (category) query.category = category;
@@ -46,7 +58,7 @@ router.get('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, r
     const [assignments, total] = await Promise.all([
       Assignment.find(query)
         .select(
-          'title category difficulty duration status totalMarks totalAssigned totalSubmitted totalEvaluated createdAt'
+          'title category difficulty duration status totalMarks totalAssigned totalSubmitted totalEvaluated createdAt source'
         )
         .populate('createdBy', 'name email')
         .sort({ createdAt: -1 })
@@ -58,7 +70,15 @@ router.get('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, r
 
     res.json({
       success: true,
-      ...paginatedResponse({ items: assignments, page, limit, total }),
+      ...paginatedResponse({
+        items: assignments.map((item) => ({
+          ...item,
+          isPlatformAssignment: item.source === 'platform',
+        })),
+        page,
+        limit,
+        total,
+      }),
       assignments,
     });
   } catch (error) {
@@ -88,13 +108,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    // Check access permission
-    if (req.user.role === 'vendor_admin' && 
-        assignment.vendorId.toString() !== req.user.vendorId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
+    if (req.user.role === 'vendor_admin') {
+      const allowed = await canVendorAccessAssignment(assignment, req.user.vendorId);
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied',
+        });
+      }
     }
 
     const response = { success: true, assignment };
@@ -254,11 +275,17 @@ router.put('/:id', authenticateToken, authorizeRoles('vendor_admin'), async (req
       });
     }
 
-    // Check ownership
-    if (assignment.vendorId.toString() !== req.user.vendorId.toString()) {
+    if (assignment.source === 'platform') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: 'Platform assignments cannot be edited by vendors',
+      });
+    }
+
+    if (String(assignment.vendorId) !== String(req.user.vendorId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied',
       });
     }
 
@@ -307,11 +334,17 @@ router.delete('/:id', authenticateToken, authorizeRoles('vendor_admin'), async (
       });
     }
 
-    // Check ownership
-    if (assignment.vendorId.toString() !== req.user.vendorId.toString()) {
+    if (assignment.source === 'platform') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: 'Platform assignments cannot be deleted by vendors',
+      });
+    }
+
+    if (String(assignment.vendorId) !== String(req.user.vendorId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied',
       });
     }
 
@@ -359,10 +392,17 @@ router.post('/:id/activate', authenticateToken, authorizeRoles('vendor_admin'), 
       });
     }
 
-    if (assignment.vendorId.toString() !== req.user.vendorId.toString()) {
+    if (assignment.source === 'platform') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: 'Platform assignments cannot be activated by vendors',
+      });
+    }
+
+    if (String(assignment.vendorId) !== String(req.user.vendorId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied',
       });
     }
 
@@ -401,10 +441,11 @@ router.post('/:id/assign', authenticateToken, authorizeRoles('vendor_admin'), as
       });
     }
 
-    if (assignment.vendorId.toString() !== req.user.vendorId.toString()) {
+    const allowed = await canVendorAccessAssignment(assignment, req.user.vendorId);
+    if (!allowed) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: 'Access denied',
       });
     }
 
@@ -462,12 +503,22 @@ router.post('/:id/assign', authenticateToken, authorizeRoles('vendor_admin'), as
       }
 
       // Check if already assigned
-      const alreadyAssigned = student.enrolledAssignments.some(
+      const existingEnrollment = student.enrolledAssignments.find(
         ea => ea.assignmentId.toString() === assignment._id.toString()
       );
 
-      if (alreadyAssigned) {
-        alreadyAssignedCount++;
+      if (existingEnrollment) {
+        if (existingEnrollment.origin === 'course') {
+          // Direct assignment overrides an earlier course auto-enroll
+          existingEnrollment.origin = 'direct';
+          if (!existingEnrollment.deadline && assignment.deadline) {
+            existingEnrollment.deadline = assignment.deadline;
+          }
+          await student.save();
+          assignedCount++;
+        } else {
+          alreadyAssignedCount++;
+        }
         continue;
       }
 
@@ -518,10 +569,11 @@ router.get('/:id/students', authenticateToken, authorizeRoles('vendor_admin'), a
       });
     }
 
-    if (assignment.vendorId.toString() !== req.user.vendorId.toString()) {
+    const allowed = await canVendorAccessAssignment(assignment, req.user.vendorId);
+    if (!allowed) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: 'Access denied',
       });
     }
 
@@ -588,14 +640,21 @@ router.get('/student/my-assignments', authenticateToken, authorizeRoles('student
 
     const assignments = student.enrolledAssignments
       .filter(ea => ea.assignmentId) // Filter out null assignments
+      // Course-module assignments live inside the course player, not this list
+      .filter(ea => ea.origin !== 'course')
       .map(ea => {
         const assignment = ea.assignmentId;
         const startedAt = ea.startedAt ? new Date(ea.startedAt) : null;
-        const deadlineDate = new Date(ea.deadline);
+        // deadline can be null (e.g. course/practice enrollments) — never treat as epoch
+        const deadlineDate = ea.deadline ? new Date(ea.deadline) : null;
         const durationMs = assignment?.duration ? assignment.duration * 60 * 1000 : 0;
-        const timerEndAt = startedAt && durationMs
-          ? new Date(Math.min(startedAt.getTime() + durationMs, deadlineDate.getTime()))
-          : null;
+        let timerEndAt = null;
+        if (startedAt && durationMs) {
+          const byDuration = startedAt.getTime() + durationMs;
+          timerEndAt = new Date(
+            deadlineDate ? Math.min(byDuration, deadlineDate.getTime()) : byDuration
+          );
+        }
         return {
           assignment,
           enrollmentStatus: ea.status,
@@ -605,7 +664,7 @@ router.get('/student/my-assignments', authenticateToken, authorizeRoles('student
           deadline: ea.deadline,
           submission: ea.submissionId,
           timerEndAt: timerEndAt?.toISOString?.() || null,
-          isOverdue: new Date() > deadlineDate && ea.status !== 'evaluated'
+          isOverdue: Boolean(deadlineDate) && new Date() > deadlineDate && ea.status !== 'evaluated'
         };
       });
 
@@ -646,11 +705,32 @@ router.post('/:id/start', authenticateToken, authorizeRoles('student'), async (r
       });
     }
 
+    const assignment = await Assignment.findById(req.params.id);
+    if (!assignment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Assignment not found',
+      });
+    }
+
     const student = await User.findById(req.user._id);
-    
+    const courseCtx = await resolveCourseModuleAssessment(req, 'assignment', assignment._id);
+
     let enrollment = student.enrolledAssignments.find(
       ea => ea.assignmentId.toString() === req.params.id
     );
+
+    if (courseCtx) {
+      await ensureStudentEnrollmentForCourseAssessment(
+        student,
+        courseCtx,
+        'assignment',
+        assignment
+      );
+      enrollment = student.enrolledAssignments.find(
+        (ea) => ea.assignmentId.toString() === req.params.id
+      );
+    }
 
     if (!enrollment && activeContest) {
       student.enrolledAssignments.push({
@@ -669,24 +749,31 @@ router.post('/:id/start', authenticateToken, authorizeRoles('student'), async (r
       });
     }
 
-    if (enrollment.status !== 'assigned') {
+    const allowCoursePractice =
+      !!courseCtx && (enrollment.status === 'submitted' || enrollment.status === 'evaluated');
+
+    if (enrollment.status !== 'assigned' && !allowCoursePractice) {
       return res.status(400).json({
         success: false,
         message: 'Assignment already started or completed'
       });
     }
 
-    // Check if deadline passed
-    if (new Date() > new Date(enrollment.deadline)) {
+    // Check if deadline passed (null deadline means no deadline — never epoch)
+    if (enrollment.deadline && new Date() > new Date(enrollment.deadline)) {
       return res.status(400).json({
         success: false,
         message: 'Assignment deadline has passed'
       });
     }
 
-    // Update status
+    // Update status (course practice restarts the timer on a fresh attempt)
     enrollment.status = 'in_progress';
     enrollment.startedAt = new Date();
+    if (allowCoursePractice) {
+      enrollment.submittedAt = null;
+      enrollment.submissionId = null;
+    }
 
     await student.save();
 

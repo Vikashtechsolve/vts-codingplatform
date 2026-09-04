@@ -139,7 +139,13 @@ const systemDesignProblemSchema = new mongoose.Schema({
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: true
+    default: null,
+  },
+  /** vendor = vendor-owned; platform = super admin, visible to vendors only when allocated */
+  source: {
+    type: String,
+    enum: ['vendor', 'platform'],
+    default: 'vendor',
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -173,9 +179,23 @@ const systemDesignProblemSchema = new mongoose.Schema({
 });
 
 systemDesignProblemSchema.index({ vendorId: 1, isActive: 1 });
+systemDesignProblemSchema.index({ source: 1, isActive: 1 });
 systemDesignProblemSchema.index({ category: 1, difficulty: 1 });
 systemDesignProblemSchema.index({ createdBy: 1 });
 systemDesignProblemSchema.index({ assignedTo: 1 });
 systemDesignProblemSchema.index({ assignedClassrooms: 1 });
+
+systemDesignProblemSchema.pre('validate', function validateSystemDesignVendor(next) {
+  if (this.source === 'platform') {
+    if (this.vendorId) {
+      return next(new Error('platform system design problems cannot have vendorId'));
+    }
+    return next();
+  }
+  if (!this.vendorId) {
+    return next(new Error('vendorId is required for vendor system design problems'));
+  }
+  return next();
+});
 
 module.exports = mongoose.model('SystemDesignProblem', systemDesignProblemSchema);

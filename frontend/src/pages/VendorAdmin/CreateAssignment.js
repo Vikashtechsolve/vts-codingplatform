@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import RichTextEditor from '../../components/RichTextEditor';
 import { stripHtml } from '../../components/RichTextDisplay';
+import { getPlatformAssessmentConfig } from '../../utils/platformMode';
 import './CreateAssignment.css';
 
 const CreateAssignment = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: assignmentId } = useParams();
   const isEditMode = Boolean(assignmentId);
+  const platformConfig = getPlatformAssessmentConfig(location.pathname);
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEditMode);
@@ -55,9 +58,12 @@ const CreateAssignment = () => {
     const fetchAssignment = async () => {
       try {
         setInitialLoading(true);
-        const { data } = await axiosInstance.get(`/assignments/${assignmentId}`);
-        if (data.success && data.assignment) {
-          const a = data.assignment;
+        const { data } = await axiosInstance.get(
+          `${platformConfig.assignmentsApiBase}/${assignmentId}`
+        );
+        const assignment = data.success ? data.assignment : data;
+        if (assignment) {
+          const a = assignment;
           const deadlineStr = a.deadline ? new Date(a.deadline).toISOString().slice(0, 16) : '';
           setFormData({
             title: a.title || '',
@@ -98,6 +104,7 @@ const CreateAssignment = () => {
       }
     };
     fetchAssignment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentId, isEditMode]);
 
   const handleInputChange = (e) => {
@@ -171,7 +178,7 @@ const CreateAssignment = () => {
       return false;
     }
 
-    if (!formData.deadline) {
+    if (!platformConfig.isPlatform && !formData.deadline) {
       setError('Deadline is required');
       return false;
     }
@@ -206,8 +213,21 @@ const CreateAssignment = () => {
         ...formData,
         featureChecklist: validFeatures,
         evaluationWeights,
-        repositoryRules
+        repositoryRules,
       };
+      if (platformConfig.isPlatform && !payload.deadline) {
+        delete payload.deadline;
+      }
+
+      if (platformConfig.isPlatform) {
+        if (isEditMode) {
+          await axiosInstance.put(`${platformConfig.assignmentsApiBase}/${assignmentId}`, payload);
+        } else {
+          await axiosInstance.post(platformConfig.assignmentsApiBase, payload);
+        }
+        navigate('/super-admin/assessments?type=project');
+        return;
+      }
 
       const { data } = isEditMode
         ? await axiosInstance.put(`/assignments/${assignmentId}`, payload)
@@ -242,10 +262,27 @@ const CreateAssignment = () => {
   return (
     <div className="create-assignment-container">
       <div className="create-assignment-header">
-        <button className="back-button" onClick={() => navigate('/vendor-admin/tests?type=project')}>
+        <button
+          className="back-button"
+          onClick={() =>
+            navigate(
+              platformConfig.isPlatform
+                ? '/super-admin/assessments?type=project'
+                : '/vendor-admin/tests?type=project'
+            )
+          }
+        >
           ← Back
         </button>
-        <h1>{isEditMode ? 'Edit Assignment' : 'Create New Assignment'}</h1>
+        <h1>
+          {isEditMode
+            ? platformConfig.isPlatform
+              ? 'Edit platform project'
+              : 'Edit Assignment'
+            : platformConfig.isPlatform
+              ? 'Create platform project'
+              : 'Create New Assignment'}
+        </h1>
       </div>
 
       {error && <div className="error-message">{error}</div>}
@@ -302,7 +339,7 @@ const CreateAssignment = () => {
 
           <div className="form-row">
             <div className="form-group">
-              <label>Deadline *</label>
+              <label>Deadline{platformConfig.isPlatform ? ' (optional for platform)' : ' *'}</label>
               <input
                 type="datetime-local"
                 name="deadline"

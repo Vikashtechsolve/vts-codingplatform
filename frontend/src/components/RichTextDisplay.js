@@ -1,18 +1,37 @@
 import React from 'react';
 import DOMPurify from 'dompurify';
+import { sanitizeInlineStyle } from '../utils/richTextSanitize';
 import './RichTextDisplay.css';
 
 const ALLOWED_TAGS = [
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
   'p', 'br', 'span', 'div',
-  'strong', 'b', 'em', 'i', 'u', 's', 'strike',
+  'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark', 'sub', 'sup',
   'ul', 'ol', 'li',
   'a', 'blockquote', 'pre', 'code',
-  'img',
+  'img', 'figure', 'figcaption',
+  'hr',
+  'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
   'iframe',
 ];
 
-const ALLOWED_ATTR = ['href', 'target', 'rel', 'class', 'src', 'alt', 'title', 'width', 'height', 'style', 'frameborder', 'allowfullscreen'];
+const ALLOWED_ATTR = [
+  'href', 'target', 'rel', 'class', 'src', 'alt', 'title', 'width', 'height', 'style',
+  'colspan', 'rowspan', 'scope',
+  'frameborder', 'allowfullscreen', 'allow',
+];
+
+let purifyHooksBound = false;
+
+function ensurePurifyHooks() {
+  if (purifyHooksBound || typeof window === 'undefined') return;
+  purifyHooksBound = true;
+  DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+    if (data.attrName !== 'style') return;
+    data.attrValue = sanitizeInlineStyle(data.attrValue);
+    if (!data.attrValue) data.keepAttr = false;
+  });
+}
 
 /**
  * Strip HTML tags and return plain text.
@@ -70,11 +89,12 @@ const normalizeHtmlContent = (html) => {
 
 const RichTextDisplay = ({
   content = '',
+  html = '',
   className = '',
   asPlainText = false,
   truncate = 0
 }) => {
-  const normalized = normalizeHtmlContent(content);
+  const normalized = normalizeHtmlContent(content || html);
   if (!normalized || typeof normalized !== 'string') {
     return null;
   }
@@ -84,16 +104,17 @@ const RichTextDisplay = ({
     return <span className={`rich-text-display plain ${className}`}>{text}</span>;
   }
 
+  ensurePurifyHooks();
   const sanitized = DOMPurify.sanitize(normalized, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     ADD_ATTR: ['target'],
-    FORBID_ATTR: ['style']
+    ALLOW_DATA_ATTR: false,
   });
 
   return (
     <div
-      className={`rich-text-display ${className}`}
+      className={`rich-text-display ${className}`.trim()}
       dangerouslySetInnerHTML={{ __html: sanitized }}
     />
   );

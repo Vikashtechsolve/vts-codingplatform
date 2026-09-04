@@ -13,7 +13,13 @@ const interviewSchema = new mongoose.Schema({
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: true
+    default: null,
+  },
+  /** vendor = vendor-owned; platform = super admin, visible to vendors only when allocated */
+  source: {
+    type: String,
+    enum: ['vendor', 'platform'],
+    default: 'vendor',
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -93,5 +99,20 @@ const interviewSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+interviewSchema.pre('validate', function validateInterviewVendor(next) {
+  if (this.source === 'platform') {
+    if (this.vendorId) {
+      return next(new Error('platform interviews cannot have vendorId'));
+    }
+    return next();
+  }
+  if (!this.vendorId) {
+    return next(new Error('vendorId is required for vendor interviews'));
+  }
+  return next();
+});
+
+interviewSchema.index({ source: 1, isActive: 1 });
 
 module.exports = mongoose.model('Interview', interviewSchema);

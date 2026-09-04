@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { FiPlus, FiDatabase, FiEdit2, FiTrash2, FiLayers } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
+import { getPlatformTestConfig } from '../../utils/platformMode';
 import './DatasetTemplateList.css';
 
 const DatasetTemplateList = () => {
+  const location = useLocation();
+  const platformConfig = getPlatformTestConfig(location.pathname);
+  const listPath = platformConfig.isPlatform
+    ? '/super-admin/tests/dataset-templates'
+    : '/vendor-admin/dataset-templates';
+  const createPath = `${listPath}/create`;
+  const editPathPrefix = platformConfig.isPlatform
+    ? '/super-admin/tests/dataset-templates'
+    : '/vendor-admin/dataset-templates';
+  const backPath = platformConfig.isPlatform
+    ? '/super-admin/tests?type=sql'
+    : '/vendor-admin/tests?type=sql';
+
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -13,13 +27,14 @@ const DatasetTemplateList = () => {
 
   useEffect(() => {
     fetchTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchTemplates = async () => {
     try {
       setLoading(true);
       setError('');
-      const res = await axiosInstance.get('/dataset-templates');
+      const res = await axiosInstance.get(platformConfig.datasetTemplatesApiBase);
       setTemplates(res.data || []);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load dataset templates.');
@@ -34,7 +49,7 @@ const DatasetTemplateList = () => {
     }
     try {
       setDeletingId(id);
-      await axiosInstance.delete(`/dataset-templates/${id}`);
+      await axiosInstance.delete(`${platformConfig.datasetTemplatesApiBase}/${id}`);
       setTemplates((prev) => prev.filter((t) => t._id !== id));
     } catch (err) {
       alert(err.response?.data?.message || 'Delete failed');
@@ -49,14 +64,18 @@ const DatasetTemplateList = () => {
     <VendorHubPage
       className="vh-dataset-page"
       loading={loading}
-      backTo="/vendor-admin/tests?type=sql"
+      backTo={backPath}
       backLabel="Back to SQL tests"
-      eyebrow="Practical tools"
+      eyebrow={platformConfig.isPlatform ? 'Platform assessments' : 'Practical tools'}
       title="Dataset templates"
-      subtitle="Define schemas and sample data for SQL tests. Each SQL assessment uses one template as its database."
+      subtitle={
+        platformConfig.isPlatform
+          ? 'Platform-wide schemas and sample data for SQL tests allocated to vendors.'
+          : 'Define schemas and sample data for SQL tests. Each SQL assessment uses one template as its database.'
+      }
       accent="#ca8a04"
       actions={
-        <Link to="/vendor-admin/dataset-templates/create" className="vh-btn vh-btn--primary">
+        <Link to={createPath} className="vh-btn vh-btn--primary">
           <FiPlus /> Create template
         </Link>
       }
@@ -88,7 +107,7 @@ const DatasetTemplateList = () => {
               <FiDatabase />
               <h3>No dataset templates yet</h3>
               <p>Create a template with tables and seed data before building SQL tests.</p>
-              <Link to="/vendor-admin/dataset-templates/create" className="vh-btn vh-btn--primary">
+              <Link to={createPath} className="vh-btn vh-btn--primary">
                 <FiPlus /> Create your first template
               </Link>
             </div>
@@ -112,7 +131,7 @@ const DatasetTemplateList = () => {
                   )}
                   <div className="vh-dataset-card-actions">
                     <Link
-                      to={`/vendor-admin/dataset-templates/${template._id}/edit`}
+                      to={`${editPathPrefix}/${template._id}/edit`}
                       className="vh-btn vh-btn--secondary vh-btn--sm"
                     >
                       <FiEdit2 /> Edit

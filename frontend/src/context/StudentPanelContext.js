@@ -16,6 +16,7 @@ export function StudentPanelProvider({ children }) {
   const [interviews, setInterviews] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [systemDesigns, setSystemDesigns] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [englishTrends, setEnglishTrends] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,19 +29,24 @@ export function StudentPanelProvider({ children }) {
     }
     setError(null);
     try {
-      const [testsRes, interviewsRes, assignmentsRes, systemRes, trendsRes] = await Promise.all([
-        axiosInstance.get('/students/tests'),
-        axiosInstance.get('/interviews/assigned'),
-        axiosInstance.get('/assignments/student/my-assignments'),
-        axiosInstance.get('/system-design-problems/student-list'),
-        axiosInstance.get('/students/english-trends').catch(() => ({ data: null })),
-      ]);
+      const [testsRes, interviewsRes, assignmentsRes, systemRes, coursesRes, trendsRes] =
+        await Promise.all([
+          axiosInstance.get('/students/tests'),
+          axiosInstance.get('/interviews/assigned'),
+          axiosInstance.get('/assignments/student/my-assignments'),
+          axiosInstance.get('/system-design-problems/student-list'),
+          axiosInstance
+            .get('/student/courses', { params: { page: 1, limit: 50 } })
+            .catch(() => ({ data: { items: [] } })),
+          axiosInstance.get('/students/english-trends').catch(() => ({ data: null })),
+        ]);
 
       setTests(testsRes.data || []);
       setInterviews(interviewsRes.data || []);
       const rawAssignments = assignmentsRes.data?.assignments ?? [];
       setAssignments(rawAssignments);
       setSystemDesigns(systemRes.data?.problems ?? []);
+      setCourses(coursesRes.data?.items || []);
       if (trendsRes.data?.totalTests > 0) setEnglishTrends(trendsRes.data);
       else setEnglishTrends(null);
       hasLoadedRef.current = true;
@@ -80,8 +86,9 @@ export function StudentPanelProvider({ children }) {
       system: systemDesigns.length,
       tools: grouped.tools || 0,
       company: grouped.company || 0,
+      courses: courses.length,
     };
-  }, [tests, interviews, assignments, systemDesigns]);
+  }, [tests, interviews, assignments, systemDesigns, courses]);
 
   const stats = useMemo(() => {
     const completedTests = tests.filter((t) => t.enrollmentStatus === 'completed');
@@ -140,6 +147,7 @@ export function StudentPanelProvider({ children }) {
       interviews,
       assignments,
       systemDesigns,
+      courses,
       englishTrends,
       counts,
       stats,
@@ -149,7 +157,19 @@ export function StudentPanelProvider({ children }) {
       error,
       refresh,
     }),
-    [tests, interviews, assignments, systemDesigns, englishTrends, counts, stats, initialLoading, error, refresh]
+    [
+      tests,
+      interviews,
+      assignments,
+      systemDesigns,
+      courses,
+      englishTrends,
+      counts,
+      stats,
+      initialLoading,
+      error,
+      refresh,
+    ]
   );
 
   return <StudentPanelContext.Provider value={value}>{children}</StudentPanelContext.Provider>;

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import axiosInstance from '../../utils/axios';
+import { syncCourseModuleAssessment } from '../../utils/courseAssessment';
 import './SystemDesignResult.css';
 
 const SECTION_LABELS = {
@@ -18,11 +19,15 @@ const SECTION_ICONS = {
 const SystemDesignResult = () => {
   const { submissionId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseIdParam = searchParams.get('courseId');
+  const moduleIdParam = searchParams.get('moduleId');
   const [submission, setSubmission] = useState(null);
   const [referenceAnswer, setReferenceAnswer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState({});
   const [showComparison, setShowComparison] = useState({});
+  const [courseSynced, setCourseSynced] = useState(false);
 
   const fetchResult = useCallback(async () => {
     try {
@@ -39,6 +44,21 @@ const SystemDesignResult = () => {
   }, [submissionId]);
 
   useEffect(() => { fetchResult(); }, [fetchResult]);
+
+  useEffect(() => {
+    if (
+      courseSynced ||
+      !courseIdParam ||
+      !moduleIdParam ||
+      !submission?._id ||
+      !['submitted', 'evaluating', 'evaluated', 'follow_up'].includes(submission.status)
+    ) {
+      return;
+    }
+    syncCourseModuleAssessment(axiosInstance, courseIdParam, moduleIdParam, submission._id)
+      .then(() => setCourseSynced(true))
+      .catch((err) => console.error('Course assessment sync failed:', err));
+  }, [courseIdParam, moduleIdParam, submission?._id, submission?.status, courseSynced]);
 
   const toggleSection = (key) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   const toggleComparison = (key) => setShowComparison(prev => ({ ...prev, [key]: !prev[key] }));

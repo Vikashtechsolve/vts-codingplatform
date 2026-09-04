@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
+import { buildCourseAssessmentQuery } from '../../utils/courseAssessment';
 import './SystemDesignFollowUp.css';
 
 const SystemDesignFollowUp = () => {
   const { submissionId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseQuery = buildCourseAssessmentQuery(
+    searchParams.get('courseId'),
+    searchParams.get('moduleId')
+  );
+  const resultPath = `/student/system-design-result/${submissionId}${courseQuery}`;
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
@@ -33,13 +40,13 @@ const SystemDesignFollowUp = () => {
         } else if (sub.status === 'evaluated') {
           clearInterval(pollRef.current);
           pollRef.current = null;
-          navigate(`/student/system-design-result/${submissionId}`, { replace: true });
+          navigate(resultPath, { replace: true });
         }
       } catch (err) {
         console.error('Poll error:', err);
       }
     }, 4000);
-  }, [submissionId, navigate]);
+  }, [submissionId, navigate, resultPath]);
 
   const fetchSubmission = useCallback(async () => {
     try {
@@ -57,7 +64,7 @@ const SystemDesignFollowUp = () => {
         }
 
         if (status === 'evaluated' && (!sub.followUpQuestions || sub.followUpQuestions.length === 0)) {
-          navigate(`/student/system-design-result/${submissionId}`, { replace: true });
+          navigate(resultPath, { replace: true });
           return;
         }
 
@@ -72,7 +79,7 @@ const SystemDesignFollowUp = () => {
     } finally {
       setLoading(false);
     }
-  }, [submissionId, navigate, startPolling]);
+  }, [submissionId, navigate, startPolling, resultPath]);
 
   useEffect(() => {
     fetchSubmission();
@@ -100,7 +107,7 @@ const SystemDesignFollowUp = () => {
 
         if (data.allAnswered) {
           setTimeout(() => {
-            navigate(`/student/system-design-result/${submissionId}`);
+            navigate(resultPath);
           }, 3000);
         }
       }
@@ -159,7 +166,7 @@ const SystemDesignFollowUp = () => {
           <div className="sdfu-complete-icon">🎉</div>
           <h2>All questions answered!</h2>
           <p>Your evaluation is complete. Redirecting to results...</p>
-          <button className="sdfu-results-btn" onClick={() => navigate(`/student/system-design-result/${submissionId}`)}>
+          <button className="sdfu-results-btn" onClick={() => navigate(resultPath)}>
             View Results
           </button>
         </div>

@@ -14,9 +14,26 @@ const EnglishSpeakingQuestion = require('../models/EnglishSpeakingQuestion');
 const EnglishListeningQuestion = require('../models/EnglishListeningQuestion');
 const { resolveTagsForSave } = require('../utils/questionTags');
 
+const isGlobalBank = (req) => Boolean(req.globalEnglishBank);
+
 router.use(auth);
-router.use(authorize('vendor_admin'));
-router.use(tenantMiddleware);
+router.use((req, res, next) => {
+  if (isGlobalBank(req)) return authorize('super_admin')(req, res, next);
+  return authorize('vendor_admin')(req, res, next);
+});
+router.use((req, res, next) => {
+  if (isGlobalBank(req)) return next();
+  return tenantMiddleware(req, res, next);
+});
+
+const questionOwnership = (req) => ({
+  vendorId: isGlobalBank(req) ? null : req.vendorId,
+  isGlobal: Boolean(isGlobalBank(req)),
+  createdBy: req.user._id,
+});
+
+const resolveQuestionTags = async (req, tags) =>
+  resolveTagsForSave(isGlobalBank(req) ? null : req.vendorId, tags, req.user._id);
 
 const uploadAudio = multer({
   storage: multer.memoryStorage(),
@@ -53,6 +70,39 @@ const vendorOnlyQuery = (vendorId) => ({
   $or: [{ isGlobal: false }, { isGlobal: { $exists: false } }]
 });
 
+const globalOnlyQuery = () => ({ isGlobal: true, vendorId: null });
+
+const getEditFilter = (req, id) =>
+  isGlobalBank(req) ? { _id: id, isGlobal: true } : { _id: id, ...vendorOnlyQuery(req.vendorId) };
+
+const getReadFilter = (req, id) =>
+  isGlobalBank(req) ? { _id: id, isGlobal: true } : { _id: id, ...vendorOrGlobalQuery(req.vendorId) };
+
+const getDeleteFilter = (req, id) =>
+  isGlobalBank(req) ? { _id: id, isGlobal: true } : { _id: id, vendorId: req.vendorId };
+
+async function listEnglishQuestions(req, res, Model) {
+  try {
+    if (isGlobalBank(req)) {
+      const globalQuestions = await Model.find(globalOnlyQuery())
+        .populate('createdBy', 'name email')
+        .sort({ createdAt: -1 });
+      return res.json(globalQuestions.map((q) => ({ ...q.toObject(), source: 'global' })));
+    }
+    const vendorQuestions = await Model.find(vendorOnlyQuery(req.vendorId)).sort({ createdAt: -1 });
+    const globalQuestions = await Model.find({ isGlobal: true })
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
+    const all = [
+      ...vendorQuestions.map((q) => ({ ...q.toObject(), source: 'vendor' })),
+      ...globalQuestions.map((q) => ({ ...q.toObject(), source: 'global' })),
+    ];
+    res.json(all);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+}
+
 const protectedFields = ['_id', 'isGlobal', 'vendorId', 'createdBy'];
 const parseMaybeJsonTags = (value) => {
   if (Array.isArray(value)) return value;
@@ -75,7 +125,7 @@ const updateAllowedFields = (doc, body) => {
 const resolveBodyTags = async (req) => {
   if (req.body.tags === undefined) return;
   const raw = Array.isArray(req.body.tags) ? req.body.tags : parseMaybeJsonTags(req.body.tags);
-  req.body.tags = await resolveTagsForSave(req.vendorId, raw, req.user._id);
+  req.body.tags = await resolveQuestionTags(req, raw);
 };
 
 // ============================================
@@ -124,11 +174,11 @@ router.post('/grammar', [
       explanation: explanation || '',
       grammarCategory: grammarCategory || '',
       difficulty: difficulty || 'medium',
-      vendorId: req.vendorId,
-      isGlobal: false,
-      createdBy: req.user._id,
+      vendorId: questionOwnership(req).vendorId,
+      isGlobal: questionOwnership(req).isGlobal,
+      createdBy: questionOwnership(req).createdBy,
       points: points || 10,
-      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id)
+      tags: await resolveQuestionTags(req, tags)
     });
 
     await question.save();
@@ -138,23 +188,11 @@ router.post('/grammar', [
   }
 });
 
-router.get('/grammar', async (req, res) => {
-  try {
-    const vendorQuestions = await EnglishGrammarQuestion.find(vendorOnlyQuery(req.vendorId)).sort({ createdAt: -1 });
-    const globalQuestions = await EnglishGrammarQuestion.find({ isGlobal: true }).populate('createdBy', 'name email').sort({ createdAt: -1 });
-    const all = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    res.json(all);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+router.get('/grammar', (req, res) => listEnglishQuestions(req, res, EnglishGrammarQuestion));
 
 router.get('/grammar/:id', async (req, res) => {
   try {
-    const question = await EnglishGrammarQuestion.findOne({ _id: req.params.id, ...vendorOrGlobalQuery(req.vendorId) });
+    const question = await EnglishGrammarQuestion.findOne(getReadFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ ...question.toObject(), source: question.isGlobal ? 'global' : 'vendor' });
   } catch (error) {
@@ -164,7 +202,7 @@ router.get('/grammar/:id', async (req, res) => {
 
 router.put('/grammar/:id', async (req, res) => {
   try {
-    const question = await EnglishGrammarQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
+    const question = await EnglishGrammarQuestion.findOne(getEditFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
     await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
@@ -177,7 +215,7 @@ router.put('/grammar/:id', async (req, res) => {
 
 router.delete('/grammar/:id', async (req, res) => {
   try {
-    const question = await EnglishGrammarQuestion.findOneAndDelete({ _id: req.params.id, vendorId: req.vendorId });
+    const question = await EnglishGrammarQuestion.findOneAndDelete(getDeleteFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
@@ -210,11 +248,11 @@ router.post('/vocabulary', [
       options: validOptions,
       explanation: explanation || '',
       difficulty: difficulty || 'medium',
-      vendorId: req.vendorId,
-      isGlobal: false,
-      createdBy: req.user._id,
+      vendorId: questionOwnership(req).vendorId,
+      isGlobal: questionOwnership(req).isGlobal,
+      createdBy: questionOwnership(req).createdBy,
       points: points || 10,
-      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id)
+      tags: await resolveQuestionTags(req, tags)
     });
 
     await question.save();
@@ -224,23 +262,11 @@ router.post('/vocabulary', [
   }
 });
 
-router.get('/vocabulary', async (req, res) => {
-  try {
-    const vendorQuestions = await EnglishVocabularyQuestion.find(vendorOnlyQuery(req.vendorId)).sort({ createdAt: -1 });
-    const globalQuestions = await EnglishVocabularyQuestion.find({ isGlobal: true }).populate('createdBy', 'name email').sort({ createdAt: -1 });
-    const all = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    res.json(all);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+router.get('/vocabulary', (req, res) => listEnglishQuestions(req, res, EnglishVocabularyQuestion));
 
 router.get('/vocabulary/:id', async (req, res) => {
   try {
-    const question = await EnglishVocabularyQuestion.findOne({ _id: req.params.id, ...vendorOrGlobalQuery(req.vendorId) });
+    const question = await EnglishVocabularyQuestion.findOne(getReadFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ ...question.toObject(), source: question.isGlobal ? 'global' : 'vendor' });
   } catch (error) {
@@ -250,7 +276,7 @@ router.get('/vocabulary/:id', async (req, res) => {
 
 router.put('/vocabulary/:id', async (req, res) => {
   try {
-    const question = await EnglishVocabularyQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
+    const question = await EnglishVocabularyQuestion.findOne(getEditFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
     await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
@@ -263,7 +289,7 @@ router.put('/vocabulary/:id', async (req, res) => {
 
 router.delete('/vocabulary/:id', async (req, res) => {
   try {
-    const question = await EnglishVocabularyQuestion.findOneAndDelete({ _id: req.params.id, vendorId: req.vendorId });
+    const question = await EnglishVocabularyQuestion.findOneAndDelete(getDeleteFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
@@ -316,10 +342,8 @@ router.post('/reading', [
         points: q.points || 5
       })),
       difficulty: difficulty || 'medium',
-      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id),
-      vendorId: req.vendorId,
-      isGlobal: false,
-      createdBy: req.user._id
+      tags: await resolveQuestionTags(req, tags),
+      ...questionOwnership(req),
     });
 
     await question.save();
@@ -329,23 +353,11 @@ router.post('/reading', [
   }
 });
 
-router.get('/reading', async (req, res) => {
-  try {
-    const vendorQuestions = await EnglishReadingQuestion.find(vendorOnlyQuery(req.vendorId)).sort({ createdAt: -1 });
-    const globalQuestions = await EnglishReadingQuestion.find({ isGlobal: true }).populate('createdBy', 'name email').sort({ createdAt: -1 });
-    const all = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    res.json(all);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+router.get('/reading', (req, res) => listEnglishQuestions(req, res, EnglishReadingQuestion));
 
 router.get('/reading/:id', async (req, res) => {
   try {
-    const question = await EnglishReadingQuestion.findOne({ _id: req.params.id, ...vendorOrGlobalQuery(req.vendorId) });
+    const question = await EnglishReadingQuestion.findOne(getReadFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ ...question.toObject(), source: question.isGlobal ? 'global' : 'vendor' });
   } catch (error) {
@@ -355,7 +367,7 @@ router.get('/reading/:id', async (req, res) => {
 
 router.put('/reading/:id', async (req, res) => {
   try {
-    const question = await EnglishReadingQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
+    const question = await EnglishReadingQuestion.findOne(getEditFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
     await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
@@ -368,7 +380,7 @@ router.put('/reading/:id', async (req, res) => {
 
 router.delete('/reading/:id', async (req, res) => {
   try {
-    const question = await EnglishReadingQuestion.findOneAndDelete({ _id: req.params.id, vendorId: req.vendorId });
+    const question = await EnglishReadingQuestion.findOneAndDelete(getDeleteFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
@@ -407,11 +419,11 @@ router.post('/essay', [
       expectedFormat: expectedFormat || '',
       evaluationWeights: evaluationWeights || {},
       difficulty: difficulty || 'medium',
-      vendorId: req.vendorId,
-      isGlobal: false,
-      createdBy: req.user._id,
+      vendorId: questionOwnership(req).vendorId,
+      isGlobal: questionOwnership(req).isGlobal,
+      createdBy: questionOwnership(req).createdBy,
       points: points || 20,
-      tags: await resolveTagsForSave(req.vendorId, tags, req.user._id)
+      tags: await resolveQuestionTags(req, tags)
     });
 
     await question.save();
@@ -421,23 +433,11 @@ router.post('/essay', [
   }
 });
 
-router.get('/essay', async (req, res) => {
-  try {
-    const vendorQuestions = await EnglishEssayQuestion.find(vendorOnlyQuery(req.vendorId)).sort({ createdAt: -1 });
-    const globalQuestions = await EnglishEssayQuestion.find({ isGlobal: true }).populate('createdBy', 'name email').sort({ createdAt: -1 });
-    const all = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    res.json(all);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+router.get('/essay', (req, res) => listEnglishQuestions(req, res, EnglishEssayQuestion));
 
 router.get('/essay/:id', async (req, res) => {
   try {
-    const question = await EnglishEssayQuestion.findOne({ _id: req.params.id, ...vendorOrGlobalQuery(req.vendorId) });
+    const question = await EnglishEssayQuestion.findOne(getReadFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ ...question.toObject(), source: question.isGlobal ? 'global' : 'vendor' });
   } catch (error) {
@@ -447,7 +447,7 @@ router.get('/essay/:id', async (req, res) => {
 
 router.put('/essay/:id', async (req, res) => {
   try {
-    const question = await EnglishEssayQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
+    const question = await EnglishEssayQuestion.findOne(getEditFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
     await resolveBodyTags(req);
     updateAllowedFields(question, req.body);
@@ -460,7 +460,7 @@ router.put('/essay/:id', async (req, res) => {
 
 router.delete('/essay/:id', async (req, res) => {
   try {
-    const question = await EnglishEssayQuestion.findOneAndDelete({ _id: req.params.id, vendorId: req.vendorId });
+    const question = await EnglishEssayQuestion.findOneAndDelete(getDeleteFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
@@ -507,11 +507,11 @@ router.post('/speaking', uploadImage.single('image'), async (req, res) => {
       maxAttempts: maxAttempts || 2,
       evaluationWeights: parsedWeights,
       difficulty: difficulty || 'medium',
-      vendorId: req.vendorId,
-      isGlobal: false,
-      createdBy: req.user._id,
+      vendorId: questionOwnership(req).vendorId,
+      isGlobal: questionOwnership(req).isGlobal,
+      createdBy: questionOwnership(req).createdBy,
       points: points || 20,
-      tags: await resolveTagsForSave(req.vendorId, parseMaybeJsonTags(tags), req.user._id)
+      tags: await resolveQuestionTags(req, parseMaybeJsonTags(tags))
     });
 
     await question.save();
@@ -521,23 +521,11 @@ router.post('/speaking', uploadImage.single('image'), async (req, res) => {
   }
 });
 
-router.get('/speaking', async (req, res) => {
-  try {
-    const vendorQuestions = await EnglishSpeakingQuestion.find(vendorOnlyQuery(req.vendorId)).sort({ createdAt: -1 });
-    const globalQuestions = await EnglishSpeakingQuestion.find({ isGlobal: true }).populate('createdBy', 'name email').sort({ createdAt: -1 });
-    const all = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    res.json(all);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+router.get('/speaking', (req, res) => listEnglishQuestions(req, res, EnglishSpeakingQuestion));
 
 router.get('/speaking/:id', async (req, res) => {
   try {
-    const question = await EnglishSpeakingQuestion.findOne({ _id: req.params.id, ...vendorOrGlobalQuery(req.vendorId) });
+    const question = await EnglishSpeakingQuestion.findOne(getReadFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ ...question.toObject(), source: question.isGlobal ? 'global' : 'vendor' });
   } catch (error) {
@@ -547,7 +535,7 @@ router.get('/speaking/:id', async (req, res) => {
 
 router.put('/speaking/:id', uploadImage.single('image'), async (req, res) => {
   try {
-    const question = await EnglishSpeakingQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
+    const question = await EnglishSpeakingQuestion.findOne(getEditFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
     if (req.file) {
       const filename = `${Date.now()}-${req.file.originalname}`;
@@ -567,7 +555,7 @@ router.put('/speaking/:id', uploadImage.single('image'), async (req, res) => {
 
 router.delete('/speaking/:id', async (req, res) => {
   try {
-    const question = await EnglishSpeakingQuestion.findOneAndDelete({ _id: req.params.id, vendorId: req.vendorId });
+    const question = await EnglishSpeakingQuestion.findOneAndDelete(getDeleteFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
@@ -620,10 +608,8 @@ router.post('/listening', uploadAudio.single('audio'), async (req, res) => {
         points: q.points || 5
       })),
       difficulty: difficulty || 'medium',
-      tags: await resolveTagsForSave(req.vendorId, parseMaybeJsonTags(tags), req.user._id),
-      vendorId: req.vendorId,
-      isGlobal: false,
-      createdBy: req.user._id
+      tags: await resolveQuestionTags(req, parseMaybeJsonTags(tags)),
+      ...questionOwnership(req),
     });
 
     await question.save();
@@ -633,23 +619,11 @@ router.post('/listening', uploadAudio.single('audio'), async (req, res) => {
   }
 });
 
-router.get('/listening', async (req, res) => {
-  try {
-    const vendorQuestions = await EnglishListeningQuestion.find(vendorOnlyQuery(req.vendorId)).sort({ createdAt: -1 });
-    const globalQuestions = await EnglishListeningQuestion.find({ isGlobal: true }).populate('createdBy', 'name email').sort({ createdAt: -1 });
-    const all = [
-      ...vendorQuestions.map(q => ({ ...q.toObject(), source: 'vendor' })),
-      ...globalQuestions.map(q => ({ ...q.toObject(), source: 'global' }))
-    ];
-    res.json(all);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+router.get('/listening', (req, res) => listEnglishQuestions(req, res, EnglishListeningQuestion));
 
 router.get('/listening/:id', async (req, res) => {
   try {
-    const question = await EnglishListeningQuestion.findOne({ _id: req.params.id, ...vendorOrGlobalQuery(req.vendorId) });
+    const question = await EnglishListeningQuestion.findOne(getReadFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ ...question.toObject(), source: question.isGlobal ? 'global' : 'vendor' });
   } catch (error) {
@@ -659,7 +633,7 @@ router.get('/listening/:id', async (req, res) => {
 
 router.put('/listening/:id', uploadAudio.single('audio'), async (req, res) => {
   try {
-    const question = await EnglishListeningQuestion.findOne({ _id: req.params.id, ...vendorOnlyQuery(req.vendorId) });
+    const question = await EnglishListeningQuestion.findOne(getEditFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found or cannot edit' });
     if (req.file) {
       const filename = `${Date.now()}-${req.file.originalname}`;
@@ -678,7 +652,7 @@ router.put('/listening/:id', uploadAudio.single('audio'), async (req, res) => {
 
 router.delete('/listening/:id', async (req, res) => {
   try {
-    const question = await EnglishListeningQuestion.findOneAndDelete({ _id: req.params.id, vendorId: req.vendorId });
+    const question = await EnglishListeningQuestion.findOneAndDelete(getDeleteFilter(req, req.params.id));
     if (!question) return res.status(404).json({ message: 'Question not found' });
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
@@ -815,8 +789,9 @@ router.post('/bulk-import/:type', bulkUpload.single('file'), async (req, res) =>
     for (let i = 0; i < rawData.length; i++) {
       try {
         const data = transform ? transform(rawData[i]) : rawData[i];
-        data.vendorId = req.vendorId;
-        data.createdBy = req.user._id;
+        // Sets vendorId/isGlobal/createdBy correctly for both the vendor
+        // bank and the super-admin global bank mounts
+        Object.assign(data, questionOwnership(req));
         const doc = new Model(data);
         await doc.save();
         results.created++;

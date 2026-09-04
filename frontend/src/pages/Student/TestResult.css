@@ -59,6 +59,47 @@
   margin-bottom: 28px;
 }
 
+.tr-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tr-course-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: -8px 0 22px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.tr-course-banner strong {
+  font-weight: 800;
+}
+.tr-course-banner.is-official {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+.tr-course-banner.is-practice {
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+.tr-course-banner-link {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .tr-kind-badge {
   display: inline-block;
   font-size: 0.72rem;
@@ -800,6 +841,17 @@
   --tr-surface: #1a1a1a;
   --tr-surface-muted: #222222;
   --tr-border: #3f3f46;
+}
+
+[data-theme='dark'] .tr-course-banner.is-official {
+  background: rgba(5, 150, 105, 0.16);
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.28);
+}
+[data-theme='dark'] .tr-course-banner.is-practice {
+  background: rgba(79, 70, 229, 0.18);
+  color: #c7d2fe;
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 [data-theme='dark'] .tr-fallback,

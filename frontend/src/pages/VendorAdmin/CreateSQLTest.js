@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
 import TestScheduleFields from '../../components/VendorAdmin/TestScheduleFields';
@@ -10,12 +10,15 @@ import {
   validateLocalScheduleRange,
 } from '../../utils/datetimeLocal';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
+import { getPlatformTestConfig } from '../../utils/platformMode';
 
 const CreateSQLTest = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { testId } = useParams();
   const isEditMode = !!testId;
-  const meta = getTestFormMeta('sql', isEditMode);
+  const platformConfig = getPlatformTestConfig(location.pathname);
+  const meta = getTestFormMeta('sql', isEditMode, platformConfig.isPlatform);
 
   const [templates, setTemplates] = useState([]);
   const [formData, setFormData] = useState({
@@ -34,7 +37,11 @@ const CreateSQLTest = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await axiosInstance.get('/dataset-templates');
+        const res = await axiosInstance.get(
+          platformConfig.isPlatform
+            ? '/super-admin/tests/meta/dataset-templates'
+            : '/dataset-templates'
+        );
         setTemplates(res.data || []);
       } catch {
         setError('Failed to load dataset templates');
@@ -42,6 +49,7 @@ const CreateSQLTest = () => {
         setPageLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -49,7 +57,7 @@ const CreateSQLTest = () => {
     (async () => {
       try {
         setPageLoading(true);
-        const res = await axiosInstance.get(`/tests/${testId}`);
+        const res = await axiosInstance.get(`${platformConfig.testsApiBase}/${testId}`);
         const test = res.data;
         if (test?.type !== 'sql') {
           setError('This test is not an SQL test.');
@@ -70,6 +78,7 @@ const CreateSQLTest = () => {
         setPageLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, testId]);
 
   const handleChange = (e) => {
@@ -78,6 +87,7 @@ const CreateSQLTest = () => {
   };
 
   const validateSchedule = () => {
+    if (platformConfig.hideSchedule) return '';
     const scheduleError = validateLocalScheduleRange(formData.startDate, formData.endDate);
     if (scheduleError) {
       setError(scheduleError);
@@ -118,11 +128,19 @@ const CreateSQLTest = () => {
       };
 
       if (isEditMode) {
-        await axiosInstance.put(`/tests/${testId}`, payload);
-        navigate(`/vendor-admin/sql-tests/${testId}/questions`);
+        await axiosInstance.put(`${platformConfig.testsApiBase}/${testId}`, payload);
+        navigate(
+          platformConfig.isPlatform
+            ? `/super-admin/tests/sql/${testId}/questions`
+            : `/vendor-admin/sql-tests/${testId}/questions`
+        );
       } else {
-        const res = await axiosInstance.post('/tests', { ...payload, questions: [] });
-        navigate(`/vendor-admin/sql-tests/${res.data._id}/questions`);
+        const res = await axiosInstance.post(platformConfig.testsApiBase, { ...payload, questions: [] });
+        navigate(
+          platformConfig.isPlatform
+            ? `/super-admin/tests/sql/${res.data._id}/questions`
+            : `/vendor-admin/sql-tests/${res.data._id}/questions`
+        );
       }
     } catch (err) {
       setError(
@@ -185,8 +203,16 @@ const CreateSQLTest = () => {
         templates.length === 0 && !pageLoading ? (
           <>
             Create at least one{' '}
-            <Link to="/vendor-admin/dataset-templates/create">dataset template</Link> before
-            building an SQL test.
+            <Link
+              to={
+                platformConfig.isPlatform
+                  ? '/super-admin/tests/dataset-templates/create'
+                  : '/vendor-admin/dataset-templates/create'
+              }
+            >
+              dataset template
+            </Link>{' '}
+            before building an SQL test.
           </>
         ) : null
       }

@@ -10,6 +10,9 @@ import {
   FiFileText,
   FiBarChart2,
   FiShield,
+  FiClipboard,
+  FiBookOpen,
+  FiLayers,
 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -50,7 +53,10 @@ const SuperAdminDashboard = () => {
 
   const quickLinks = [
     { label: 'Manage vendors', to: '/super-admin/vendors', icon: FiBriefcase, accent: '#2563eb' },
+    { label: 'Platform tests', to: '/super-admin/tests', icon: FiClipboard, accent: '#ea580c' },
+    { label: 'Interviews & projects', to: '/super-admin/assessments', icon: FiLayers, accent: '#c026d3' },
     { label: 'Question bank', to: '/super-admin/global-questions', icon: FiDatabase, accent: '#0891b2' },
+    { label: 'Courses', to: '/super-admin/courses', icon: FiBookOpen, accent: '#0f766e' },
     { label: 'Interview Qs', to: '/super-admin/interview-questions', icon: FiMic, accent: '#c026d3' },
     { label: 'Assign credits', to: '/super-admin/interview-credits', icon: FiCreditCard, accent: '#059669' },
     { label: 'AI settings', to: '/super-admin/interview-ai-settings', icon: FiCpu, accent: '#7c3aed' },

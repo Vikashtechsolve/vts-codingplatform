@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import RichTextEditor from '../../components/RichTextEditor';
 import RichTextDisplay, { stripHtml } from '../../components/RichTextDisplay';
+import { getPlatformAssessmentConfig } from '../../utils/platformMode';
 import './CreateSystemDesign.css';
 
 const CATEGORIES = [
@@ -43,6 +44,8 @@ const DEFAULT_WEIGHTS = {
 const CreateSystemDesign = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const platformConfig = getPlatformAssessmentConfig(location.pathname);
   const isEdit = Boolean(id);
   const [activeTab, setActiveTab] = useState('basics');
   const [saving, setSaving] = useState(false);
@@ -63,9 +66,12 @@ const CreateSystemDesign = () => {
 
   const fetchProblem = useCallback(async () => {
     try {
-      const { data } = await axiosInstance.get(`/system-design-problems/${id}`);
-      if (data.success) {
-        const p = data.problem;
+      const { data } = await axiosInstance.get(
+        `${platformConfig.systemDesignApiBase}/${id}`
+      );
+      const problem = data.success ? data.problem : data;
+      if (problem) {
+        const p = problem;
         const defaultConstraints = { estimatedUsers: '', estimatedQPS: '', storageNeeds: '', latencyRequirement: '', availabilityTarget: '' };
         const defaultDeepDive = ['Database Scaling', 'Message Queue Handling', 'Consistency Models', 'Cache Invalidation', 'Rate Limiting', 'Search System Design', 'Data Partitioning'];
         const defaultEvalConfig = { strictness: 'moderate', enableFollowUp: true, followUpCount: 3 };
@@ -86,7 +92,7 @@ const CreateSystemDesign = () => {
     } catch (err) {
       setError('Failed to load problem');
     }
-  }, [id]);
+  }, [id, platformConfig.systemDesignApiBase]);
 
   useEffect(() => {
     if (isEdit) {
@@ -102,11 +108,15 @@ const CreateSystemDesign = () => {
     setError('');
     try {
       if (isEdit) {
-        await axiosInstance.put(`/system-design-problems/${id}`, form);
+        await axiosInstance.put(`${platformConfig.systemDesignApiBase}/${id}`, form);
       } else {
-        await axiosInstance.post('/system-design-problems', form);
+        await axiosInstance.post(platformConfig.systemDesignApiBase, form);
       }
-      navigate('/vendor-admin/tests?type=system');
+      navigate(
+        platformConfig.isPlatform
+          ? '/super-admin/assessments?type=system'
+          : '/vendor-admin/tests?type=system'
+      );
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save');
     } finally {
@@ -133,12 +143,20 @@ const CreateSystemDesign = () => {
     { id: 'advanced', label: 'Advanced' }
   ];
 
+  const backPath = platformConfig.isPlatform
+    ? '/super-admin/assessments?type=system'
+    : '/vendor-admin/tests?type=system';
+
   return (
     <div className="csd-container">
       <div className="csd-header">
-        <h1>{isEdit ? 'Edit' : 'Create'} System Design Problem</h1>
+        <div className="csd-header-main">
+          <Link to={backPath} className="csd-back">← Back to tests</Link>
+          <p className="csd-eyebrow">System design</p>
+          <h1>{isEdit ? 'Edit problem' : 'Create problem'}</h1>
+        </div>
         <div className="csd-header-actions">
-          <button className="csd-btn secondary" onClick={() => navigate('/vendor-admin/tests?type=system')}>Cancel</button>
+          <button className="csd-btn secondary" onClick={() => navigate(backPath)}>Cancel</button>
           <button className="csd-btn primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
           </button>

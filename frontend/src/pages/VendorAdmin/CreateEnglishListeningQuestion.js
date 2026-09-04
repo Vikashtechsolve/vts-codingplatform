@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import { EnglishFormModal, EnglishQuestionFormShell } from '../../components/VendorAdmin/EnglishQuestionFormShell';
 import TagInput from '../../components/TagInput';
+import { useEnglishQuestionFormRoutes } from '../../hooks/useEnglishQuestionFormRoutes';
 import './CreateEnglishQuestion.css';
 
 const QUESTION_TYPES = [
@@ -26,6 +27,7 @@ const CreateEnglishListeningQuestion = () => {
   const isEditMode = !!id;
   useAuth();
   const navigate = useNavigate();
+  const { sectionEndpoint, backTo } = useEnglishQuestionFormRoutes('listening');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -46,7 +48,7 @@ const CreateEnglishListeningQuestion = () => {
   const fetchQuestion = useCallback(async () => {
     try {
       setPageLoading(true);
-      const res = await axiosInstance.get(`/questions/english/listening/${id}`);
+      const res = await axiosInstance.get(`${sectionEndpoint}/${id}`);
       const q = res.data;
       setFormData({
         title: q.title || '',
@@ -64,7 +66,7 @@ const CreateEnglishListeningQuestion = () => {
     } finally {
       setPageLoading(false);
     }
-  }, [id]);
+  }, [id, sectionEndpoint]);
 
   useEffect(() => {
     if (isEditMode && id) fetchQuestion();
@@ -144,13 +146,13 @@ const CreateEnglishListeningQuestion = () => {
 
       const config = { headers: { 'Content-Type': 'multipart/form-data' } };
       if (isEditMode) {
-        await axiosInstance.put(`/questions/english/listening/${id}`, fd, config);
+        await axiosInstance.put(`${sectionEndpoint}/${id}`, fd, config);
         showModal('Success', 'Question updated!', 'success');
       } else {
-        await axiosInstance.post('/questions/english/listening', fd, config);
+        await axiosInstance.post(sectionEndpoint, fd, config);
         showModal('Success', 'Question created!', 'success');
       }
-      setTimeout(() => navigate('/vendor-admin/english-questions'), 1500);
+      setTimeout(() => navigate(backTo), 1500);
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Error saving', 'error');
     } finally {
@@ -166,7 +168,7 @@ const CreateEnglishListeningQuestion = () => {
       pageLoading={pageLoading}
       modal={<EnglishFormModal modal={modal} onClose={closeModal} />}
       formId="english-listening-form"
-      onCancel={() => navigate('/vendor-admin/english-questions')}
+      onCancel={() => navigate(backTo)}
       saving={saving}
       isEditMode={isEditMode}
     >

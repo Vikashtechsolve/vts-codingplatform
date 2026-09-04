@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getAxiosBaseURL } from '../config/apiBase';
+import { normalizeJsonWriteData } from './jsonWriteBody';
 
 const API_URL = getAxiosBaseURL();
 
@@ -21,7 +22,8 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    if (config.data instanceof FormData) {
+    config.data = normalizeJsonWriteData(config.data, config.method);
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     }
     return config;

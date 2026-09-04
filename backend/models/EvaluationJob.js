@@ -127,9 +127,8 @@ const evaluationJobSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for job queue management
+// Indexes for job queue management (submissionId already indexed via unique: true)
 evaluationJobSchema.index({ status: 1, priority: -1, queuedAt: 1 });
-evaluationJobSchema.index({ submissionId: 1 });
 evaluationJobSchema.index({ assignmentId: 1, status: 1 });
 evaluationJobSchema.index({ status: 1, createdAt: 1 });
 

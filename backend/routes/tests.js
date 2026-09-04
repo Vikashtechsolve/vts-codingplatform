@@ -28,6 +28,7 @@ const {
 const { findPublishedContestByAssessment } = require('../utils/contestService');
 const { MAX_VIOLATIONS } = require('../utils/examViolations');
 const { getEffectiveAllowedLanguages } = require('../utils/codingQuestion');
+const { canVendorAccessTest, getAllocatedPlatformTestIds } = require('../utils/platformTestAccess');
 
 const ENGLISH_QUESTION_MODELS = {
   english_grammar: EnglishGrammarQuestion,
@@ -242,7 +243,11 @@ router.post('/', [
 router.get('/', auth, async (req, res) => {
   try {
     if (req.user.role === 'vendor_admin') {
-      const tests = await Test.find({ vendorId: req.user.vendorId })
+      // Course quizzes are managed inside the course editor, not the test list
+      const tests = await Test.find({
+        vendorId: req.user.vendorId,
+        source: { $ne: 'course_module' }
+      })
         .populate('createdBy', 'name email')
         .sort({ createdAt: -1 });
       return res.json(tests);
@@ -252,7 +257,8 @@ router.get('/', auth, async (req, res) => {
       const tests = await Test.find({
         _id: { $in: assignedTestIds },
         vendorId: req.user.vendorId,
-        isActive: true
+        isActive: true,
+        source: { $ne: 'course_module' }
       })
         .populate('createdBy', 'name email')
         .sort({ createdAt: -1 });
@@ -279,7 +285,14 @@ router.get('/:id', auth, async (req, res) => {
     }
 
     // Check access
-    if (req.user.role === 'vendor_admin' && test.vendorId.toString() !== req.user.vendorId.toString()) {
+    if (req.user.role === 'super_admin') {
+      if (test.source !== 'platform') {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    } else if (
+      req.user.role === 'vendor_admin' &&
+      !(await canVendorAccessTest(test, req.user.vendorId))
+    ) {
       console.log('❌ Vendor admin access denied');
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -287,7 +300,26 @@ router.get('/:id', auth, async (req, res) => {
     if (req.user.role === 'student') {
       const student = await User.findById(req.user._id);
       const isEnrolled = student.enrolledTests.some(et => et.testId.toString() === test._id.toString());
+      let courseQuizAccess = false;
       if (!isEnrolled) {
+        // Covers built-in course_module quizzes AND bank tests attached to a
+        // course module via the CMS: allow if any module of a course the
+        // student is actively enrolled in links this test.
+        const CourseEnrollment = require('../models/CourseEnrollment');
+        const CourseModule = require('../models/CourseModule');
+        const linkedModules = await CourseModule.find({ testId: test._id })
+          .select('courseId')
+          .lean();
+        if (linkedModules.length) {
+          const enrollment = await CourseEnrollment.findOne({
+            courseId: { $in: linkedModules.map((m) => m.courseId) },
+            studentId: req.user._id,
+            status: 'active',
+          }).select('_id');
+          courseQuizAccess = !!enrollment;
+        }
+      }
+      if (!isEnrolled && !courseQuizAccess) {
         console.log('❌ Student not enrolled in test');
         return res.status(403).json({ message: 'Test not assigned to you' });
       }
@@ -400,9 +432,15 @@ router.put('/:id', [
   tenantMiddleware
 ], async (req, res) => {
   try {
-    const test = await Test.findOne({ _id: req.params.id, vendorId: req.vendorId });
+    const test = await Test.findById(req.params.id);
     if (!test) {
       return res.status(404).json({ message: 'Test not found' });
+    }
+    if (!(await canVendorAccessTest(test, req.vendorId))) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+    if (test.source === 'platform') {
+      return res.status(403).json({ message: 'Platform tests can only be edited by super admin' });
     }
 
     const { title, description, duration, questions, startDate, endDate, isActive, settings, englishSections, datasetTemplateId } = req.body;
@@ -444,9 +482,15 @@ router.delete('/:id', [
   tenantMiddleware
 ], async (req, res) => {
   try {
-    const test = await Test.findOne({ _id: req.params.id, vendorId: req.vendorId });
+    const test = await Test.findById(req.params.id);
     if (!test) {
       return res.status(404).json({ message: 'Test not found' });
+    }
+    if (!(await canVendorAccessTest(test, req.vendorId))) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+    if (test.source === 'platform') {
+      return res.status(403).json({ message: 'Platform tests can only be deleted by super admin' });
     }
 
     // Delete associated results
@@ -473,8 +517,11 @@ router.post('/:id/assign', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const test = await Test.findOne({ _id: req.params.id, vendorId: req.vendorId });
+    const test = await Test.findById(req.params.id);
     if (!test) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+    if (!(await canVendorAccessTest(test, req.vendorId))) {
       return res.status(404).json({ message: 'Test not found' });
     }
 

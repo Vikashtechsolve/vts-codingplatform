@@ -31,7 +31,14 @@ async function fetchPaginatedQuestions({
   const baseFilter =
     source === 'global'
       ? { isGlobal: true }
-      : { vendorId, ...VENDOR_SCOPE };
+      : source === 'all'
+        ? {
+            $or: [
+              { isGlobal: true },
+              { vendorId, ...VENDOR_SCOPE },
+            ],
+          }
+        : { vendorId, ...VENDOR_SCOPE };
 
   const searchFilter = buildSearchFilter(search, searchFields);
   const filter = searchFilter ? { $and: [baseFilter, searchFilter] } : baseFilter;
@@ -57,7 +64,7 @@ async function fetchPaginatedQuestions({
 
   const mapped = items.map((row) => ({
     ...row,
-    source: source === 'global' ? 'global' : 'vendor',
+    source: row.isGlobal ? 'global' : 'vendor',
   }));
 
   return paginatedResponse({

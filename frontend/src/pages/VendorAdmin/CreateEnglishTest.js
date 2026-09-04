@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import Modal from '../../components/Modal';
 import VendorTestFormPage from '../../components/VendorAdmin/VendorTestFormPage';
 import { getTestFormMeta } from '../../utils/vendorTestFormMeta';
+import { getPlatformTestConfig } from '../../utils/platformMode';
 import { FiChevronUp, FiChevronDown, FiTrash2 } from 'react-icons/fi';
 import { FiSearch } from 'react-icons/fi';
 import { buildTagFilterOptions, filterQuestionsBySearchAndTag, tagSlug } from '../../utils/tagUtils';
@@ -29,8 +30,13 @@ const SECTION_TYPES = [
 const CreateEnglishTest = () => {
   useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: testId } = useParams();
   const isEditMode = !!testId;
+  const platformConfig = getPlatformTestConfig(location.pathname);
+  const englishApiBase = platformConfig.isPlatform
+    ? '/super-admin/global-questions/english'
+    : '/questions/english';
 
   const [testInfo, setTestInfo] = useState({
     title: '',
@@ -55,10 +61,11 @@ const CreateEnglishTest = () => {
   const [sectionSearch, setSectionSearch] = useState('');
   const [sectionTag, setSectionTag] = useState('');
   const { registryTags } = useQuestionTagRegistry();
-  const meta = getTestFormMeta('english', isEditMode);
+  const meta = getTestFormMeta('english', isEditMode, platformConfig.isPlatform);
 
   useEffect(() => {
     fetchQuestionBanks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -71,11 +78,11 @@ const CreateEnglishTest = () => {
   const fetchTest = async () => {
     try {
       setInitialLoad(true);
-      const res = await axiosInstance.get(`/tests/${testId}`);
+      const res = await axiosInstance.get(`${platformConfig.testsApiBase}/${testId}`);
       const test = res.data;
       if (test.type !== 'english') {
         showModal('Error', 'This test is not an English test', 'error');
-        navigate('/vendor-admin/tests');
+        navigate(platformConfig.testsListPath);
         return;
       }
       setTestInfo({
@@ -131,12 +138,12 @@ const CreateEnglishTest = () => {
   const fetchQuestionBanks = async () => {
     try {
       const [grammar, vocabulary, reading, essay, speaking, listening] = await Promise.all([
-        axiosInstance.get('/questions/english/grammar'),
-        axiosInstance.get('/questions/english/vocabulary'),
-        axiosInstance.get('/questions/english/reading'),
-        axiosInstance.get('/questions/english/essay'),
-        axiosInstance.get('/questions/english/speaking'),
-        axiosInstance.get('/questions/english/listening')
+        axiosInstance.get(`${englishApiBase}/grammar`),
+        axiosInstance.get(`${englishApiBase}/vocabulary`),
+        axiosInstance.get(`${englishApiBase}/reading`),
+        axiosInstance.get(`${englishApiBase}/essay`),
+        axiosInstance.get(`${englishApiBase}/speaking`),
+        axiosInstance.get(`${englishApiBase}/listening`)
       ]);
       setQuestionBanks({
         grammar: grammar.data || [],
@@ -326,13 +333,13 @@ const CreateEnglishTest = () => {
       };
 
       if (isEditMode && testId) {
-        await axiosInstance.put(`/tests/${testId}`, testData);
+        await axiosInstance.put(`${platformConfig.testsApiBase}/${testId}`, testData);
         showModal('Success', 'English test updated successfully!', 'success');
       } else {
-        await axiosInstance.post('/tests', testData);
+        await axiosInstance.post(platformConfig.testsApiBase, testData);
         showModal('Success', 'English test created successfully!', 'success');
       }
-      setTimeout(() => navigate('/vendor-admin/tests'), 1500);
+      setTimeout(() => navigate(platformConfig.testsListPath), 1500);
     } catch (error) {
       showModal('Error', error.response?.data?.message || (isEditMode ? 'Error updating test' : 'Error creating test'), 'error');
     } finally {
@@ -418,6 +425,7 @@ const CreateEnglishTest = () => {
                   placeholder="Brief description for students…"
                 />
               </div>
+              {!platformConfig.hideSchedule && (
               <section className="vtf-section vtf-section--compact">
                 <h2 className="vtf-section-title">Schedule (optional)</h2>
                 <p className="vtf-section-hint">Leave blank for an always-available test.</p>
@@ -434,6 +442,7 @@ const CreateEnglishTest = () => {
                 endId="en-end"
               />
               </section>
+              )}
               <div className="vtf-checks">
                 <label className="vtf-check">
                   <input

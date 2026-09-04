@@ -44,10 +44,14 @@ import SystemDesignResult from './pages/Student/SystemDesignResult';
 import EnglishTestTaking from './pages/Student/EnglishTestTaking';
 import EnglishTestResult from './pages/Student/EnglishTestResult';
 import StudentAnnouncements from './pages/Student/StudentAnnouncements';
+import StudentCourses from './pages/Student/Courses';
+import CoursePlayer from './pages/Student/CoursePlayer';
+import LecturePlayer from './pages/Student/LecturePlayer';
 
 import './App.css';
 import './styles/student-panel-dark.css';
 import './styles/vendor-assessment-pages.css';
+import './styles/courses-pages.css';
 import './styles/vendor-hub-pages.css';
 import './styles/super-admin-pages.css';
 import './styles/vendor-question-form.css';
@@ -115,6 +119,9 @@ function App() {
                 <Route path="dashboard" element={<StudentDashboard />} />
                 <Route path="announcements" element={<StudentAnnouncements />} />
                 <Route path="announcements/:id" element={<StudentAnnouncements />} />
+                <Route path="courses" element={<StudentCourses />} />
+                <Route path="courses/:courseId" element={<CoursePlayer />} />
+                <Route path="courses/:courseId/lectures/:lectureId" element={<LecturePlayer />} />
                 <Route path="tests/:type" element={<TestsByType />} />
               </Route>
               <Route

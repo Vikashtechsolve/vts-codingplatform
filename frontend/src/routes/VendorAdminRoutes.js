@@ -42,6 +42,11 @@ import ContestList from '../pages/VendorAdmin/ContestList';
 import CreateContest from '../pages/VendorAdmin/CreateContest';
 import ContestParticipants from '../pages/VendorAdmin/ContestParticipants';
 import ContestResults from '../pages/VendorAdmin/ContestResults';
+import VendorCourses from '../pages/VendorAdmin/Courses';
+import VendorCourseDetail from '../pages/VendorAdmin/CourseDetail';
+import AssignCourse from '../pages/VendorAdmin/AssignCourse';
+import VendorCourseLecturePreview from '../pages/VendorAdmin/CourseLecturePreview';
+import CourseEditor from '../pages/SuperAdmin/CourseEditor';
 import EnglishQuestionList from '../pages/VendorAdmin/EnglishQuestionList';
 import CreateEnglishGrammarQuestion from '../pages/VendorAdmin/CreateEnglishGrammarQuestion';
 import CreateEnglishVocabularyQuestion from '../pages/VendorAdmin/CreateEnglishVocabularyQuestion';
@@ -109,6 +114,11 @@ const VendorAdminRoutes = (
     <Route path="system-designs/:id/assign" element={<AssignSystemDesign />} />
     <Route path="system-designs/:id/submissions" element={<SystemDesignSubmissions />} />
     <Route path="system-design-result/:submissionId" element={<SystemDesignResult />} />
+    <Route path="courses" element={<VendorCourses />} />
+    <Route path="courses/:courseId/edit" element={<CourseEditor mode="vendor" />} />
+    <Route path="courses/:courseId" element={<VendorCourseDetail />} />
+    <Route path="courses/:courseId/assign" element={<AssignCourse />} />
+    <Route path="courses/:courseId/lectures/:lectureId" element={<VendorCourseLecturePreview />} />
     <Route path="contests" element={<ContestList />} />
     <Route path="contests/create" element={<CreateContest />} />
     <Route path="contests/:id/edit" element={<CreateContest />} />

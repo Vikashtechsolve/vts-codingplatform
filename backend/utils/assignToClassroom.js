@@ -20,15 +20,21 @@ async function enrollStudentsInTest(testId, studentIds, vendorId) {
     });
     if (!student) continue;
 
-    const alreadyAssigned = student.enrolledTests.some(
+    const existing = student.enrolledTests.find(
       (et) => et.testId.toString() === testId.toString()
     );
-    if (!alreadyAssigned) {
+    if (!existing) {
       student.enrolledTests.push({
         testId,
         assignedAt: new Date(),
         status: 'assigned',
       });
+      await student.save();
+      assigned.push(id);
+    } else if (existing.origin === 'course') {
+      // Direct assignment overrides an earlier course auto-enroll so the
+      // test shows up in the student's normal list again.
+      existing.origin = 'direct';
       await student.save();
       assigned.push(id);
     }
@@ -56,16 +62,20 @@ async function enrollStudentsInInterview(interviewId, studentIds, vendorId) {
     });
     if (!student) continue;
 
-    const alreadyAssigned = (student.enrolledInterviews || []).some(
-      (ei) => (ei.interviewId || ei).toString() === interviewId.toString()
+    const existing = (student.enrolledInterviews || []).find(
+      (ei) => ei.interviewId && ei.interviewId.toString() === interviewId.toString()
     );
-    if (!alreadyAssigned) {
+    if (!existing) {
       student.enrolledInterviews = student.enrolledInterviews || [];
       student.enrolledInterviews.push({
         interviewId,
         assignedAt: new Date(),
         status: 'assigned',
       });
+      await student.save();
+      assigned.push(id);
+    } else if (existing.origin === 'course') {
+      existing.origin = 'direct';
       await student.save();
       assigned.push(id);
     }

@@ -11,6 +11,14 @@
   --student-dark-muted: #a1a1aa;
 }
 
+[data-theme='dark'] .student-panel {
+  --vh-surface: #1a1a1a;
+  --vh-surface-2: #222222;
+  --vh-border: #3f3f46;
+  --vh-text: #f4f4f5;
+  --vh-muted: #a1a1aa;
+}
+
 /* —— Layout —— */
 [data-theme='dark'] .student-nav-item.active .student-nav-icon {
   background: #1f1f1f;
@@ -222,7 +230,11 @@
 }
 
 [data-theme='dark'] .english-test-taking .fill-blank-input,
-[data-theme='dark'] .english-test-taking .essay-editor .ql-container {
+[data-theme='dark'] .english-test-taking .subjective-textarea,
+[data-theme='dark'] .english-test-taking .short-answer-input,
+[data-theme='dark'] .english-test-taking .question-note-area textarea,
+[data-theme='dark'] .english-test-taking .essay-editor .ql-container,
+[data-theme='dark'] .english-test-taking .essay-editor-wrapper .ql-editor {
   background: var(--student-dark-surface-2);
   border-color: var(--student-dark-border);
   color: #f4f4f5;

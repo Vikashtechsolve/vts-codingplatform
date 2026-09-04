@@ -10,6 +10,11 @@ const User = require('../models/User');
 const Test = require('../models/Test');
 const Result = require('../models/Result');
 const InterviewSession = require('../models/InterviewSession');
+const {
+  resolveContactEmail,
+  assertEmailAvailable,
+  applyContactIdentity,
+} = require('../utils/vendorIdentitySync');
 
 router.use(auth);
 router.use(authorize('super_admin'));
@@ -29,24 +34,84 @@ const upload = multer({
   },
 });
 
+function normalizeInterviewCredits(doc) {
+  const out = { ...doc };
+  if (typeof out.interviewCredits === 'number' && Number.isFinite(out.interviewCredits)) {
+    out.interviewCredits = { allocated: out.interviewCredits, used: 0, remaining: out.interviewCredits };
+  } else if (typeof out.interviewCredits !== 'object' || out.interviewCredits === null) {
+    out.interviewCredits = { allocated: 0, used: 0, remaining: 0 };
+  } else {
+    const alloc = Number(out.interviewCredits.allocated) || 0;
+    const used = Number(out.interviewCredits.used) || 0;
+    out.interviewCredits = { allocated: alloc, used, remaining: Math.max(0, alloc - used) };
+  }
+  return out;
+}
+
+function mergeVendorSettings(current, incoming) {
+  const base = current?.toObject?.() || current || {};
+  let leetcodeAnalyticsUrl =
+    incoming?.leetcodeAnalyticsUrl !== undefined
+      ? String(incoming.leetcodeAnalyticsUrl || '').trim()
+      : (base.leetcodeAnalyticsUrl || '');
+
+  if (leetcodeAnalyticsUrl) {
+    const parsed = new URL(leetcodeAnalyticsUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      const err = new Error('LeetCode Analytics URL must start with http:// or https://');
+      err.status = 400;
+      throw err;
+    }
+    leetcodeAnalyticsUrl = parsed.toString();
+  }
+
+  return {
+    primaryColor: incoming?.primaryColor ?? base.primaryColor ?? '#ED0331',
+    secondaryColor: incoming?.secondaryColor ?? base.secondaryColor ?? '#87021C',
+    theme: incoming?.theme ?? base.theme ?? 'light',
+    leetcodeAnalyticsUrl,
+  };
+}
+
+async function findVendorAdmin(vendorId) {
+  return User.findOne({ vendorId, role: 'vendor_admin' }).select('name email isActive createdAt');
+}
+
 // Get all vendors (with normalized interviewCredits — handle legacy number or object)
 router.get('/vendors', async (req, res) => {
   try {
-    const vendors = await Vendor.find().sort({ createdAt: -1 });
-    const normalized = vendors.map(v => {
-      const doc = v.toObject();
-      if (typeof doc.interviewCredits === 'number' && Number.isFinite(doc.interviewCredits)) {
-        doc.interviewCredits = { allocated: doc.interviewCredits, used: 0, remaining: doc.interviewCredits };
-      } else if (typeof doc.interviewCredits !== 'object' || doc.interviewCredits === null) {
-        doc.interviewCredits = { allocated: 0, used: 0, remaining: 0 };
-      } else {
-        const alloc = Number(doc.interviewCredits.allocated) || 0;
-        const used = Number(doc.interviewCredits.used) || 0;
-        doc.interviewCredits.remaining = Math.max(0, alloc - used);
-      }
-      return doc;
+    const vendors = await Vendor.find().sort({ createdAt: -1 }).lean();
+    res.json(vendors.map((v) => normalizeInterviewCredits(v)));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.get('/vendors/:id', async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id).lean();
+    if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
+
+    const [adminUser, studentCount, testCount, resultCount] = await Promise.all([
+      findVendorAdmin(vendor._id),
+      User.countDocuments({ vendorId: vendor._id, role: 'student' }),
+      Test.countDocuments({ vendorId: vendor._id }),
+      Result.countDocuments({ vendorId: vendor._id }),
+    ]);
+
+    res.json({
+      ...normalizeInterviewCredits(vendor),
+      adminUser: adminUser
+        ? {
+            _id: adminUser._id,
+            name: adminUser.name,
+            email: adminUser.email,
+            isActive: adminUser.isActive,
+            createdAt: adminUser.createdAt,
+          }
+        : null,
+      usage: { students: studentCount, tests: testCount, results: resultCount },
     });
-    res.json(normalized);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -135,25 +200,108 @@ router.post('/vendors', [
   }
 });
 
-// Update vendor
-router.put('/vendors/:id', async (req, res) => {
-  try {
-    const { name, companyName, isActive, subscriptionPlan } = req.body;
-    const vendor = await Vendor.findByIdAndUpdate(
-      req.params.id,
-      { name, companyName, isActive, subscriptionPlan },
-      { new: true, runValidators: true }
-    );
+// Update vendor (profile, subscription, branding, admin account)
+router.put(
+  '/vendors/:id',
+  [
+    body('name').optional().trim().notEmpty().withMessage('Admin name is required'),
+    body('email').optional().isEmail().withMessage('Valid email is required'),
+    body('companyName').optional().trim().notEmpty().withMessage('Company name is required'),
+    body('subscriptionPlan').optional().isIn(['free', 'basic', 'premium']),
+    body('adminPassword').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
+      }
 
-    if (!vendor) {
-      return res.status(404).json({ message: 'Vendor not found' });
+      const vendor = await Vendor.findById(req.params.id);
+      if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
+
+      const adminUser = await findVendorAdmin(vendor._id);
+
+      const {
+        name,
+        email,
+        companyName,
+        isActive,
+        subscriptionPlan,
+        subscriptionExpiresAt,
+        settings,
+        adminName,
+        adminEmail,
+        adminPassword,
+        adminIsActive,
+      } = req.body;
+
+      if (companyName != null) vendor.companyName = String(companyName).trim();
+      if (isActive != null) vendor.isActive = !!isActive;
+      if (subscriptionPlan != null) vendor.subscriptionPlan = subscriptionPlan;
+      if (subscriptionExpiresAt !== undefined) {
+        vendor.subscriptionExpiresAt = subscriptionExpiresAt
+          ? new Date(subscriptionExpiresAt)
+          : null;
+      }
+
+      const identityTouched =
+        name != null || adminName != null || email != null || adminEmail != null;
+      if (identityTouched) {
+        const contactEmail = resolveContactEmail(email, adminEmail);
+        if (contactEmail) {
+          await assertEmailAvailable(contactEmail, {
+            vendorId: vendor._id,
+            userId: adminUser?._id,
+          });
+        }
+        applyContactIdentity(vendor, adminUser, { name, adminName, email, adminEmail });
+      }
+
+      if (settings && typeof settings === 'object') {
+        vendor.settings = mergeVendorSettings(vendor.settings, settings);
+        vendor.markModified('settings');
+      }
+
+      await vendor.save();
+
+      if (adminUser) {
+        // Explicit adminIsActive wins; only mirror the org status when the
+        // admin toggle wasn't provided (legacy behavior)
+        if (adminIsActive != null) {
+          adminUser.isActive = !!adminIsActive;
+        } else if (isActive != null) {
+          adminUser.isActive = !!isActive;
+        }
+        if (adminPassword) adminUser.password = adminPassword;
+        await adminUser.save();
+      }
+
+      const [studentCount, testCount, resultCount] = await Promise.all([
+        User.countDocuments({ vendorId: vendor._id, role: 'student' }),
+        Test.countDocuments({ vendorId: vendor._id }),
+        Result.countDocuments({ vendorId: vendor._id }),
+      ]);
+
+      const freshAdmin = await findVendorAdmin(vendor._id);
+      res.json({
+        ...normalizeInterviewCredits(vendor.toObject()),
+        adminUser: freshAdmin
+          ? {
+              _id: freshAdmin._id,
+              name: freshAdmin.name,
+              email: freshAdmin.email,
+              isActive: freshAdmin.isActive,
+              createdAt: freshAdmin.createdAt,
+            }
+          : null,
+        usage: { students: studentCount, tests: testCount, results: resultCount },
+      });
+    } catch (error) {
+      res.status(error.status || 500).json({ message: error.message || 'Server error' });
     }
-
-    res.json(vendor);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
   }
-});
+);
 
 // Allocate interview credits to vendor (super admin assigns; consumed when student attempts > 5 min)
 router.post('/vendors/:id/interview-credits', async (req, res) => {
@@ -217,9 +365,31 @@ router.post('/vendors/:id/logo', upload.single('logo'), async (req, res) => {
     vendor.logo = publicUrl;
     await vendor.save();
 
-    res.json({ logo: vendor.logo });
+    res.json({
+      logo: vendor.logo,
+      companyName: vendor.companyName,
+      settings: vendor.settings,
+    });
   } catch (error) {
     console.error('❌ Logo upload error:', error.message);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.delete('/vendors/:id/logo', async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
+
+    if (vendor.logo) {
+      const oldKey = getKeyFromUrl(vendor.logo);
+      if (oldKey) await deleteFromR2(oldKey);
+      vendor.logo = null;
+      await vendor.save();
+    }
+
+    res.json({ logo: null, message: 'Logo removed' });
+  } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

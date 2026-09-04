@@ -5,6 +5,9 @@ import {
   FiMic,
   FiCreditCard,
   FiCpu,
+  FiBookOpen,
+  FiClipboard,
+  FiLayers,
 } from 'react-icons/fi';
 
 export const SUPER_ADMIN_ACCENT = '#6366f1';
@@ -23,6 +26,27 @@ export const SUPER_ADMIN_SECTIONS = [
     shortLabel: 'Vendors',
     icon: FiBriefcase,
     accent: '#2563eb',
+  },
+  {
+    id: 'courses',
+    path: '/super-admin/courses',
+    shortLabel: 'Courses',
+    icon: FiBookOpen,
+    accent: '#0f766e',
+  },
+  {
+    id: 'platform-tests',
+    path: '/super-admin/tests',
+    shortLabel: 'Platform tests',
+    icon: FiClipboard,
+    accent: '#ea580c',
+  },
+  {
+    id: 'platform-assessments',
+    path: '/super-admin/assessments',
+    shortLabel: 'Interviews & more',
+    icon: FiLayers,
+    accent: '#c026d3',
   },
   {
     id: 'global-questions',

@@ -6,6 +6,11 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { auth: authenticateToken, authorize: authorizeRoles } = require('../middleware/auth');
 const { parsePagination, paginatedResponse } = require('../utils/pagination');
+const {
+  canVendorAccessSystemDesign,
+  getAllocatedPlatformSystemDesignIds,
+  vendorOwnedOrAllocatedFilter,
+} = require('../utils/platformAssessmentAccess');
 
 // ==========================================
 // ADMIN ROUTES - Create & Manage Problems
@@ -52,7 +57,10 @@ router.get('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, r
       maxLimit: 100,
     });
 
-    const query = { vendorId: req.user.vendorId };
+    const allocatedIds = await getAllocatedPlatformSystemDesignIds(req.user.vendorId);
+    const query = {
+      ...vendorOwnedOrAllocatedFilter(req.user.vendorId, allocatedIds),
+    };
     if (category) query.category = category;
     if (difficulty) query.difficulty = difficulty;
     if (isActive !== undefined) query.isActive = isActive === 'true';
@@ -74,7 +82,15 @@ router.get('/', authenticateToken, authorizeRoles('vendor_admin'), async (req, r
 
     res.json({
       success: true,
-      ...paginatedResponse({ items: problems, page, limit, total }),
+      ...paginatedResponse({
+        items: problems.map((item) => ({
+          ...item,
+          isPlatformSystemDesign: item.source === 'platform',
+        })),
+        page,
+        limit,
+        total,
+      }),
       problems,
     });
   } catch (error) {
@@ -110,15 +126,22 @@ router.get('/student-list', authenticateToken, authorizeRoles('student'), async 
       .select('-referenceAnswer -hints -validationRules -evaluationConfig -architectureTemplates')
       .sort({ createdAt: -1 });
 
-    // Get submissions for these problems
+    // Get submissions for these problems (sorted so the latest wins below)
     const submissions = await SystemDesignSubmission.find({
       studentId,
       problemId: { $in: problems.map(p => p._id) }
-    }).select('problemId status totalScore percentage currentStep');
+    })
+      .select('problemId status totalScore percentage currentStep courseId createdAt')
+      .sort({ createdAt: 1 });
 
     const submissionMap = {};
     submissions.forEach(s => {
-      submissionMap[s.problemId.toString()] = s;
+      const key = s.problemId.toString();
+      const existing = submissionMap[key];
+      // Prefer direct (non-course) submissions for the assigned list; among
+      // the same kind, the most recent one wins
+      if (existing && !existing.courseId && s.courseId) return;
+      submissionMap[key] = s;
     });
 
     const problemsWithStatus = problems.map(p => {
@@ -168,7 +191,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     // Check access: admin must belong to same vendor, student must be assigned
     if (req.user.role === 'vendor_admin') {
-      if (problem.vendorId.toString() !== req.user.vendorId.toString()) {
+      const allowed = await canVendorAccessSystemDesign(problem, req.user.vendorId);
+      if (!allowed) {
         return res.status(403).json({ success: false, message: 'Access denied' });
       }
     } else if (req.user.role === 'student') {
@@ -203,12 +227,20 @@ router.get('/:id', authenticateToken, async (req, res) => {
  */
 router.put('/:id', authenticateToken, authorizeRoles('vendor_admin'), async (req, res) => {
   try {
-    const problem = await SystemDesignProblem.findOne({
-      _id: req.params.id,
-      vendorId: req.user.vendorId
-    });
+    const problem = await SystemDesignProblem.findById(req.params.id);
 
     if (!problem) {
+      return res.status(404).json({ success: false, message: 'Problem not found' });
+    }
+
+    if (problem.source === 'platform') {
+      return res.status(403).json({
+        success: false,
+        message: 'Platform system design problems cannot be edited by vendors',
+      });
+    }
+
+    if (String(problem.vendorId) !== String(req.user.vendorId)) {
       return res.status(404).json({ success: false, message: 'Problem not found' });
     }
 
@@ -248,17 +280,25 @@ router.put('/:id', authenticateToken, authorizeRoles('vendor_admin'), async (req
  */
 router.delete('/:id', authenticateToken, authorizeRoles('vendor_admin'), async (req, res) => {
   try {
-    const problem = await SystemDesignProblem.findOneAndDelete({
-      _id: req.params.id,
-      vendorId: req.user.vendorId
-    });
+    const problem = await SystemDesignProblem.findById(req.params.id);
 
     if (!problem) {
       return res.status(404).json({ success: false, message: 'Problem not found' });
     }
 
-    // Also delete all submissions for this problem
-    await SystemDesignSubmission.deleteMany({ problemId: req.params.id });
+    if (problem.source === 'platform') {
+      return res.status(403).json({
+        success: false,
+        message: 'Platform system design problems cannot be deleted by vendors',
+      });
+    }
+
+    if (String(problem.vendorId) !== String(req.user.vendorId)) {
+      return res.status(404).json({ success: false, message: 'Problem not found' });
+    }
+
+    await SystemDesignProblem.findByIdAndDelete(problem._id);
+    await SystemDesignSubmission.deleteMany({ problemId: problem._id });
 
     res.json({
       success: true,
@@ -282,12 +322,14 @@ router.post('/:id/assign', authenticateToken, authorizeRoles('vendor_admin'), as
   try {
     const { studentIds, classroomIds } = req.body;
 
-    const problem = await SystemDesignProblem.findOne({
-      _id: req.params.id,
-      vendorId: req.user.vendorId
-    });
+    const problem = await SystemDesignProblem.findById(req.params.id);
 
     if (!problem) {
+      return res.status(404).json({ success: false, message: 'Problem not found' });
+    }
+
+    const allowed = await canVendorAccessSystemDesign(problem, req.user.vendorId);
+    if (!allowed) {
       return res.status(404).json({ success: false, message: 'Problem not found' });
     }
 
@@ -346,16 +388,21 @@ router.post('/:id/assign', authenticateToken, authorizeRoles('vendor_admin'), as
  */
 router.get('/:id/submissions', authenticateToken, authorizeRoles('vendor_admin'), async (req, res) => {
   try {
-    const problem = await SystemDesignProblem.findOne({
-      _id: req.params.id,
-      vendorId: req.user.vendorId
-    });
+    // Handles vendor-owned and platform-allocated problems (no vendorId on platform docs)
+    const problem = await SystemDesignProblem.findById(req.params.id);
+    const allowed = problem
+      ? await canVendorAccessSystemDesign(problem, req.user.vendorId)
+      : false;
 
-    if (!problem) {
+    if (!allowed) {
       return res.status(404).json({ success: false, message: 'Problem not found' });
     }
 
-    const submissions = await SystemDesignSubmission.find({ problemId: req.params.id })
+    const submissions = await SystemDesignSubmission.find({
+      problemId: req.params.id,
+      // Scope to this vendor's students (platform problems are shared)
+      vendorId: req.user.vendorId
+    })
       .populate('studentId', 'name email enrollmentNumber')
       .select('-sections -followUpQuestions')
       .sort({ submittedAt: -1 });

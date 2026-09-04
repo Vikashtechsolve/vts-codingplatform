@@ -65,6 +65,12 @@ const userSchema = new mongoose.Schema({
       enum: ['assigned', 'in_progress', 'completed'],
       default: 'assigned'
     },
+    // 'course' = auto-enrolled by a course module; hidden from normal student lists
+    origin: {
+      type: String,
+      enum: ['direct', 'course'],
+      default: 'direct'
+    },
     startedAt: Date,
     completedAt: Date
   }],
@@ -82,6 +88,11 @@ const userSchema = new mongoose.Schema({
       enum: ['assigned', 'in_progress', 'completed'],
       default: 'assigned'
     },
+    origin: {
+      type: String,
+      enum: ['direct', 'course'],
+      default: 'direct'
+    },
     startedAt: Date,
     completedAt: Date
   }],
@@ -98,6 +109,11 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['assigned', 'in_progress', 'submitted', 'evaluated'],
       default: 'assigned'
+    },
+    origin: {
+      type: String,
+      enum: ['direct', 'course'],
+      default: 'direct'
     },
     startedAt: Date,
     submittedAt: Date,

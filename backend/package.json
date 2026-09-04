@@ -14,6 +14,7 @@
     "monit:pm2": "pm2 monit",
     "worker": "node workers/evaluationWorker.js",
     "worker:code": "node workers/codeExecutionWorker.js",
+    "worker:hls": "node workers/hlsTranscodeWorker.js",
     "dev": "nodemon server.js",
     "dev:worker": "nodemon workers/evaluationWorker.js",
     "dev:code-worker": "nodemon workers/codeExecutionWorker.js",
@@ -23,6 +24,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1005.0",
+    "@aws-sdk/s3-request-presigner": "^3.1108.0",
     "axios": "^1.13.5",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.6.2",

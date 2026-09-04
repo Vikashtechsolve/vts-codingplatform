@@ -11,6 +11,9 @@ const {
   getParticipant,
 } = require('../utils/contestService');
 const { MAX_VIOLATIONS } = require('../utils/examViolations');
+const {
+  resolveCourseModuleAssessment,
+} = require('../utils/courseAssessmentAccess');
 
 /**
  * POST /api/system-design-submissions/start/:problemId
@@ -47,15 +50,30 @@ router.post('/start/:problemId', authenticateToken, authorizeRoles('student'), a
       });
     }
 
-    // Check if already started
-    let submission = await SystemDesignSubmission.findOne({ problemId, studentId });
-    if (submission && submission.status !== 'not_started') {
-      return res.json({
-        success: true,
-        message: 'Resuming existing submission',
-        submission,
-        maxViolations: MAX_VIOLATIONS,
-      });
+    // Resume in-progress attempt, or start fresh for course module practice
+    const courseCtx = await resolveCourseModuleAssessment(req, 'system_design', problemId);
+    let submission = await SystemDesignSubmission.findOne({
+      problemId,
+      studentId,
+      status: 'in_progress',
+    }).sort({ startedAt: -1, createdAt: -1 });
+
+    if (!submission) {
+      const latest = await SystemDesignSubmission.findOne({ problemId, studentId })
+        .sort({ submittedAt: -1, createdAt: -1 });
+      if (latest && latest.status !== 'not_started' && !courseCtx) {
+        return res.json({
+          success: true,
+          message: 'Resuming existing submission',
+          submission: latest,
+          maxViolations: MAX_VIOLATIONS,
+        });
+      }
+      if (latest && latest.status !== 'not_started' && courseCtx) {
+        submission = null;
+      } else if (latest?.status === 'not_started') {
+        submission = latest;
+      }
     }
 
     if (!submission) {
@@ -70,7 +88,10 @@ router.post('/start/:problemId', authenticateToken, authorizeRoles('student'), a
       submission = new SystemDesignSubmission({
         problemId,
         studentId,
-        vendorId: problem.vendorId,
+        // Platform problems have no vendorId — use the student's vendor
+        vendorId: problem.vendorId || req.user.vendorId,
+        courseId: courseCtx?.courseId || null,
+        moduleId: courseCtx?.moduleId || null,
         status: 'in_progress',
         startedAt: new Date(),
         currentStep: 0,

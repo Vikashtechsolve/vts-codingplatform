@@ -74,6 +74,42 @@ const validateAptitudePayload = (payload) => {
 };
 
 const { resolveTagsForSave } = require('../utils/questionTags');
+const { parsePagination, isPaginatedRequest, paginatedFind } = require('../utils/pagination');
+
+async function listGlobalQuestions(Model, req, res, { searchFields, select, populate }) {
+  try {
+    const filter = { isGlobal: true };
+    if (isPaginatedRequest(req.query)) {
+      const { page, limit, search } = parsePagination(req.query, {
+        defaultLimit: 20,
+        maxLimit: 50,
+      });
+      const payload = await paginatedFind(Model, {
+        filter,
+        search,
+        searchFields,
+        select,
+        populate,
+        page,
+        limit,
+      });
+      return res.json(payload);
+    }
+
+    let finder = Model.find(filter).sort({ createdAt: -1 });
+    if (select) finder = finder.select(select);
+    if (populate) {
+      const pops = Array.isArray(populate) ? populate : [populate];
+      for (const pop of pops) {
+        finder = finder.populate(pop);
+      }
+    }
+    const questions = await finder;
+    return res.json(questions);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+}
 
 // Create global coding question
 router.post('/coding', [
@@ -136,15 +172,11 @@ router.post('/coding', [
 
 // Get all global coding questions
 router.get('/coding', async (req, res) => {
-  try {
-    const questions = await CodingQuestion.find({ isGlobal: true })
-      .select('-solution')
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(questions);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  return listGlobalQuestions(CodingQuestion, req, res, {
+    searchFields: ['title', 'description'],
+    select: isPaginatedRequest(req.query) ? 'title difficulty createdAt points tags' : '-solution',
+    populate: { path: 'createdBy', select: 'name email' },
+  });
 });
 
 // Get single global coding question
@@ -271,14 +303,11 @@ router.post('/mcq', [
 
 // Get all global MCQ questions
 router.get('/mcq', async (req, res) => {
-  try {
-    const questions = await MCQQuestion.find({ isGlobal: true })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(questions);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  return listGlobalQuestions(MCQQuestion, req, res, {
+    searchFields: ['question', 'category'],
+    select: isPaginatedRequest(req.query) ? 'question difficulty category createdAt points tags' : undefined,
+    populate: { path: 'createdBy', select: 'name email' },
+  });
 });
 
 // Get single global MCQ question
@@ -416,14 +445,13 @@ router.post('/aptitude', [
 
 // Get all global aptitude questions
 router.get('/aptitude', async (req, res) => {
-  try {
-    const questions = await AptitudeQuestion.find({ isGlobal: true })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(questions);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  return listGlobalQuestions(AptitudeQuestion, req, res, {
+    searchFields: ['question', 'section'],
+    select: isPaginatedRequest(req.query)
+      ? 'question questionType section difficulty createdAt points tags'
+      : undefined,
+    populate: { path: 'createdBy', select: 'name email' },
+  });
 });
 
 // Get single global aptitude question
@@ -579,16 +607,13 @@ router.post('/theory', [
 
 // Get all global theory questions
 router.get('/theory', async (req, res) => {
-  try {
-    const questions = await TheoryQuestion.find({ isGlobal: true })
-      .populate('subjectId', 'name')
-      .populate('topicId', 'name')
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(questions);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  return listGlobalQuestions(TheoryQuestion, req, res, {
+    searchFields: ['questionText'],
+    select: isPaginatedRequest(req.query) ? 'questionText difficulty maxMarks createdAt tags' : undefined,
+    populate: isPaginatedRequest(req.query)
+      ? [{ path: 'subjectId', select: 'name' }, { path: 'topicId', select: 'name' }]
+      : ['subjectId', 'topicId', 'createdBy'],
+  });
 });
 
 // Get single global theory question

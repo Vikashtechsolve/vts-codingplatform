@@ -165,7 +165,12 @@ router.post('/coding', [
 router.get('/coding', async (req, res) => {
   try {
     console.log('📥 Fetching coding questions for vendor:', req.vendorId);
-    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const source =
+      req.query.source === 'global'
+        ? 'global'
+        : req.query.source === 'all'
+          ? 'all'
+          : 'vendor';
     const payload = await fetchPaginatedQuestions({
       Model: CodingQuestion,
       vendorId: req.vendorId,
@@ -325,7 +330,12 @@ router.post('/mcq', [
 // Get MCQ questions (paginated list)
 router.get('/mcq', async (req, res) => {
   try {
-    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const source =
+      req.query.source === 'global'
+        ? 'global'
+        : req.query.source === 'all'
+          ? 'all'
+          : 'vendor';
     const payload = await fetchPaginatedQuestions({
       Model: MCQQuestion,
       vendorId: req.vendorId,
@@ -488,7 +498,12 @@ router.post('/aptitude', [
 // Get aptitude questions (paginated list)
 router.get('/aptitude', async (req, res) => {
   try {
-    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const source =
+      req.query.source === 'global'
+        ? 'global'
+        : req.query.source === 'all'
+          ? 'all'
+          : 'vendor';
     const payload = await fetchPaginatedQuestions({
       Model: AptitudeQuestion,
       vendorId: req.vendorId,
@@ -670,7 +685,12 @@ router.post('/theory', [
 // Get theory questions (paginated list)
 router.get('/theory', async (req, res) => {
   try {
-    const source = req.query.source === 'global' ? 'global' : 'vendor';
+    const source =
+      req.query.source === 'global'
+        ? 'global'
+        : req.query.source === 'all'
+          ? 'all'
+          : 'vendor';
     const payload = await fetchPaginatedQuestions({
       Model: TheoryQuestion,
       vendorId: req.vendorId,

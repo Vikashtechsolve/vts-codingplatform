@@ -1,27 +1,66 @@
-/* ========================================
-   Create System Design - Full Theme Support
-   ======================================== */
+/* Create System Design — vendor test form tokens */
 
 .csd-container {
-  padding: 28px;
-  max-width: 1200px;
+  --csd-accent: #ea580c;
+  --csd-surface: #ffffff;
+  --csd-surface-2: #f8fafc;
+  --csd-border: #e5e7eb;
+  --csd-text: var(--text-primary, #0f172a);
+  --csd-muted: var(--text-secondary, #64748b);
+  padding: 8px 0 48px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
-/* ---- Header ---- */
 .csd-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.csd-header-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.csd-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--csd-muted);
+  text-decoration: none;
+  border: 1px solid var(--csd-border);
+  background: var(--csd-surface);
+}
+
+.csd-back:hover {
+  background: var(--csd-surface-2);
+  color: var(--csd-text);
+}
+
+.csd-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--csd-muted);
 }
 
 .csd-header h1 {
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--text-primary, #1a1a2e);
+  font-size: clamp(1.35rem, 3vw, 1.7rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--csd-text);
   margin: 0;
 }
 
@@ -42,14 +81,15 @@
 }
 
 .csd-btn.primary {
-  background: var(--primary-gradient, linear-gradient(to right, #ED0331, #87021C));
+  background: var(--csd-accent);
   color: #fff;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--csd-accent) 30%, transparent);
 }
 
 .csd-btn.primary:hover {
   opacity: 0.9;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(237, 3, 49, 0.25);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--csd-accent) 30%, transparent);
 }
 
 .csd-btn.primary:disabled {
@@ -60,9 +100,9 @@
 }
 
 .csd-btn.secondary {
-  background: var(--bg-secondary, #ffffff);
-  color: var(--text-primary, #333);
-  border: 1px solid var(--border-color, #e0e0e0);
+  background: var(--csd-surface, var(--bg-secondary, #ffffff));
+  color: var(--csd-text, var(--text-primary, #333));
+  border: 1px solid var(--csd-border, var(--border-color, #e0e0e0));
 }
 
 .csd-btn.secondary:hover {
@@ -73,7 +113,7 @@
 .csd-btn-small {
   padding: 7px 16px;
   background: var(--bg-secondary, #ffffff);
-  color: var(--primary-color, #ED0331);
+  color: var(--csd-accent);
   border: 1px dashed var(--border-color, #e0e0e0);
   border-radius: 6px;
   cursor: pointer;
@@ -130,17 +170,17 @@
 }
 
 .csd-tab.active {
-  color: var(--primary-color, #ED0331);
-  border-bottom-color: var(--primary-color, #ED0331);
+  color: var(--csd-accent);
+  border-bottom-color: var(--csd-accent);
 }
 
 /* ---- Content Sections ---- */
 .csd-content {
-  background: var(--card-bg, var(--bg-primary, #fff));
-  border: 1px solid var(--border-color, #e0e0e0);
-  border-radius: 12px;
-  padding: 28px;
-  box-shadow: 0 2px 8px var(--shadow, rgba(0,0,0,0.06));
+  background: var(--csd-surface, var(--card-bg, var(--bg-primary, #fff)));
+  border: 1px solid var(--csd-border, var(--border-color, #e0e0e0));
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .csd-section {}
@@ -152,7 +192,7 @@
   padding: 14px 18px;
   background: var(--bg-secondary, #ffffff);
   border-radius: 8px;
-  border-left: 4px solid var(--primary-color, #ED0331);
+  border-left: 4px solid var(--csd-accent);
   line-height: 1.5;
 }
 
@@ -195,8 +235,8 @@
 .csd-field select:focus,
 .csd-field textarea:focus {
   outline: none;
-  border-color: var(--primary-color, #ED0331);
-  box-shadow: 0 0 0 3px rgba(237, 3, 49, 0.1);
+  border-color: var(--csd-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--csd-accent) 16%, transparent);
 }
 
 .csd-field select option {
@@ -226,7 +266,7 @@
 .csd-checkbox-label input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: var(--primary-color, #ED0331);
+  accent-color: var(--csd-accent);
   cursor: pointer;
 }
 
@@ -271,7 +311,7 @@
 }
 
 .csd-weight-item:hover {
-  border-color: var(--primary-color, #ED0331);
+  border-color: var(--csd-accent);
 }
 
 .csd-weight-item label {
@@ -290,7 +330,7 @@
 
 .csd-weight-input-wrap input[type="range"] {
   flex: 1;
-  accent-color: var(--primary-color, #ED0331);
+  accent-color: var(--csd-accent);
   height: 6px;
   cursor: pointer;
 }
@@ -298,7 +338,7 @@
 .csd-weight-value {
   font-weight: 700;
   font-size: 1rem;
-  color: var(--primary-color, #ED0331);
+  color: var(--csd-accent);
   min-width: 42px;
   text-align: right;
 }
@@ -314,7 +354,7 @@
 }
 
 .csd-ref-section:hover {
-  border-color: var(--primary-color, #ED0331);
+  border-color: var(--csd-accent);
 }
 
 .csd-ref-section h3 {
@@ -322,7 +362,7 @@
   padding-bottom: 0 !important;
   border-bottom: none !important;
   font-size: 0.92rem;
-  color: var(--primary-color, #ED0331);
+  color: var(--csd-accent);
 }
 
 /* ---- Hint Sections ---- */
@@ -339,7 +379,7 @@
   padding-bottom: 0 !important;
   border-bottom: none !important;
   font-size: 0.92rem;
-  color: var(--primary-color, #ED0331);
+  color: var(--csd-accent);
 }
 
 .csd-hint-item {
@@ -397,8 +437,8 @@
 
 .csd-hint-penalty:focus {
   outline: none;
-  border-color: var(--primary-color, #ED0331);
-  box-shadow: 0 0 0 3px rgba(237, 3, 49, 0.1);
+  border-color: var(--csd-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--csd-accent) 16%, transparent);
 }
 
 .csd-hint-remove {
@@ -440,8 +480,8 @@
 
 .csd-scenario-row input:focus {
   outline: none;
-  border-color: var(--primary-color, #ED0331);
-  box-shadow: 0 0 0 3px rgba(237, 3, 49, 0.1);
+  border-color: var(--csd-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--csd-accent) 16%, transparent);
 }
 
 /* ========================================
@@ -479,20 +519,20 @@
 
 [data-theme="dark"] .csd-container .ql-toolbar button:hover .ql-stroke,
 [data-theme="dark"] .csd-container .ql-toolbar .ql-picker-label:hover .ql-stroke {
-  stroke: var(--primary-color, #ED0331);
+  stroke: var(--csd-accent);
 }
 
 [data-theme="dark"] .csd-container .ql-toolbar button:hover .ql-fill,
 [data-theme="dark"] .csd-container .ql-toolbar .ql-picker-label:hover .ql-fill {
-  fill: var(--primary-color, #ED0331);
+  fill: var(--csd-accent);
 }
 
 [data-theme="dark"] .csd-container .ql-toolbar button.ql-active .ql-stroke {
-  stroke: var(--primary-color, #ED0331);
+  stroke: var(--csd-accent);
 }
 
 [data-theme="dark"] .csd-container .ql-toolbar button.ql-active .ql-fill {
-  fill: var(--primary-color, #ED0331);
+  fill: var(--csd-accent);
 }
 
 /* Dark mode: Quill picker dropdown - THE KEY FIX for white background */
@@ -506,7 +546,7 @@
 }
 
 [data-theme="dark"] .csd-container .ql-picker-item:hover {
-  color: var(--primary-color, #ED0331) !important;
+  color: var(--csd-accent) !important;
 }
 
 [data-theme="dark"] .csd-container .ql-picker-label {
@@ -542,6 +582,14 @@
 
 [data-theme="dark"] .csd-container .ql-snow .ql-tooltip a {
   color: var(--text-secondary, #b0b0b0);
+}
+
+[data-theme="dark"] .csd-container {
+  --csd-surface: #1a1a1a;
+  --csd-surface-2: #222222;
+  --csd-border: #3f3f46;
+  --csd-text: #f4f4f5;
+  --csd-muted: #a1a1aa;
 }
 
 /* ---- Rich text student preview (vendor) ---- */

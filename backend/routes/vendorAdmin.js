@@ -25,6 +25,7 @@ const {
   getColumnDefs,
 } = require('../utils/reports');
 const { parsePagination, paginatedResponse } = require('../utils/pagination');
+const { getAllocatedPlatformTestIds, canVendorAccessTest } = require('../utils/platformTestAccess');
 
 router.use(auth);
 router.use(authorize('vendor_admin'));
@@ -60,14 +61,33 @@ const handleMulterError = (err, req, res, next) => {
   return res.status(400).json({ message: err.message || 'Invalid file upload' });
 };
 
-// Get vendor info
+// Get vendor info (organization profile + admin login snapshot)
 router.get('/vendor', async (req, res) => {
   try {
     const vendor = await Vendor.findById(req.vendorId);
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });
     }
-    res.json(vendor);
+
+    const adminUser = await User.findOne({
+      vendorId: vendor._id,
+      role: 'vendor_admin',
+    }).select('name email isActive createdAt');
+
+    const doc = vendor.toObject();
+    res.json({
+      ...doc,
+      contactName: vendor.name,
+      adminUser: adminUser
+        ? {
+            _id: adminUser._id,
+            name: adminUser.name,
+            email: adminUser.email,
+            isActive: adminUser.isActive,
+            createdAt: adminUser.createdAt,
+          }
+        : null,
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -572,18 +592,33 @@ router.get('/tests', async (req, res) => {
       maxLimit: 100,
     });
     const type = String(req.query.type || '').trim();
+    const allocatedIds = await getAllocatedPlatformTestIds(req.vendorId);
 
-    const filter = { vendorId: req.vendorId };
-    if (type) filter.type = type;
+    const vendorClause = { vendorId: req.vendorId, source: { $ne: 'course_module' } };
+    const platformClause =
+      allocatedIds.length > 0
+        ? { _id: { $in: allocatedIds }, source: 'platform', isActive: true }
+        : null;
+
+    if (type) {
+      vendorClause.type = type;
+      if (platformClause) platformClause.type = type;
+    }
 
     if (search) {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      filter.title = new RegExp(escaped, 'i');
+      const titleRegex = new RegExp(escaped, 'i');
+      vendorClause.title = titleRegex;
+      if (platformClause) platformClause.title = titleRegex;
     }
+
+    const filter = platformClause
+      ? { $or: [vendorClause, platformClause] }
+      : vendorClause;
 
     const [tests, total] = await Promise.all([
       Test.find(filter)
-        .select('title type duration isActive createdAt updatedAt questions createdBy settings')
+        .select('title type duration isActive createdAt updatedAt questions createdBy settings source')
         .populate('createdBy', 'name email')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -592,7 +627,12 @@ router.get('/tests', async (req, res) => {
       Test.countDocuments(filter),
     ]);
 
-    res.json(paginatedResponse({ items: tests, page, limit, total }));
+    const items = tests.map((test) => ({
+      ...test,
+      isPlatformTest: test.source === 'platform',
+    }));
+
+    res.json(paginatedResponse({ items, page, limit, total }));
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -601,6 +641,11 @@ router.get('/tests', async (req, res) => {
 // Get test results (paginated — excludes heavy answer payloads in list view)
 router.get('/tests/:testId/results', async (req, res) => {
   try {
+    const test = await Test.findById(req.params.testId);
+    if (!test || !(await canVendorAccessTest(test, req.vendorId))) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+
     const { page, limit, skip, search } = parsePagination(req.query, {
       defaultLimit: 50,
       maxLimit: 100,

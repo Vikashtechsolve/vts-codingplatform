@@ -1,6 +1,7 @@
-import React, { useMemo, useRef, useCallback } from 'react';
+import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { registerClipboardMatchers } from '../utils/richTextPaste';
 import './RichTextEditor.css';
 
 const STANDARD_TOOLBAR = [
@@ -96,10 +97,21 @@ const RichTextEditor = ({
           : {},
       },
       clipboard: {
-        matchVisual: false,
+        // Full notes: keep visual structure from Notion/Docs/web paste.
+        matchVisual: isFull,
       },
     };
   }, [variant, imageHandler, videoHandler]);
+
+  useEffect(() => {
+    const bind = () => {
+      const editor = quillRef.current?.getEditor?.();
+      if (editor) registerClipboardMatchers(editor);
+    };
+    bind();
+    const id = window.requestAnimationFrame(bind);
+    return () => window.cancelAnimationFrame(id);
+  }, [variant]);
 
   const formats = variant === 'full' ? FULL_FORMATS : STANDARD_FORMATS;
 
@@ -107,7 +119,7 @@ const RichTextEditor = ({
     <div className={`rich-text-editor-wrapper rich-text-editor-wrapper--${variant} ${className}`.trim()}>
       {variant === 'full' && (
         <p className="rich-text-editor-hint">
-          Rich formatting supported: headings, lists, code blocks, links, images (paste URL), and embedded video.
+          Paste from Notion, Google Docs, or the web — headings, lists, colors, highlights, and code are kept.
         </p>
       )}
       <ReactQuill

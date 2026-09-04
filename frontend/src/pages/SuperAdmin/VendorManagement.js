@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiCreditCard, FiRefreshCw, FiTrash2, FiPower } from 'react-icons/fi';
+import { FiPlus, FiCreditCard, FiRefreshCw, FiTrash2, FiPower, FiEdit2 } from 'react-icons/fi';
 import axiosInstance from '../../utils/axios';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import { SUPER_ADMIN_ACCENT } from '../../constants/superAdminSections';
@@ -277,7 +277,12 @@ const VendorManagement = () => {
                             {getInitials(vendor.companyName)}
                           </span>
                           <div>
-                            <div className="vh-person-name">{vendor.companyName}</div>
+                            <Link
+                              to={`/super-admin/vendors/${vendor._id}/edit`}
+                              className="vh-person-name sa-vendor-link"
+                            >
+                              {vendor.companyName}
+                            </Link>
                             <div className="vh-person-email">{vendor.name || '—'}</div>
                           </div>
                         </div>
@@ -299,6 +304,12 @@ const VendorManagement = () => {
                       </td>
                       <td>
                         <div className="sa-cell-actions">
+                          <Link
+                            to={`/super-admin/vendors/${vendor._id}/edit`}
+                            className="vh-btn vh-btn--ghost vh-btn--sm"
+                          >
+                            <FiEdit2 /> Edit
+                          </Link>
                           <button
                             type="button"
                             className="vh-btn vh-btn--ghost vh-btn--sm"

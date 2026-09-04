@@ -1,7 +1,7 @@
 .arch-builder { display: flex; flex-direction: column; gap: 12px; }
 
 .arch-toolbar { display: flex; gap: 10px; align-items: center; }
-.arch-template-select { padding: 6px 12px; border: 1px solid var(--border-color, #ddd); border-radius: 6px; font-size: 0.85rem; background: var(--bg-primary, #fff); color: var(--text-primary, #333); }
+.arch-template-select { padding: 8px 12px; border: 1px solid var(--border-color, #ddd); border-radius: 8px; font-size: 0.85rem; background: var(--input-bg, var(--bg-primary, #fff)); color: var(--text-primary, #333); min-height: 38px; }
 .arch-clear-btn { padding: 6px 14px; background: #fce4ec; color: #e53935; border: none; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 500; }
 
 .arch-workspace { display: flex; gap: 0; height: 500px; border: 1px solid var(--border-color, #ddd); border-radius: 10px; overflow: hidden; }
@@ -73,7 +73,15 @@
 [data-theme="dark"] .arch-clear-btn { background: rgba(229, 57, 53, 0.15); color: #ef5350; }
 [data-theme="dark"] .arch-canvas-wrap .react-flow { background: var(--bg-primary); }
 [data-theme="dark"] .arch-handle { border-color: var(--bg-primary); }
-[data-theme="dark"] .arch-text-section textarea:focus { border-color: #6c5ce7; }
+[data-theme="dark"] .arch-text-section textarea:focus { border-color: var(--sdt-accent, #ea580c); }
+[data-theme="dark"] .arch-template-select {
+  background: #252525;
+  border-color: #3f3f46;
+  color: #f4f4f5;
+}
+[data-theme="dark"] .arch-workspace {
+  border-color: #3f3f46;
+}
 
 /* React Flow Controls (zoom, fit, lock) */
 [data-theme="dark"] .react-flow__controls { background: var(--bg-secondary); border-color: var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }

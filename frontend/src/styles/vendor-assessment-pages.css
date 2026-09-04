@@ -967,6 +967,36 @@
   background: #3f3f46;
 }
 
+.va-classroom-student-preview {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.va-classroom-student-preview li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--va-border);
+  background: var(--va-surface);
+}
+
+.va-classroom-student-preview strong {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 2px;
+}
+
+.va-classroom-student-preview span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--va-muted);
+}
+
 @media (max-width: 640px) {
   .va-footer-actions .va-btn {
     flex: 1;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useVendorBranding } from '../../context/VendorBrandingContext';
@@ -12,13 +12,39 @@ import { FiMenu, FiX } from 'react-icons/fi';
 import './VendorLayout.css';
 
 const VendorLayout = () => {
-  const { user } = useAuth();
-  const { branding } = useVendorBranding();
+  const { user, refreshUser } = useAuth();
+  const { branding, refreshBranding } = useVendorBranding();
   const { stats, loading, getSectionCount } = useVendorPanel();
   const assessmentTotal = stats.totalAssessments ?? 0;
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const search = new URLSearchParams(location.search);
+  const lastSessionRefreshRef = useRef(0);
+
+  useEffect(() => {
+    const refreshSession = () => {
+      const now = Date.now();
+      if (now - lastSessionRefreshRef.current < 15000) return;
+      lastSessionRefreshRef.current = now;
+      refreshUser();
+      refreshBranding();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshSession();
+      }
+    };
+
+    window.addEventListener('focus', refreshSession);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    refreshSession();
+
+    return () => {
+      window.removeEventListener('focus', refreshSession);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [refreshUser, refreshBranding, location.pathname]);
 
   const menuSections = VENDOR_MENU_SECTIONS;
 

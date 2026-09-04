@@ -252,8 +252,7 @@ const evaluationResultSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes
-evaluationResultSchema.index({ submissionId: 1 });
+// Indexes (submissionId already indexed via unique: true on the field)
 evaluationResultSchema.index({ assignmentId: 1 });
 evaluationResultSchema.index({ studentId: 1 });
 evaluationResultSchema.index({ assignmentId: 1, percentage: -1 });

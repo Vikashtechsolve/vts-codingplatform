@@ -147,6 +147,25 @@ const resultSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+    default: null,
+  },
+  moduleId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CourseModule',
+    default: null,
+  },
+  attemptNumber: {
+    type: Number,
+    default: 1,
+    min: 1,
+  },
+  countsTowardScore: {
+    type: Boolean,
+    default: true,
+  },
   sectionScores: [{
     sectionType: String,
     score: { type: Number, default: 0 },
@@ -156,6 +175,8 @@ const resultSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+resultSchema.index({ studentId: 1, testId: 1, status: 1 });
 
 module.exports = mongoose.model('Result', resultSchema);
 

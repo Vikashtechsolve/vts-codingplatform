@@ -45,7 +45,7 @@ export const VendorBrandingProvider = ({ children }) => {
       if (!merged) return prev;
       applyBrandingState(merged);
       const vendorId = vendorIdOverride || getUserVendorId(user);
-      if (vendorId && merged.logo) {
+      if (vendorId && (merged.logo || merged.companyName || merged.settings)) {
         setCachedBranding(vendorId, merged);
       }
       return merged;
@@ -88,7 +88,7 @@ export const VendorBrandingProvider = ({ children }) => {
         companyName: data.companyName,
         settings: data.settings,
       });
-      return data.logo || null;
+      return data;
     }
     return null;
   }, [commitBranding]);
@@ -131,11 +131,9 @@ export const VendorBrandingProvider = ({ children }) => {
       if (data?.vendorId) {
         vendorId = String(data.vendorId);
       }
-      if (data?.logo) {
+      if (data?.logo || data?.companyName || data?.settings) {
         commitBranding(data, vendorId);
-        resolvedLogo = data.logo;
-      } else if (data?.companyName) {
-        commitBranding(data, vendorId);
+        if (data.logo) resolvedLogo = data.logo;
       }
 
       // Role-specific endpoints (same data as Settings for vendor; fixes students)
@@ -147,9 +145,12 @@ export const VendorBrandingProvider = ({ children }) => {
         }
       }
 
-      if (!resolvedLogo && user.role === 'vendor_admin') {
+      if (user.role === 'vendor_admin') {
         try {
-          resolvedLogo = await fetchVendorAdminBranding();
+          const vendorData = await fetchVendorAdminBranding();
+          if (!resolvedLogo && vendorData?.logo) {
+            resolvedLogo = vendorData.logo;
+          }
         } catch (err) {
           console.error('[branding] vendor-admin branding failed:', err?.message || err);
         }
@@ -210,7 +211,7 @@ export const VendorBrandingProvider = ({ children }) => {
       const merged = mergeBranding(prev, normalizeBrandingPayload(partial));
       applyBrandingState(merged);
       const vendorId = getUserVendorId(user);
-      if (vendorId && merged?.logo) {
+      if (vendorId && merged && (merged.logo || merged.companyName || merged.settings)) {
         setCachedBranding(vendorId, merged);
       }
       return merged;

@@ -881,6 +881,59 @@ button.vh-tag {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--vh-accent) 12%, transparent);
 }
 
+/* Standalone inputs (outside .vh-field wrapper) */
+.vh-input,
+input.vh-input,
+select.vh-input,
+textarea.vh-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--vh-border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.45;
+  background: var(--vh-surface);
+  color: var(--vh-text);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.vh-input::placeholder {
+  color: color-mix(in srgb, var(--vh-muted) 85%, transparent);
+}
+
+.vh-input:hover:not(:disabled):not(:focus) {
+  border-color: color-mix(in srgb, var(--vh-accent) 22%, var(--vh-border));
+}
+
+.vh-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--vh-accent) 45%, var(--vh-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vh-accent) 12%, transparent);
+}
+
+.vh-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--vh-surface-2);
+}
+
+textarea.vh-input {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.vh-form-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  .vh-form-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .vh-field-hint {
   display: block;
   margin-top: 6px;
@@ -1046,6 +1099,10 @@ button.vh-tag {
 [data-theme='dark'] .vh-field input,
 [data-theme='dark'] .vh-field textarea,
 [data-theme='dark'] .vh-field select,
+[data-theme='dark'] .vh-input,
+[data-theme='dark'] input.vh-input,
+[data-theme='dark'] select.vh-input,
+[data-theme='dark'] textarea.vh-input,
 [data-theme='dark'] .vh-back,
 [data-theme='dark'] .vh-btn--secondary {
   background: var(--vh-surface);
