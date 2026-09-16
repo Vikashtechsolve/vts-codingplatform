@@ -24,6 +24,9 @@ const StudentLayout = () => {
     if (path === '/student/announcements') {
       return location.pathname.startsWith('/student/announcements');
     }
+    if (path === '/student/practice') {
+      return location.pathname.startsWith('/student/practice') && !location.pathname.includes('/solve/');
+    }
     return location.pathname.startsWith(path);
   };
 

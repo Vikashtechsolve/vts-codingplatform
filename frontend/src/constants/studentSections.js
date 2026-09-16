@@ -12,6 +12,7 @@ import {
   FiTool,
   FiBriefcase,
   FiBell,
+  FiTarget,
 } from 'react-icons/fi';
 
 /** Primary brand accent — use sparingly for highlights and CTAs */
@@ -46,6 +47,16 @@ export const STUDENT_SECTIONS = [
     description: 'Structured modules, lectures, and progress',
     accent: '#0f766e',
     isCourse: true,
+  },
+  {
+    id: 'practice',
+    label: 'Practice',
+    shortLabel: 'Practice',
+    path: '/student/practice',
+    icon: FiTarget,
+    description: 'DSA practice, skill matrix, and coding analytics',
+    accent: '#6366f1',
+    isPractice: true,
   },
   {
     id: 'coding',

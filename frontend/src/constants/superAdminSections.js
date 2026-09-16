@@ -8,6 +8,7 @@ import {
   FiBookOpen,
   FiClipboard,
   FiLayers,
+  FiTarget,
 } from 'react-icons/fi';
 
 export const SUPER_ADMIN_ACCENT = '#6366f1';
@@ -68,6 +69,13 @@ export const SUPER_ADMIN_SECTIONS = [
     shortLabel: 'Credits',
     icon: FiCreditCard,
     accent: '#059669',
+  },
+  {
+    id: 'practice',
+    path: '/super-admin/practice',
+    shortLabel: 'Practice',
+    icon: FiTarget,
+    accent: '#7c3aed',
   },
   {
     id: 'interview-ai-settings',

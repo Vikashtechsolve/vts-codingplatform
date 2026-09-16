@@ -34,6 +34,9 @@ import PlatformAssessments from '../pages/SuperAdmin/PlatformAssessments';
 import AllocatePlatformTest from '../pages/SuperAdmin/AllocatePlatformTest';
 import AllocatePlatformAssessment from '../pages/SuperAdmin/AllocatePlatformAssessment';
 import GlobalEnglishQuestions from '../pages/SuperAdmin/GlobalEnglishQuestions';
+import PracticeAdminHub from '../pages/SuperAdmin/Practice/PracticeAdminHub';
+import PracticeTopicsAdmin from '../pages/SuperAdmin/Practice/PracticeTopicsAdmin';
+import PracticeQuestionsAdmin from '../pages/SuperAdmin/Practice/PracticeQuestionsAdmin';
 
 const SuperAdminRoutes = (
   <>
@@ -87,6 +90,9 @@ const SuperAdminRoutes = (
     <Route path="global-questions/english/speaking/edit/:id" element={<CreateEnglishSpeakingQuestion />} />
     <Route path="global-questions/english/listening/create" element={<CreateEnglishListeningQuestion />} />
     <Route path="global-questions/english/listening/edit/:id" element={<CreateEnglishListeningQuestion />} />
+    <Route path="practice" element={<PracticeAdminHub />} />
+    <Route path="practice/topics" element={<PracticeTopicsAdmin />} />
+    <Route path="practice/questions" element={<PracticeQuestionsAdmin />} />
     <Route path="interview-questions" element={<InterviewQuestions />} />
     <Route path="interview-questions/create" element={<CreateInterviewQuestion />} />
     <Route path="interview-questions/edit/:id" element={<CreateInterviewQuestion />} />

@@ -19,6 +19,7 @@ import {
   FiSettings,
   FiList,
   FiAward,
+  FiTarget,
 } from 'react-icons/fi';
 
 /** Matches student panel accent — use sparingly */
@@ -89,6 +90,14 @@ export const VENDOR_MENU_SECTIONS = [
     path: '/vendor-admin/announcements',
     icon: FiBell,
     accent: '#e7210b',
+  },
+  {
+    id: 'practice',
+    label: 'Practice',
+    shortLabel: 'Practice',
+    path: '/vendor-admin/practice',
+    icon: FiTarget,
+    accent: '#6366f1',
   },
   {
     id: 'analytics',

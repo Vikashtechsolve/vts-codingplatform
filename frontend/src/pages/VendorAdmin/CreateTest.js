@@ -100,7 +100,7 @@ const CreateTest = () => {
           params: platformConfig.isPlatform
             ? undefined
             : {
-                source: questionSource === 'my' ? 'vendor' : 'global',
+                source: questionSource === 'my' ? 'vendor' : questionSource === 'practice' ? 'practice' : 'global',
                 page: pageNum,
                 limit: 50,
                 search: debouncedSearchTerm.trim() || undefined,
@@ -114,7 +114,7 @@ const CreateTest = () => {
         );
         const items = parsed.items.map((q) => ({
           ...q,
-          source: q.source || (questionSource === 'my' ? 'vendor' : 'global'),
+          source: q.source || (questionSource === 'my' ? 'vendor' : questionSource === 'practice' ? 'practice' : 'global'),
         }));
 
         setters[tab]((prev) => (append ? mergePaginatedPages(prev, items) : items));

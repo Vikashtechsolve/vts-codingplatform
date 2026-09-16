@@ -273,9 +273,11 @@ app.use('/api/super-admin/interviews', require('./routes/superAdminInterviews'))
 app.use('/api/super-admin/assignments', require('./routes/superAdminAssignments'));
 app.use('/api/super-admin/system-design-problems', require('./routes/superAdminSystemDesign'));
 app.use('/api/super-admin/courses', require('./routes/coursesSuperAdmin'));
+app.use('/api/super-admin/practice', require('./routes/superAdminPractice'));
 // Register classrooms route BEFORE vendor-admin to ensure proper matching
 app.use('/api/vendor-admin/classrooms', require('./routes/classrooms'));
 app.use('/api/vendor-admin/courses', require('./routes/coursesVendorAdmin'));
+app.use('/api/vendor-admin/practice', require('./routes/vendorAdminPractice'));
 app.use('/api/vendor-admin', require('./routes/vendorAdmin'));
 app.use('/api/student/courses', require('./routes/coursesStudent'));
 app.use('/api/courses-media', require('./routes/coursesMedia'));
@@ -287,6 +289,7 @@ app.use('/api/tests', require('./routes/tests'));
 app.use('/api/interviews', require('./routes/interviews'));
 app.use('/api/interview-sessions', require('./routes/interviewSessions'));
 app.use('/api/students', require('./routes/students'));
+app.use('/api/practice', require('./routes/practice'));
 app.use('/api/results', require('./routes/results'));
 app.use('/api/code-execution', codeExecutionRoutes);
 app.use('/api/dataset-templates', require('./routes/datasetTemplates'));

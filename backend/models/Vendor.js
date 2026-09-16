@@ -50,6 +50,12 @@ const vendorSchema = new mongoose.Schema({
       type: String,
       default: '',
       trim: true
+    },
+    practice: {
+      enabled: { type: Boolean, default: true },
+      defaultDailyGoal: { type: Number, default: 2 },
+      showLeaderboard: { type: Boolean, default: true },
+      showGlobalRank: { type: Boolean, default: false }
     }
   },
   stats: {

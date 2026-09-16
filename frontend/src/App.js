@@ -47,15 +47,24 @@ import StudentAnnouncements from './pages/Student/StudentAnnouncements';
 import StudentCourses from './pages/Student/Courses';
 import CoursePlayer from './pages/Student/CoursePlayer';
 import LecturePlayer from './pages/Student/LecturePlayer';
+import PracticeHub from './pages/Student/Practice/PracticeHub';
+import PracticeProblemList from './pages/Student/Practice/PracticeProblemList';
+import PracticeSolve from './pages/Student/Practice/PracticeSolve';
+import PracticeAnalytics from './pages/Student/Practice/PracticeAnalytics';
+import PracticeSkillMatrix from './pages/Student/Practice/PracticeSkillMatrix';
+import PracticeLeaderboard from './pages/Student/Practice/PracticeLeaderboard';
+import PracticeSubmissions from './pages/Student/Practice/PracticeSubmissions';
 
 import './App.css';
 import './styles/student-panel-dark.css';
 import './styles/vendor-assessment-pages.css';
 import './styles/courses-pages.css';
 import './styles/vendor-hub-pages.css';
+import './styles/vendor-practice-pages.css';
 import './styles/super-admin-pages.css';
 import './styles/vendor-question-form.css';
 import './styles/vendor-test-form.css';
+import './styles/practice-pages.css';
 
 // Root route component that redirects based on authentication
 const RootRedirect = () => {
@@ -123,7 +132,21 @@ function App() {
                 <Route path="courses/:courseId" element={<CoursePlayer />} />
                 <Route path="courses/:courseId/lectures/:lectureId" element={<LecturePlayer />} />
                 <Route path="tests/:type" element={<TestsByType />} />
+                <Route path="practice" element={<PracticeHub />} />
+                <Route path="practice/problems" element={<PracticeProblemList />} />
+                <Route path="practice/analytics" element={<PracticeAnalytics />} />
+                <Route path="practice/skill-matrix" element={<PracticeSkillMatrix />} />
+                <Route path="practice/leaderboard" element={<PracticeLeaderboard />} />
+                <Route path="practice/submissions" element={<PracticeSubmissions />} />
               </Route>
+              <Route
+                path="/student/practice/solve/:questionId"
+                element={
+                  <PrivateRoute allowedRoles={['student']}>
+                    <PracticeSolve />
+                  </PrivateRoute>
+                }
+              />
               <Route
                 path="/student/interviews"
                 element={<Navigate to="/student/tests/interview" replace />}

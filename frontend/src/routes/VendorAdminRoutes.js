@@ -55,6 +55,8 @@ import CreateEnglishEssayQuestion from '../pages/VendorAdmin/CreateEnglishEssayQ
 import CreateEnglishSpeakingQuestion from '../pages/VendorAdmin/CreateEnglishSpeakingQuestion';
 import CreateEnglishListeningQuestion from '../pages/VendorAdmin/CreateEnglishListeningQuestion';
 import CreateEnglishTest from '../pages/VendorAdmin/CreateEnglishTest';
+import VendorPracticeAnalytics from '../pages/VendorAdmin/Practice/VendorPracticeAnalytics';
+import VendorPracticeLeaderboard from '../pages/VendorAdmin/Practice/VendorPracticeLeaderboard';
 import EvaluationResult from '../pages/Student/EvaluationResult';
 import SystemDesignResult from '../pages/Student/SystemDesignResult';
 
@@ -89,6 +91,8 @@ const VendorAdminRoutes = (
     <Route path="questions/theory/create" element={<CreateTheoryQuestion />} />
     <Route path="questions/theory/edit/:id" element={<CreateTheoryQuestion />} />
     <Route path="analytics" element={<Analytics />} />
+    <Route path="practice" element={<VendorPracticeAnalytics />} />
+    <Route path="practice/leaderboard" element={<VendorPracticeLeaderboard />} />
     <Route path="settings" element={<VendorSettings />} />
     <Route path="classrooms" element={<ClassroomList />} />
     <Route path="classrooms/create" element={<CreateClassroom />} />

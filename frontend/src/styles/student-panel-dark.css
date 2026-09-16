@@ -388,3 +388,24 @@
   background: #1f1f1f;
   border-color: var(--student-dark-border);
 }
+
+/* —— Practice section —— */
+[data-theme='dark'] .practice-hero-orb {
+  opacity: 0.35;
+}
+
+[data-theme='dark'] .practice-stat-card.accent {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, var(--student-dark-surface) 60%);
+}
+
+[data-theme='dark'] .practice-daily-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, var(--student-dark-surface) 55%);
+}
+
+[data-theme='dark'] .practice-goal-bar {
+  background: #27272a;
+}
+
+[data-theme='dark'] .practice-ring-track {
+  stroke: #3f3f46;
+}

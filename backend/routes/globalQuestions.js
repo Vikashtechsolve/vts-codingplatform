@@ -134,7 +134,11 @@ router.post('/coding', [
       solution,
       constraints,
       examples,
-      tags
+      tags,
+      practiceEnabled,
+      practiceTopics,
+      estimatedMinutes,
+      companyTags,
     } = req.body;
 
     if (!allowedLanguages || allowedLanguages.length === 0) {
@@ -158,7 +162,11 @@ router.post('/coding', [
       solution: solution || {},
       constraints: constraints || '',
       examples: examples || [],
-      tags: await resolveTagsForSave(null, tags, req.user._id)
+      tags: await resolveTagsForSave(null, tags, req.user._id),
+      practiceEnabled: !!practiceEnabled,
+      practiceTopics: practiceTopics || [],
+      estimatedMinutes: estimatedMinutes || null,
+      companyTags: companyTags || [],
     });
 
     await question.save();

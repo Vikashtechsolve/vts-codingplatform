@@ -80,10 +80,37 @@ const codingQuestionSchema = new mongoose.Schema({
     input: String,
     output: String,
     explanation: String
-  }]
+  }],
+  practiceEnabled: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  practiceTopics: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PracticeTopic'
+  }],
+  estimatedMinutes: {
+    type: Number,
+    default: null
+  },
+  companyTags: {
+    type: [String],
+    default: [],
+    set: (tags) =>
+      Array.from(
+        new Set(
+          (Array.isArray(tags) ? tags : [])
+            .map((tag) => String(tag || '').trim())
+            .filter(Boolean)
+        )
+      )
+  }
 }, {
   timestamps: true
 });
+
+codingQuestionSchema.index({ isGlobal: 1, practiceEnabled: 1 });
 
 module.exports = mongoose.model('CodingQuestion', codingQuestionSchema);
 

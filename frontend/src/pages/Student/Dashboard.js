@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStudentPanel } from '../../context/StudentPanelContext';
+import axiosInstance from '../../utils/axios';
 import { COURSE_SECTIONS, TEST_SECTIONS, STUDENT_ACCENT } from '../../constants/studentSections';
 import {
   FiArrowRight,
@@ -11,6 +12,7 @@ import {
   FiClock,
   FiTarget,
   FiTrendingUp,
+  FiZap,
 } from 'react-icons/fi';
 import './Dashboard.css';
 
@@ -39,6 +41,14 @@ const StudentDashboard = () => {
   } = useStudentPanel();
 
   const firstName = user?.name?.split(' ')[0] || 'Student';
+  const [practiceSummary, setPracticeSummary] = useState(null);
+
+  useEffect(() => {
+    axiosInstance
+      .get('/practice/dashboard')
+      .then((res) => setPracticeSummary(res.data))
+      .catch(() => setPracticeSummary(null));
+  }, []);
 
   const continueItems = useMemo(() => {
     const items = [];
@@ -221,6 +231,46 @@ const StudentDashboard = () => {
           </div>
         </article>
       </section>
+
+      {practiceSummary?.profile && (
+        <section className="student-section">
+          <div className="student-section-head">
+            <h2>Coding Practice</h2>
+            <Link to="/student/practice" className="student-link-btn">
+              Open practice <FiArrowRight />
+            </Link>
+          </div>
+          <div className="student-stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+            <article className="student-stat-card">
+              <span className="student-stat-icon" style={{ '--stat-color': '#7c3aed' }}>
+                <FiTarget />
+              </span>
+              <div>
+                <p className="student-stat-label">Solved</p>
+                <p className="student-stat-value">{practiceSummary.profile.problemsSolved || 0}</p>
+              </div>
+            </article>
+            <article className="student-stat-card">
+              <span className="student-stat-icon" style={{ '--stat-color': '#d97706' }}>
+                <FiZap />
+              </span>
+              <div>
+                <p className="student-stat-label">Streak</p>
+                <p className="student-stat-value">{practiceSummary.profile.streak?.current || 0} days</p>
+              </div>
+            </article>
+            <article className="student-stat-card">
+              <span className="student-stat-icon" style={{ '--stat-color': '#059669' }}>
+                <FiTrendingUp />
+              </span>
+              <div>
+                <p className="student-stat-label">Coding score</p>
+                <p className="student-stat-value">{practiceSummary.profile.codingScore || 0}</p>
+              </div>
+            </article>
+          </div>
+        </section>
+      )}
 
       {continueItems.length > 0 && (
         <section className="student-section">

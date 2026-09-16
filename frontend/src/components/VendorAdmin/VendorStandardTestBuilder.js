@@ -19,9 +19,11 @@ const CREATE_LINKS = {
 
 function countBySource(list, sourceKey) {
   if (!Array.isArray(list)) return 0;
-  return list.filter((q) =>
-    sourceKey === 'my' ? q.source === 'vendor' : q.source === 'global'
-  ).length;
+  return list.filter((q) => {
+    if (sourceKey === 'my') return q.source === 'vendor';
+    if (sourceKey === 'practice') return q.source === 'practice';
+    return q.source === 'global';
+  }).length;
 }
 
 const VendorStandardTestBuilder = ({
@@ -57,6 +59,7 @@ const VendorStandardTestBuilder = ({
     return {
       my: countBySource(pool, 'my'),
       global: countBySource(pool, 'global'),
+      practice: countBySource(pool, 'practice'),
     };
   }, [pools, selectedTab]);
 
@@ -253,7 +256,7 @@ const VendorStandardTestBuilder = ({
       <p>
         {searchTerm
           ? 'No matches for your search.'
-          : `No ${questionSource === 'my' ? 'custom' : 'global'} ${type} questions in this tab.`}
+          : `No ${questionSource === 'my' ? 'custom' : questionSource === 'practice' ? 'practice bank' : 'global'} ${type} questions in this tab.`}
       </p>
       {questionSource === 'my' && !searchTerm && (
         <Link to={questionCreateLinks[type]} className="vtf-btn-add" style={{ width: 'auto', display: 'inline-flex' }}>
@@ -315,6 +318,16 @@ const VendorStandardTestBuilder = ({
                   Global
                   <span className="vtf-segment-count">{tabSourceCounts.global}</span>
                 </button>
+                {selectedTab === 'coding' && (
+                  <button
+                    type="button"
+                    className={`vtf-segment-btn ${questionSource === 'practice' ? 'active' : ''}`}
+                    onClick={() => setQuestionSource('practice')}
+                  >
+                    Practice Bank
+                    <span className="vtf-segment-count">{tabSourceCounts.practice}</span>
+                  </button>
+                )}
               </div>
 
               <div className="vtf-search">

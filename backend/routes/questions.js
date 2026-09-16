@@ -166,7 +166,9 @@ router.get('/coding', async (req, res) => {
   try {
     console.log('📥 Fetching coding questions for vendor:', req.vendorId);
     const source =
-      req.query.source === 'global'
+      req.query.source === 'practice'
+        ? 'practice'
+        : req.query.source === 'global'
         ? 'global'
         : req.query.source === 'all'
           ? 'all'

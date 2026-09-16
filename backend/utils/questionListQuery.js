@@ -29,7 +29,9 @@ async function fetchPaginatedQuestions({
   });
 
   const baseFilter =
-    source === 'global'
+    source === 'practice'
+      ? { isGlobal: true, practiceEnabled: true }
+      : source === 'global'
       ? { isGlobal: true }
       : source === 'all'
         ? {
@@ -64,7 +66,7 @@ async function fetchPaginatedQuestions({
 
   const mapped = items.map((row) => ({
     ...row,
-    source: row.isGlobal ? 'global' : 'vendor',
+    source: row.practiceEnabled ? 'practice' : row.isGlobal ? 'global' : 'vendor',
   }));
 
   return paginatedResponse({
