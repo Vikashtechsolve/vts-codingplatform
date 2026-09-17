@@ -13,6 +13,13 @@ const STANDARD_TOOLBAR = [
   ['clean'],
 ];
 
+/** Compact toolbar for short fields like coding constraints */
+const CONSTRAINTS_TOOLBAR = [
+  ['bold', 'italic', 'underline'],
+  [{ list: 'ordered' }, { list: 'bullet' }],
+  ['clean'],
+];
+
 const FULL_TOOLBAR = [
   [{ header: [1, 2, 3, 4, false] }],
   [{ size: ['small', false, 'large', 'huge'] }],
@@ -32,6 +39,11 @@ const STANDARD_FORMATS = [
   'bold', 'italic', 'underline', 'strike',
   'list', 'bullet', 'indent',
   'link',
+];
+
+const CONSTRAINTS_FORMATS = [
+  'bold', 'italic', 'underline',
+  'list', 'bullet',
 ];
 
 const FULL_FORMATS = [
@@ -54,6 +66,7 @@ const RichTextEditor = ({
   id,
   variant = 'standard',
   className = '',
+  hint,
 }) => {
   const quillRef = useRef(null);
 
@@ -86,9 +99,14 @@ const RichTextEditor = ({
 
   const modules = useMemo(() => {
     const isFull = variant === 'full';
+    const isConstraints = variant === 'constraints';
     return {
       toolbar: {
-        container: isFull ? FULL_TOOLBAR : STANDARD_TOOLBAR,
+        container: isFull
+          ? FULL_TOOLBAR
+          : isConstraints
+            ? CONSTRAINTS_TOOLBAR
+            : STANDARD_TOOLBAR,
         handlers: isFull
           ? {
               image: imageHandler,
@@ -109,19 +127,30 @@ const RichTextEditor = ({
       if (editor) registerClipboardMatchers(editor);
     };
     bind();
-    const id = window.requestAnimationFrame(bind);
-    return () => window.cancelAnimationFrame(id);
+    const frameId = window.requestAnimationFrame(bind);
+    return () => window.cancelAnimationFrame(frameId);
   }, [variant]);
 
-  const formats = variant === 'full' ? FULL_FORMATS : STANDARD_FORMATS;
+  const formats =
+    variant === 'full'
+      ? FULL_FORMATS
+      : variant === 'constraints'
+        ? CONSTRAINTS_FORMATS
+        : STANDARD_FORMATS;
+
+  const showDefaultFullHint = variant === 'full' && hint === undefined;
+  const hintText =
+    hint !== undefined
+      ? hint
+      : showDefaultFullHint
+        ? 'Paste from Notion, Google Docs, or the web — headings, lists, colors, highlights, and code are kept.'
+        : variant === 'constraints'
+          ? 'Use the bullet or numbered list buttons so constraints render clearly for students.'
+          : null;
 
   return (
     <div className={`rich-text-editor-wrapper rich-text-editor-wrapper--${variant} ${className}`.trim()}>
-      {variant === 'full' && (
-        <p className="rich-text-editor-hint">
-          Paste from Notion, Google Docs, or the web — headings, lists, colors, highlights, and code are kept.
-        </p>
-      )}
+      {hintText ? <p className="rich-text-editor-hint">{hintText}</p> : null}
       <ReactQuill
         ref={quillRef}
         id={id}

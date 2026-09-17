@@ -20,6 +20,7 @@ import { useExamLock } from '../../context/ExamLockContext';
 import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
 import ExamSecurityOverlay from '../../components/ExamSecurityOverlay';
 import RichTextDisplay from '../../components/RichTextDisplay';
+import { isRichTextEmpty } from '../../utils/richTextUtils';
 import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import { parseSchemaSql } from '../../utils/schemaParser';
@@ -1676,7 +1677,7 @@ const TestTaking = () => {
                   <h4>{questionData.title}</h4>
                   <RichTextDisplay content={questionData.description} className="description-content" />
                   
-                  {questionData.constraints && (
+                  {!isRichTextEmpty(questionData.constraints) && (
                     <div className="constraints-section">
                       <strong>Constraints:</strong>
                       <RichTextDisplay content={questionData.constraints} className="constraints-content" />

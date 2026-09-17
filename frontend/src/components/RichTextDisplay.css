@@ -56,6 +56,14 @@
   padding-left: 1.6em;
 }
 
+.rich-text-display ul {
+  list-style-type: disc;
+}
+
+.rich-text-display ol {
+  list-style-type: decimal;
+}
+
 .rich-text-display ul ul,
 .rich-text-display ol ol,
 .rich-text-display ul ol,
@@ -66,6 +74,20 @@
 .rich-text-display li {
   margin: 0.15em 0;
   padding-left: 0.15em;
+  display: list-item;
+}
+
+/* Quill 2 fallback when data-list was not normalized */
+.rich-text-display li[data-list='bullet'] {
+  list-style-type: disc;
+}
+
+.rich-text-display li[data-list='ordered'] {
+  list-style-type: decimal;
+}
+
+.rich-text-display .ql-ui {
+  display: none !important;
 }
 
 .rich-text-display li > p {

@@ -1086,6 +1086,19 @@
   color: var(--text-secondary);
 }
 
+.practice-constraints-content,
+.practice-constraints-content.rich-text-display {
+  color: var(--text-secondary);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.practice-constraints-content ul,
+.practice-constraints-content ol {
+  margin: 0.25em 0 0.5em;
+  padding-left: 1.4em;
+}
+
 .practice-example-box {
   padding: 14px 16px;
   margin-bottom: 10px;

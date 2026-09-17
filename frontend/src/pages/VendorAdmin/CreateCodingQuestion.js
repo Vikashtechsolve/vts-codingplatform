@@ -6,10 +6,10 @@ import axiosInstance from '../../utils/axios';
 import { CODE_REQUEST_TIMEOUT_EXECUTE_MS } from '../../config/codeExecution';
 import Modal from '../../components/Modal';
 import RichTextEditor from '../../components/RichTextEditor';
-import RichTextDisplay from '../../components/RichTextDisplay';
+import RichTextDisplay, { normalizeQuillLists } from '../../components/RichTextDisplay';
 import VendorQuestionFormPage from '../../components/VendorAdmin/VendorQuestionFormPage';
 import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
-import { isRichTextEmpty } from '../../utils/richTextUtils';
+import { isRichTextEmpty, ensureRichHtml } from '../../utils/richTextUtils';
 import TagInput from '../../components/TagInput';
 import CodingQuestionCodeWorkspace from '../../components/VendorAdmin/CodingQuestionCodeWorkspace';
 import './CreateCodingQuestion.css';
@@ -216,7 +216,8 @@ const CreateCodingQuestion = () => {
         allowedLanguages: mergedAllowed,
         testCases: q.testCases && q.testCases.length > 0 ? q.testCases : [{ input: '', expectedOutput: '', isHidden: false, points: 10 }],
         starterCode: normalizedStarter,
-        constraints: q.constraints || '',
+        // Legacy plain-text constraints → HTML so Quill shows lists/newlines correctly
+        constraints: ensureRichHtml(q.constraints || ''),
         tags: q.tags || []
       });
 
@@ -539,8 +540,14 @@ const CreateCodingQuestion = () => {
       return;
     }
     
+    const constraintsHtml = isRichTextEmpty(formData.constraints)
+      ? ''
+      : normalizeQuillLists(formData.constraints);
+
     const payload = {
       ...formData,
+      // Persist empty Quill shells as '' so old consumers stay clean
+      constraints: constraintsHtml,
       solution: testCode,
     };
 
@@ -653,16 +660,21 @@ const CreateCodingQuestion = () => {
             )}
           </div>
 
-          <div className="form-group">
+          <div className="vqf-rich-field cq-constraints-field">
             <label>Constraints</label>
-            <textarea
-              name="constraints"
+            <RichTextEditor
+              variant="constraints"
               value={formData.constraints}
-              onChange={handleChange}
-              rows="3"
-              placeholder="e.g., 1 ≤ n ≤ 10^5, -10^9 ≤ nums[i] ≤ 10^9"
-              className="form-textarea"
+              onChange={(html) => setFormData((prev) => ({ ...prev, constraints: html }))}
+              placeholder="Click the bullet list button, then add each constraint on its own line…"
+              minHeight={110}
             />
+            {!isRichTextEmpty(formData.constraints) && (
+              <div className="vqf-rich-preview cq-constraints-preview">
+                <p className="vqf-rich-preview-label">Student preview</p>
+                <RichTextDisplay content={formData.constraints} className="cq-constraints-preview-body" />
+              </div>
+            )}
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { FiArrowLeft, FiPlay, FiSend } from 'react-icons/fi';
 import MonacoCodeEditor from '../../../components/MonacoCodeEditor';
 import RichTextDisplay from '../../../components/RichTextDisplay';
+import { isRichTextEmpty } from '../../../utils/richTextUtils';
 import axiosInstance from '../../../utils/axios';
 import PracticeLoading from '../../../components/Practice/PracticeLoading';
 import PracticeEmptyState from '../../../components/Practice/PracticeEmptyState';
@@ -147,10 +148,13 @@ const PracticeSolve = () => {
             </div>
           )}
 
-          {q.constraints && (
+          {!isRichTextEmpty(q.constraints) && (
             <div className="practice-solve-block">
               <h4>Constraints</h4>
-              <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{q.constraints}</p>
+              <RichTextDisplay
+                content={q.constraints}
+                className="practice-constraints-content"
+              />
             </div>
           )}
 

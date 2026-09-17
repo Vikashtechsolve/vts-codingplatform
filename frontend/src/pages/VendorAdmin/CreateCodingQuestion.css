@@ -379,3 +379,34 @@
     justify-content: center;
   }
 }
+
+/* Constraints rich field — compact, list-focused */
+.create-coding-question .cq-constraints-field {
+  margin-top: 4px;
+}
+
+.create-coding-question .cq-constraints-preview {
+  background: color-mix(in srgb, var(--cq-accent, #2563eb) 6%, var(--cq-surface, #f8fafc));
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--cq-accent, #2563eb) 22%, var(--cq-border, #e5e7eb));
+}
+
+.create-coding-question .cq-constraints-preview-body {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.create-coding-question .cq-constraints-preview-body ul,
+.create-coding-question .cq-constraints-preview-body ol {
+  margin: 0.2em 0 0.35em;
+  padding-left: 1.35em;
+}
+
+.create-coding-question .cq-constraints-preview-body li {
+  margin: 0.15em 0;
+}
+
+.create-coding-question .rich-text-editor-wrapper--constraints .ql-editor {
+  min-height: 110px;
+}

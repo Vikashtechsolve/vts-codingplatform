@@ -326,6 +326,19 @@
   line-height: 1.6;
 }
 
+.constraints-content ul,
+.constraints-content ol,
+.constraints-content.rich-text-display ul,
+.constraints-content.rich-text-display ol {
+  margin: 0.25em 0 0.4em;
+  padding-left: 1.4em;
+}
+
+.constraints-content li,
+.constraints-content.rich-text-display li {
+  margin: 0.2em 0;
+}
+
 .examples-section {
   margin-top: 25px;
 }

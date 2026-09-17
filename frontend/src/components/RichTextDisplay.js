@@ -1,6 +1,7 @@
 import React from 'react';
 import DOMPurify from 'dompurify';
 import { sanitizeInlineStyle } from '../utils/richTextSanitize';
+import { normalizePlainForDisplay, looksLikeHtml } from '../utils/richTextUtils';
 import './RichTextDisplay.css';
 
 const ALLOWED_TAGS = [
@@ -19,6 +20,7 @@ const ALLOWED_ATTR = [
   'href', 'target', 'rel', 'class', 'src', 'alt', 'title', 'width', 'height', 'style',
   'colspan', 'rowspan', 'scope',
   'frameborder', 'allowfullscreen', 'allow',
+  'data-list',
 ];
 
 let purifyHooksBound = false;
@@ -63,9 +65,44 @@ export const htmlToListPreview = (content) => {
   return text.replace(/\s+/g, ' ').trim();
 };
 
+/**
+ * Quill 2 stores bullets as <ol><li data-list="bullet">. Convert those to real <ul>
+ * and drop Quill UI chrome so lists render with normal disc/decimal markers.
+ */
+export const normalizeQuillLists = (html) => {
+  if (!html || typeof html !== 'string' || !html.includes('data-list')) return html;
+  if (typeof document === 'undefined') return html;
+
+  const root = document.createElement('div');
+  root.innerHTML = html;
+
+  root.querySelectorAll('.ql-ui').forEach((el) => el.remove());
+
+  root.querySelectorAll('ol').forEach((ol) => {
+    const items = Array.from(ol.children).filter((el) => el.tagName === 'LI');
+    if (!items.length) return;
+
+    const allBullet = items.every((li) => li.getAttribute('data-list') === 'bullet');
+    if (allBullet) {
+      const ul = document.createElement('ul');
+      items.forEach((li) => {
+        li.removeAttribute('data-list');
+        ul.appendChild(li);
+      });
+      ol.replaceWith(ul);
+      return;
+    }
+
+    items.forEach((li) => li.removeAttribute('data-list'));
+  });
+
+  return root.innerHTML;
+};
+
 /** Decode entity-encoded HTML (e.g. &lt;p&gt;) saved or transported as plain text. */
 const normalizeHtmlContent = (html) => {
   if (!html || typeof html !== 'string') return '';
+  let out = html;
   const trimmed = html.trim();
   if (
     trimmed.includes('&lt;') &&
@@ -73,18 +110,24 @@ const normalizeHtmlContent = (html) => {
     !/<[a-z][\s\S]*>/i.test(trimmed)
   ) {
     if (typeof document === 'undefined') {
-      return trimmed
+      out = trimmed
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'");
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.innerHTML = trimmed;
+      out = textarea.value;
     }
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = trimmed;
-    return textarea.value;
   }
-  return html;
+  // Legacy plain text: structured → HTML lists/paragraphs; single-line → escape only
+  // (no <p> wrap on single-line so MCQ/options/etc. keep prior spacing)
+  if (!looksLikeHtml(out)) {
+    return normalizePlainForDisplay(out);
+  }
+  return normalizeQuillLists(out);
 };
 
 const RichTextDisplay = ({
