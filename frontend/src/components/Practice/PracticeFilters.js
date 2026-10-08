@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { FiSearch } from 'react-icons/fi';
 
+const STATUS_CHIPS = [
+  { value: '', label: 'All' },
+  { value: 'solved', label: 'Solved' },
+  { value: 'attempted', label: 'Attempted' },
+  { value: 'unsolved', label: 'Todo' },
+];
+
+const DIFF_CHIPS = [
+  { value: '', label: 'All' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hard', label: 'Hard' },
+];
+
 const PracticeFilters = ({ filters, onChange, topics = [] }) => {
   const [searchInput, setSearchInput] = useState(filters.search || '');
 
@@ -16,27 +30,44 @@ const PracticeFilters = ({ filters, onChange, topics = [] }) => {
   const setField = (key, value) => onChange({ ...filters, [key]: value });
 
   return (
-    <div className="practice-filters">
+    <div className="practice-filters ps-filters">
       <div className="practice-filter-search">
         <FiSearch aria-hidden />
         <input
           type="search"
-          placeholder="Search by title or tag…"
+          placeholder="Search problems…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           aria-label="Search problems"
         />
       </div>
-      <select
-        value={filters.difficulty || ''}
-        onChange={(e) => setField('difficulty', e.target.value)}
-        aria-label="Filter by difficulty"
-      >
-        <option value="">All difficulties</option>
-        <option value="easy">Easy</option>
-        <option value="medium">Medium</option>
-        <option value="hard">Hard</option>
-      </select>
+
+      <div className="ps-chip-group" role="group" aria-label="Status">
+        {STATUS_CHIPS.map((chip) => (
+          <button
+            key={chip.value || 'all-status'}
+            type="button"
+            className={`ps-chip ${filters.status === chip.value ? 'is-active' : ''} ${chip.value ? `ps-chip--${chip.value}` : ''}`}
+            onClick={() => setField('status', chip.value)}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="ps-chip-group" role="group" aria-label="Difficulty">
+        {DIFF_CHIPS.map((chip) => (
+          <button
+            key={chip.value || 'all-diff'}
+            type="button"
+            className={`ps-chip ${filters.difficulty === chip.value ? 'is-active' : ''} ${chip.value ? `ps-chip-diff--${chip.value}` : ''}`}
+            onClick={() => setField('difficulty', chip.value)}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
       <select
         value={filters.topic || ''}
         onChange={(e) => setField('topic', e.target.value)}
@@ -46,16 +77,6 @@ const PracticeFilters = ({ filters, onChange, topics = [] }) => {
         {topics.map((t) => (
           <option key={t._id} value={t._id}>{t.label}</option>
         ))}
-      </select>
-      <select
-        value={filters.status || ''}
-        onChange={(e) => setField('status', e.target.value)}
-        aria-label="Filter by status"
-      >
-        <option value="">All status</option>
-        <option value="solved">Solved</option>
-        <option value="attempted">Attempted</option>
-        <option value="unsolved">Not started</option>
       </select>
     </div>
   );

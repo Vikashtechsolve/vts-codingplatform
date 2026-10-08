@@ -93,6 +93,12 @@ async function listGlobalQuestions(Model, req, res, { searchFields, select, popu
         page,
         limit,
       });
+      if (Model.modelName === 'CodingQuestion') {
+        payload.items = (payload.items || []).map((row) => ({
+          ...row,
+          practiceEnabled: !!row.practiceEnabled,
+        }));
+      }
       return res.json(payload);
     }
 
@@ -182,7 +188,9 @@ router.post('/coding', [
 router.get('/coding', async (req, res) => {
   return listGlobalQuestions(CodingQuestion, req, res, {
     searchFields: ['title', 'description'],
-    select: isPaginatedRequest(req.query) ? 'title difficulty createdAt points tags' : '-solution',
+    select: isPaginatedRequest(req.query)
+      ? '-solution -starterCode -description -testCases -examples -constraints'
+      : '-solution',
     populate: { path: 'createdBy', select: 'name email' },
   });
 });
@@ -313,7 +321,9 @@ router.post('/mcq', [
 router.get('/mcq', async (req, res) => {
   return listGlobalQuestions(MCQQuestion, req, res, {
     searchFields: ['question', 'category'],
-    select: isPaginatedRequest(req.query) ? 'question difficulty category createdAt points tags' : undefined,
+    select: isPaginatedRequest(req.query)
+      ? 'question difficulty category createdAt points tags options'
+      : undefined,
     populate: { path: 'createdBy', select: 'name email' },
   });
 });
@@ -617,9 +627,13 @@ router.post('/theory', [
 router.get('/theory', async (req, res) => {
   return listGlobalQuestions(TheoryQuestion, req, res, {
     searchFields: ['questionText'],
-    select: isPaginatedRequest(req.query) ? 'questionText difficulty maxMarks createdAt tags' : undefined,
+    select: isPaginatedRequest(req.query) ? 'questionText difficulty maxMarks points createdAt tags' : undefined,
     populate: isPaginatedRequest(req.query)
-      ? [{ path: 'subjectId', select: 'name' }, { path: 'topicId', select: 'name' }]
+      ? [
+          { path: 'subjectId', select: 'name' },
+          { path: 'topicId', select: 'name' },
+          { path: 'createdBy', select: 'name email' },
+        ]
       : ['subjectId', 'topicId', 'createdBy'],
   });
 });

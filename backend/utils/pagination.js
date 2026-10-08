@@ -53,8 +53,7 @@ async function paginatedFind(Model, {
   let finder = Model.find(query)
     .sort(sort)
     .skip((page - 1) * limit)
-    .limit(limit)
-    .lean();
+    .limit(limit);
   if (select) finder = finder.select(select);
   if (populate) {
     const pops = Array.isArray(populate) ? populate : [populate];
@@ -62,6 +61,7 @@ async function paginatedFind(Model, {
       finder = finder.populate(pop);
     }
   }
+  finder = finder.lean();
 
   const [items, total] = await Promise.all([
     finder,

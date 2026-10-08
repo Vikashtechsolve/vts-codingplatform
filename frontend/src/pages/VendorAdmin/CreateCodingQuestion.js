@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FiCopy, FiPlay } from 'react-icons/fi';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
 import { CODE_REQUEST_TIMEOUT_EXECUTE_MS } from '../../config/codeExecution';
@@ -157,9 +157,11 @@ const mergeCodeMaps = (...maps) => {
 const CreateCodingQuestion = () => {
   const { id } = useParams();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   useAuth();
   const isEditMode = !!id;
   const isGlobal = location.pathname.includes('/super-admin/global-questions');
+  const forPracticeDefault = searchParams.get('forPractice') === '1';
   const apiBase = isGlobal ? '/super-admin/global-questions' : '/questions';
   const [formData, setFormData] = useState({
     title: '',
@@ -169,7 +171,8 @@ const CreateCodingQuestion = () => {
     testCases: [{ input: '', expectedOutput: '', isHidden: false, points: 10 }],
     starterCode: { java: '', cpp: '', c: '', python: '', javascript: '' },
     constraints: '',
-    tags: []
+    tags: [],
+    practiceEnabled: isGlobal && forPracticeDefault,
   });
   const [pageLoading, setPageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -218,7 +221,8 @@ const CreateCodingQuestion = () => {
         starterCode: normalizedStarter,
         // Legacy plain-text constraints → HTML so Quill shows lists/newlines correctly
         constraints: ensureRichHtml(q.constraints || ''),
-        tags: q.tags || []
+        tags: q.tags || [],
+        practiceEnabled: !!q.practiceEnabled,
       });
 
       setTestCode(loadedSolution);
@@ -240,7 +244,11 @@ const CreateCodingQuestion = () => {
   };
 
   const meta = QUESTION_FORM_META.coding;
-  const backTo = isGlobal ? '/super-admin/global-questions' : meta.back;
+  const backTo = isGlobal
+    ? (forPracticeDefault || formData.practiceEnabled
+        ? '/super-admin/practice/questions'
+        : '/super-admin/global-questions')
+    : meta.back;
 
   const showModal = (title, message, type = 'info') => {
     setModal({ isOpen: true, title, message, type });
@@ -546,10 +554,16 @@ const CreateCodingQuestion = () => {
 
     const payload = {
       ...formData,
-      // Persist empty Quill shells as '' so old consumers stay clean
       constraints: constraintsHtml,
       solution: testCode,
     };
+
+    // Practice bank is global-only; never send the flag on vendor-owned questions
+    if (!isGlobal) {
+      delete payload.practiceEnabled;
+    } else {
+      payload.practiceEnabled = !!formData.practiceEnabled;
+    }
 
     setSaving(true);
 
@@ -563,10 +577,20 @@ const CreateCodingQuestion = () => {
         console.log('📤 Creating coding question...');
         const response = await axiosInstance.post(`${apiBase}/coding`, payload);
         console.log('✅ Question created:', response.data);
-        showModal('Success', 'Question created successfully!', 'success');
+        showModal(
+          'Success',
+          isGlobal && payload.practiceEnabled
+            ? 'Question created and added to the student Practice Bank.'
+            : 'Question created successfully!',
+          'success'
+        );
       }
       setTimeout(() => {
-        navigate(isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions');
+        if (isGlobal && (forPracticeDefault || formData.practiceEnabled)) {
+          navigate('/super-admin/practice/questions');
+        } else {
+          navigate(isGlobal ? '/super-admin/global-questions' : '/vendor-admin/questions');
+        }
       }, 1500);
     } catch (error) {
       console.error('❌ Error saving question:', error);
@@ -676,6 +700,26 @@ const CreateCodingQuestion = () => {
               </div>
             )}
           </div>
+
+          {isGlobal && (
+            <div className="form-group cq-practice-toggle">
+              <label className="cq-practice-toggle-label">
+                <input
+                  type="checkbox"
+                  checked={!!formData.practiceEnabled}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, practiceEnabled: e.target.checked }))
+                  }
+                />
+                <span>
+                  <strong>Show in student Practice Bank</strong>
+                  <small>
+                    Students across all vendors can solve this in Practice when their org has Practice enabled.
+                  </small>
+                </span>
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="form-section cq-section">

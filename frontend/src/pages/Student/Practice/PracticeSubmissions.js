@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import axiosInstance from '../../../utils/axios';
 import PracticePageLayout from '../../../components/Practice/PracticePageLayout';
 import PracticeEmptyState from '../../../components/Practice/PracticeEmptyState';
-import { formatStatus, statusClass } from '../../../components/Practice/practiceUtils';
+import { formatLanguage, formatScore } from '../../../components/Practice/practiceUtils';
+import PracticeStatusIcon from '../../../components/Practice/PracticeStatusIcon';
 import '../../../styles/practice-pages.css';
 
 const PracticeSubmissions = () => {
@@ -38,6 +39,7 @@ const PracticeSubmissions = () => {
               <tr>
                 <th>Status</th>
                 <th>Problem</th>
+                <th>Score</th>
                 <th>Tests</th>
                 <th>Language</th>
                 <th>Submitted</th>
@@ -48,13 +50,12 @@ const PracticeSubmissions = () => {
               {items.map((s) => (
                 <tr key={s._id}>
                   <td>
-                    <span className={`practice-status practice-status-${statusClass(s.status)}`}>
-                      {formatStatus(s.status)}
-                    </span>
+                    <PracticeStatusIcon status={s.status} size={16} showLabel />
                   </td>
                   <td className="practice-table-title">{s.questionId?.title || 'Question'}</td>
+                  <td>{formatScore(s.score)}</td>
                   <td>{s.passedTests}/{s.totalTests}</td>
-                  <td>{s.language}</td>
+                  <td>{formatLanguage(s.language)}</td>
                   <td className="practice-meta-muted">
                     {new Date(s.submittedAt).toLocaleString()}
                   </td>

@@ -20,6 +20,12 @@ const {
 } = require('../utils/practice/practiceRecommendationService');
 const { getLeaderboard, getPercentile } = require('../utils/practice/practiceRankingService');
 const { runCodeBatch, deriveSubmissionStatus } = require('../utils/practice/runCodeBatch');
+const {
+  buildStatusFilter,
+  getQuestionAttemptStats,
+  getDifficultyProgress,
+  attachAttemptStats,
+} = require('../utils/practice/practiceProgress');
 
 const router = express.Router();
 
@@ -31,14 +37,6 @@ async function isPracticeEnabledForVendor(vendorId) {
   return vendor?.settings?.practice?.enabled !== false;
 }
 
-function buildStatusFilter(status, solvedIds, attemptedIds) {
-  if (!status) return null;
-  if (status === 'solved') return { _id: { $in: solvedIds } };
-  if (status === 'attempted') return { _id: { $in: attemptedIds, $nin: solvedIds } };
-  if (status === 'unsolved') return { _id: { $nin: solvedIds } };
-  return null;
-}
-
 // GET /api/practice/dashboard
 router.get('/dashboard', async (req, res) => {
   try {
@@ -47,7 +45,7 @@ router.get('/dashboard', async (req, res) => {
     }
 
     const profile = await getProfileSummary(req.user._id);
-    const [recommendations, roadmap, dailyChallenge, percentile] = await Promise.all([
+    const [recommendations, roadmap, dailyChallenge, percentile, progress] = await Promise.all([
       getRecommendations(req.user._id, profile, 6),
       getRoadmapProgress(req.user._id, profile),
       PracticeDailyChallenge.findOne({ date: todayKey() })
@@ -58,12 +56,8 @@ router.get('/dashboard', async (req, res) => {
         })
         .lean(),
       getPercentile(req.user._id, req.user.vendorId),
+      getDifficultyProgress(profile),
     ]);
-
-    const totalPractice = await CodingQuestion.countDocuments({
-      isGlobal: true,
-      practiceEnabled: true,
-    });
 
     res.json({
       profile,
@@ -71,7 +65,8 @@ router.get('/dashboard', async (req, res) => {
       roadmap,
       dailyChallenge: dailyChallenge?.questionId || null,
       percentile,
-      totalPracticeQuestions: totalPractice,
+      totalPracticeQuestions: progress.total,
+      progress,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -110,7 +105,7 @@ router.get('/questions', async (req, res) => {
 
     const sort = req.query.sort === 'difficulty' ? { difficulty: 1 } : { createdAt: -1 };
 
-    const [items, total] = await Promise.all([
+    const [items, total, progress] = await Promise.all([
       CodingQuestion.find(filter)
         .select('title difficulty tags practiceTopics estimatedMinutes companyTags createdAt')
         .populate('practiceTopics', 'slug label')
@@ -119,21 +114,23 @@ router.get('/questions', async (req, res) => {
         .limit(limit)
         .lean(),
       CodingQuestion.countDocuments(filter),
+      getDifficultyProgress(profile),
     ]);
+
+    const attemptStats = await getQuestionAttemptStats(
+      req.user._id,
+      items.map((q) => q._id)
+    );
 
     const solvedSet = new Set(solvedIds.map(String));
     const attemptedSet = new Set(attemptedIds.map(String));
 
     const mapped = items.map((q) => ({
       ...sanitizePracticeQuestionList(q),
-      userStatus: solvedSet.has(String(q._id))
-        ? 'solved'
-        : attemptedSet.has(String(q._id))
-          ? 'attempted'
-          : 'unsolved',
+      ...attachAttemptStats(q, attemptStats.get(String(q._id)), solvedSet, attemptedSet),
     }));
 
-    res.json(paginatedResponse({ items: mapped, page, limit, total }));
+    res.json(paginatedResponse({ items: mapped, page, limit, total, extra: { progress } }));
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -162,22 +159,25 @@ router.get('/questions/:id', async (req, res) => {
     const solvedSet = new Set((profile.solvedQuestionIds || []).map(String));
     const attemptedSet = new Set((profile.attemptedQuestionIds || []).map(String));
 
-    const lastSubmission = await PracticeSubmission.findOne({
-      studentId: req.user._id,
-      questionId: question._id,
-    })
-      .sort({ submittedAt: -1 })
-      .select('code language status submittedAt passedTests totalTests')
-      .lean();
+    const [submissions, attemptStats] = await Promise.all([
+      PracticeSubmission.find({
+        studentId: req.user._id,
+        questionId: question._id,
+      })
+        .sort({ submittedAt: -1 })
+        .select('code language status submittedAt passedTests totalTests score timeSpentMs attemptNumber')
+        .limit(30)
+        .lean(),
+      getQuestionAttemptStats(req.user._id, [question._id]),
+    ]);
+
+    const stats = attemptStats.get(String(question._id));
 
     res.json({
       question: sanitizePracticeQuestion(question),
-      userStatus: solvedSet.has(String(question._id))
-        ? 'solved'
-        : attemptedSet.has(String(question._id))
-          ? 'attempted'
-          : 'unsolved',
-      lastSubmission,
+      ...attachAttemptStats(question, stats, solvedSet, attemptedSet),
+      lastSubmission: submissions[0] || null,
+      submissions,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -249,10 +249,12 @@ router.post('/questions/:id/submit', [
 
     res.json({
       accepted: result.accepted,
+      submissionId: result.submission._id,
       status: result.submission.status,
       passedTests: result.submission.passedTests,
       totalTests: result.submission.totalTests,
       score: result.submission.score,
+      attemptNumber: result.submission.attemptNumber,
       batchResult: result.batchResult,
       profile: result.profile,
     });
@@ -282,10 +284,13 @@ router.get('/analytics', async (req, res) => {
       };
     });
 
+    const progress = await getDifficultyProgress(profile);
+
     res.json({
       profile,
       topicStats,
       difficulty: profile.difficulty,
+      progress,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

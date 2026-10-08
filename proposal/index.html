@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SkillTrixa — Commercial Proposal</title>
+  <style>
+    @font-face { font-family: "Jakarta"; src: url("fonts/jakarta-latin.woff2") format("woff2"); font-weight: 400 800; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122; }
+    @font-face { font-family: "Jakarta"; src: url("fonts/jakarta-ext.woff2") format("woff2"); font-weight: 400 800; unicode-range: U+0100-02BA, U+20A0-20C0; }
+    @font-face { font-family: "Sora"; src: url("fonts/sora-latin.woff2") format("woff2"); font-weight: 600 800; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122; }
+    @font-face { font-family: "Sora"; src: url("fonts/sora-ext.woff2") format("woff2"); font-weight: 600 800; unicode-range: U+0100-02BA, U+20A0-20C0; }
+
+    @page { size: 1920px 1080px; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { width: 1920px; background: #0b0b0d; color: #111827; }
+    body { font-family: Jakarta, "Plus Jakarta Sans", system-ui, sans-serif; font-size: 19px; line-height: 1.4; }
+    h1, h2, h3, h4, .sora { font-family: Sora, Jakarta, sans-serif; letter-spacing: -0.04em; line-height: 1.08; font-weight: 700; }
+    img { display: block; max-width: 100%; height: auto; }
+
+    .page {
+      width: 1920px; height: 1080px; overflow: hidden; position: relative;
+      page-break-after: always; break-after: page;
+      background: #eceef2;
+    }
+    .page:last-child { page-break-after: auto; break-after: auto; }
+    .page.dark { background: #0c0c0e; color: #fafafa; }
+    .page.ink { background: #111113; color: #fafafa; }
+    .page.wine { background: #1a0c0c; color: #fafafa; }
+    .page.navy { background: #0b1220; color: #fafafa; }
+    .page.vnd { background: #f4ebe4; }
+    .page.stu { background: #e6edf7; }
+
+    .page.vnd::before, .page.stu::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 14px; z-index: 2;
+    }
+    .page.vnd::before { background: #c41e1e; }
+    .page.stu::before { background: #1d4ed8; }
+
+    .pad { padding: 26px 48px 42px; height: 100%; display: flex; flex-direction: column; }
+    .vnd .pad, .stu .pad { padding-left: 58px; }
+
+    .top { display: flex; justify-content: space-between; align-items: center; height: 28px; flex-shrink: 0; }
+    .brand { display: flex; align-items: center; gap: 10px; font-family: Sora, sans-serif; font-weight: 700; font-size: 17px; letter-spacing: -.04em; }
+    .mark {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: linear-gradient(180deg, #ff4d2e, #dc2626);
+      color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 800;
+    }
+    .dark .brand, .ink .brand, .wine .brand, .navy .brand { color: #fff; }
+    .pg { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #9ca3af; }
+    .pg b { color: #dc2626; }
+    .stu .pg b, .navy .pg b { color: #3b82f6; }
+
+    .kicker {
+      font-size: 13px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+      color: #dc2626; margin-bottom: 8px;
+    }
+    .stu .kicker { color: #1d4ed8; }
+    .navy .kicker, .dark .kicker.blue { color: #93c5fd; }
+    .dark .kicker, .ink .kicker, .wine .kicker { color: #f87171; }
+
+    .foot {
+      position: absolute; left: 48px; right: 48px; bottom: 14px;
+      display: flex; justify-content: space-between;
+      font-size: 13px; font-weight: 600; color: #9ca3af; letter-spacing: .03em;
+    }
+    .vnd .foot, .stu .foot { left: 58px; }
+    .dark .foot, .ink .foot, .wine .foot, .navy .foot { color: rgba(255,255,255,.4); }
+
+    .chapbar {
+      display: flex; align-items: center; gap: 12px; margin: 10px 0 0; flex-shrink: 0;
+    }
+    .pill {
+      display: inline-flex; align-items: center;
+      font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+      padding: 7px 14px; border-radius: 999px;
+    }
+    .pill.v { color: #fff; background: #c41e1e; }
+    .pill.s { color: #fff; background: #1d4ed8; }
+    .pill.n { color: #374151; background: #e5e7eb; }
+    .pill.c { color: #fff; background: #111113; }
+    .crumb { font-size: 16px; font-weight: 600; color: #6b7280; }
+    .vnd .crumb { color: #9a3412; }
+    .stu .crumb { color: #1e40af; }
+
+    .frame {
+      background: #12141a; border-radius: 14px; overflow: hidden;
+      border: 1px solid #c5ccd6;
+      box-shadow: 0 18px 40px -22px rgba(15,23,42,.4);
+      display: flex; flex-direction: column; min-height: 0; flex: 1;
+      width: fit-content; max-width: 100%;
+    }
+    .split > .frame { height: 100%; margin: 0; }
+    .pad > .frame { margin-inline: auto; }
+    .duo .frame { width: 100%; flex: 1; min-height: 0; box-shadow: none; }
+    .vnd .frame { border-color: #e0c8be; box-shadow: 0 18px 40px -22px rgba(196,30,30,.25); }
+    .stu .frame { border-color: #b9cce8; box-shadow: 0 18px 40px -22px rgba(29,78,216,.25); }
+    .chrome {
+      flex-shrink: 0; display: flex; align-items: center; gap: 7px;
+      height: 34px; padding: 0 12px;
+      background: #eceff4; border-bottom: 1px solid #d5dae3;
+    }
+    .chrome i { width: 9px; height: 9px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; }
+    .chrome i:nth-child(1) { background: #f87171; }
+    .chrome i:nth-child(2) { background: #fbbf24; }
+    .chrome i:nth-child(3) { background: #34d399; }
+    .chrome span {
+      margin-left: 6px; min-width: 0;
+      font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .vnd .chrome { background: #f7ece8; border-bottom-color: #ebd7cf; }
+    .vnd .chrome span { color: #9a3412; }
+    .stu .chrome { background: #eaf0fa; border-bottom-color: #d3dfef; }
+    .stu .chrome span { color: #1e40af; }
+    .stage {
+      flex: 1; min-height: 0;
+      display: flex; align-items: flex-start; justify-content: center;
+      overflow: hidden;
+      background-color: #12141a;
+      background-repeat: no-repeat;
+      background-position: top center;
+      background-size: contain;
+    }
+    .stage img {
+      /* One fill axis only — Chrome print stretches if width and height are both 100%. */
+      height: 100%; width: auto;
+      max-width: 100%; max-height: 100%;
+      object-fit: contain; object-position: top center;
+      background: #fff;
+    }
+
+    .split { display: grid; grid-template-columns: 340px 1fr; gap: 18px; flex: 1; min-height: 0; margin-top: 8px; align-items: stretch; }
+    .sideh { display: flex; flex-direction: column; min-height: 0; }
+    .sideh h2 { font-size: 30px; margin-bottom: 6px; }
+    .sideh .why { font-size: 16px; color: #374151; font-weight: 500; margin-bottom: 10px; line-height: 1.35; }
+    .pts { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .pts li {
+      font-size: 16px; font-weight: 600; color: #111827; line-height: 1.3;
+      padding: 10px 12px; background: #fff;
+      border: 1px solid #e5e7eb; border-radius: 10px;
+      border-left: 4px solid #c41e1e;
+    }
+    .stu .pts li { border-left-color: #1d4ed8; }
+    .note {
+      margin-top: 12px; flex-shrink: 0;
+      font-size: 15px; font-weight: 600; color: #4b5563;
+    }
+
+    .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; margin-top: 8px; }
+    .duo article { display: flex; flex-direction: column; min-height: 0; background: #fff; border-radius: 14px; padding: 10px; border: 1px solid #e8cfc6; }
+    .stu .duo article { border-color: #c7d7f0; }
+    .duo h3 { font-size: 18px; margin: 0 0 8px; }
+    .duo .mini { display: none; }
+    .pts li:nth-child(n+5) { display: none; }
+    .duo .frame { flex: 1; min-height: 0; box-shadow: none; }
+    .intro { margin-top: 6px; font-size: 16px; color: #374151; font-weight: 500; max-width: 110ch; line-height: 1.35; }
+    .vnd .intro, .stu .intro { display: none; }
+
+    .cover-grid { display: grid; grid-template-columns: .88fr 1.12fr; gap: 36px; flex: 1; min-height: 0; align-items: center; }
+    .cover h1 { font-size: 62px; max-width: 13ch; color: #fff; margin: 8px 0 16px; }
+    .cover p.lead { font-size: 22px; color: #a1a1aa; max-width: 38ch; font-weight: 500; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+    .chip {
+      font-size: 14px; font-weight: 600; color: #d4d4d8;
+      border: 1px solid rgba(255,255,255,.12); padding: 8px 13px; border-radius: 999px;
+    }
+    .cover-meta { margin-top: 22px; display: grid; gap: 8px; }
+    .cover-meta div {
+      font-size: 16px; font-weight: 600; color: #a1a1aa;
+      padding: 12px 16px; background: #17171a; border-radius: 10px; border: 1px solid rgba(255,255,255,.06);
+    }
+    .hero-stack { display: grid; grid-template-rows: 1fr 1fr; gap: 14px; height: 820px; }
+    .shot {
+      border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,.12);
+      background: #1a1a1d; display: flex; flex-direction: column; min-height: 0;
+    }
+    .shot .chrome { background: #1f1f23; border-bottom-color: #2a2a2e; }
+    .shot .chrome span { color: #d4d4d8; text-transform: none; letter-spacing: .02em; font-size: 13px; }
+    .shot.v .chrome i:nth-child(1) { background: #f87171; }
+    .shot.s .chrome i:nth-child(1) { background: #60a5fa; }
+    .shot .stage { background-color: #111; background-size: contain; background-repeat: no-repeat; background-position: top center; }
+    .shot img {
+      height: 100%; width: auto; max-width: 100%; max-height: 100%;
+      object-fit: contain; object-position: top center; background: #fff;
+    }
+    .glow {
+      position: absolute; width: 640px; height: 480px; right: -40px; top: -60px;
+      background: radial-gradient(circle, rgba(220,38,38,.32), transparent 70%);
+      pointer-events: none;
+    }
+    .glow.blue { background: radial-gradient(circle, rgba(37,99,235,.38), transparent 70%); }
+
+    .toc { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 16px; flex: 1; min-height: 0; margin-top: 14px; }
+    .toc article {
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 22px 22px 20px;
+      display: flex; flex-direction: column;
+    }
+    .toc article.vcol { background: #fdf6f3; border-color: #e8cfc6; }
+    .toc article.scol { background: #f4f7fc; border-color: #c7d7f0; }
+    .toc h3 { font-size: 26px; margin: 10px 0 14px; }
+    .toc .vh { color: #9a3412; }
+    .toc .sh { color: #1e40af; }
+    .toc ol { list-style: none; display: grid; gap: 8px; font-size: 16px; font-weight: 600; color: #1f2937; flex: 1; align-content: start; }
+    .toc .vcol ol, .toc .scol ol { gap: 7px; font-size: 15px; }
+    .toc ol b { color: #9ca3af; font-size: 14px; margin-right: 8px; font-family: Sora, sans-serif; display: inline-block; width: 48px; }
+    .toc .vcol ol b { color: #c41e1e; }
+    .toc .scol ol b { color: #1d4ed8; }
+    .toc .hint { margin-top: auto; padding-top: 14px; font-size: 15px; font-weight: 600; color: #6b7280; }
+    .combar {
+      margin-top: 14px; background: #111113; color: #fff; border-radius: 14px;
+      padding: 18px 24px; display: grid; grid-template-columns: 200px 1fr; gap: 18px; align-items: center;
+    }
+    .combar h3 { font-size: 22px; margin: 0; }
+    .combar ul { list-style: none; display: flex; gap: 22px; flex-wrap: wrap; font-size: 16px; font-weight: 600; color: #d4d4d8; }
+    .combar ul b { color: #f87171; margin-right: 6px; font-family: Sora, sans-serif; }
+
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 14px 0; flex-shrink: 0; }
+    .stat { background: #fff; border-radius: 12px; padding: 16px 18px; border: 1px solid #e5e7eb; }
+    .stat b { display: block; font-family: Sora, sans-serif; font-size: 38px; letter-spacing: -.05em; }
+    .stat span { display: block; margin-top: 4px; font-size: 14px; font-weight: 600; color: #6b7280; }
+
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; }
+    .panel {
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px 30px;
+      display: flex; flex-direction: column;
+    }
+    .panel.win { background: #111113; color: #fff; border: 0; }
+    .panel h3 { font-size: 24px; margin-bottom: 16px; }
+    .panel ul { list-style: none; display: grid; gap: 14px; }
+    .panel li { font-size: 19px; font-weight: 500; color: #374151; padding-left: 22px; position: relative; line-height: 1.35; }
+    .panel.win li { color: #d4d4d8; }
+    .panel li::before { content: "–"; position: absolute; left: 0; }
+    .panel.win li::before { content: "→"; color: #f87171; }
+    .who3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; flex: 1; min-height: 0; }
+    .who { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 20px 20px; display: flex; flex-direction: column; }
+    .who small { display: block; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+    .who.v small { color: #c41e1e; }
+    .who.s small { color: #1d4ed8; }
+    .who h4 { font-size: 22px; margin-bottom: 8px; }
+    .who p { font-size: 16px; color: #4b5563; font-weight: 500; line-height: 1.4; }
+
+    .grid8 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; flex: 1; min-height: 0; }
+    .grid10 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; flex: 1; min-height: 0; }
+    .grid10 .tile { padding: 16px 16px 14px; }
+    .grid10 .tile h4 { font-size: 19px; margin-bottom: 6px; }
+    .grid10 .tile p { font-size: 14px; }
+    .grid10 .ic { width: 36px; height: 36px; font-size: 14px; margin-bottom: 10px; }
+    .soon { font-size: 11px; font-weight: 800; letter-spacing: .08em; color: #6b7280; }
+    .tile {
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 22px 22px 18px;
+      display: flex; flex-direction: column;
+    }
+    .inc { margin-top: auto; padding-top: 14px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #9ca3af; }
+    .inc.x { color: #dc2626; }
+    .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 16px; margin-bottom: 14px; }
+    .tile h4 { font-size: 22px; margin-bottom: 8px; }
+    .tile p { font-size: 16px; color: #4b5563; font-weight: 500; line-height: 1.4; }
+    .ai { font-size: 11px; font-weight: 800; letter-spacing: .08em; color: #dc2626; }
+
+    .roles3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 12px; flex-shrink: 0; }
+    .rbox { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 18px 20px; }
+    .rbox h4 { font-size: 20px; margin-bottom: 8px; }
+    .rbox p { font-size: 16px; color: #4b5563; font-weight: 500; line-height: 1.4; }
+
+    .div-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: 36px; flex: 1; min-height: 0; align-items: stretch; margin-top: 16px; }
+    .div-left { display: flex; flex-direction: column; justify-content: center; }
+    .div-grid h1 { font-size: 68px; color: #fff; margin: 8px 0 16px; }
+    .div-grid .lead { font-size: 22px; color: rgba(255,255,255,.75); max-width: 36ch; font-weight: 500; line-height: 1.4; }
+    .part { font-size: 14px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+    .wine .part { color: #fca5a5; }
+    .navy .part { color: #93c5fd; }
+    .cat {
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 16px; padding: 24px 26px;
+      display: flex; flex-direction: column;
+    }
+    .cat-stack { display: grid; grid-template-rows: 1.4fr auto; gap: 14px; min-height: 0; }
+    .cat h3 { font-size: 20px; margin-bottom: 14px; color: #fff; }
+    .cat ol { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; flex: 1; align-content: start; }
+    .cat ol.one { grid-template-columns: 1fr; gap: 10px; }
+    .cat li { font-size: 17px; font-weight: 500; color: rgba(255,255,255,.82); display: flex; gap: 10px; line-height: 1.35; }
+    .cat b { font-family: Sora, sans-serif; font-size: 15px; width: 44px; flex-shrink: 0; }
+    .wine .cat b { color: #fca5a5; }
+    .navy .cat b { color: #93c5fd; }
+    .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 20px; }
+    .steps div {
+      background: rgba(255,255,255,.08); border-radius: 12px; padding: 14px 14px;
+      font-size: 15px; font-weight: 600; color: #fff;
+    }
+    .steps small { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; font-weight: 800; }
+    .wine .steps small { color: #fca5a5; }
+    .navy .steps small { color: #93c5fd; }
+
+    .flow { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; min-height: 0; }
+    .flow h4 { font-size: 22px; margin-bottom: 8px; }
+    .flow .why { font-size: 16px; color: #4b5563; font-weight: 500; margin-bottom: 14px; }
+    .rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .rail div { background: #f4f5f7; border-radius: 12px; padding: 14px 14px; font-size: 16px; font-weight: 600; line-height: 1.3; }
+    .rail b { display: block; color: #dc2626; font-size: 13px; letter-spacing: .1em; margin-bottom: 4px; font-family: Sora, sans-serif; }
+    .use-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; }
+    .use-grid .flow { flex: 1; }
+    .use-grid .rail {
+      grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+      flex: 1; min-height: 0;
+    }
+    .use-grid .rail div { display: flex; flex-direction: column; justify-content: center; font-size: 18px; padding: 16px; }
+    .use-note {
+      margin-top: 14px; background: #1a0c0c; color: #fff; border-radius: 14px;
+      padding: 18px 22px; font-size: 18px; font-weight: 600; line-height: 1.4;
+    }
+    .use-note span { color: #fca5a5; }
+
+    .price { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; flex: 1; min-height: 0; }
+    .price-card {
+      background: linear-gradient(180deg, #1a1a1d, #111113);
+      border: 1px solid rgba(255,255,255,.08); border-radius: 20px; padding: 32px 36px;
+      display: flex; flex-direction: column; min-height: 0;
+    }
+    .amt { font-family: Sora, sans-serif; font-size: 72px; letter-spacing: -.07em; line-height: .95; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+    .amt span { font-size: 22px; color: #a1a1aa; font-weight: 600; }
+    .price-card > p { color: #d4d4d8; margin: 14px 0 20px; font-size: 19px; max-width: 46ch; line-height: 1.4; }
+    .checks { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; flex: 1; align-content: start; }
+    .checks li { padding-left: 28px; position: relative; font-size: 17px; font-weight: 500; color: #e4e4e7; line-height: 1.35; }
+    .checks li::before { content: "✓"; position: absolute; left: 0; color: #4ade80; font-weight: 800; font-size: 18px; }
+    .ai-pay {
+      background: #1a0c0c; border: 1px solid rgba(252,165,165,.28); border-radius: 20px;
+      padding: 32px 28px; display: flex; flex-direction: column; min-height: 0;
+    }
+    .ai-pay .kicker { color: #fca5a5; }
+    .ai-pay h3 { font-size: 30px; margin: 6px 0 14px; color: #fff; }
+    .ai-pay > p { font-size: 18px; color: #fecaca; font-weight: 500; line-height: 1.4; margin-bottom: 18px; }
+    .ai-pay ul { list-style: none; display: grid; gap: 12px; flex: 1; align-content: start; }
+    .ai-pay li { font-size: 18px; font-weight: 500; color: #fde8e8; padding: 14px 16px 14px 28px; position: relative; line-height: 1.35; background: rgba(255,255,255,.05); border-radius: 12px; }
+    .ai-pay li::before { content: "→"; position: absolute; left: 0; color: #f87171; }
+    .ai-pay .gst { margin-top: auto; padding-top: 18px; font-size: 16px; color: #fca5a5; font-weight: 600; }
+
+    .tl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; flex: 1; min-height: 0; }
+    .t { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 22px 20px; display: flex; flex-direction: column; }
+    .t b { color: #dc2626; font-size: 13px; letter-spacing: .14em; font-family: Sora, sans-serif; }
+    .t h4 { margin: 10px 0 10px; font-size: 24px; }
+    .t p { font-size: 17px; color: #4b5563; font-weight: 500; line-height: 1.4; }
+    .t ul { list-style: none; margin-top: 14px; display: grid; gap: 8px; flex: 1; align-content: start; }
+    .t li { font-size: 16px; color: #374151; font-weight: 500; padding-left: 16px; position: relative; }
+    .t li::before { content: "–"; position: absolute; left: 0; color: #dc2626; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; flex: 1; min-height: 0; }
+    .two .panel { padding: 22px 24px; }
+    .two .panel ul { gap: 12px; }
+
+    .close-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 32px; align-items: stretch; flex: 1; min-height: 0; }
+    .close-grid .frame { height: 100%; min-height: 0; width: 100%; }
+    .close h1 { font-size: 52px; color: #fff; margin: 8px 0 16px; }
+    .close p { font-size: 20px; color: #a1a1aa; max-width: 40ch; font-weight: 500; line-height: 1.4; }
+    .contact { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .contact div { background: #17171a; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px 18px; }
+    .contact small { display: block; color: #71717a; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+    .contact b { font-size: 18px; }
+
+    .end-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; flex: 1; min-height: 0; margin-top: 18px; }
+    .end { border-radius: 18px; padding: 28px 28px; border: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; }
+    .end.v { background: rgba(196,30,30,.22); border-color: rgba(252,165,165,.3); }
+    .end.s { background: rgba(29,78,216,.22); border-color: rgba(147,197,253,.3); }
+    .end h3 { font-size: 30px; margin: 10px 0 12px; }
+    .end p { font-size: 18px; color: rgba(255,255,255,.72); font-weight: 500; line-height: 1.4; margin: 0 0 18px; max-width: 44ch; }
+    .end ul { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+    .end li { font-size: 19px; font-weight: 500; color: rgba(255,255,255,.88); line-height: 1.35; padding-left: 18px; position: relative; }
+    .end li::before { content: "–"; position: absolute; left: 0; opacity: .6; }
+    .end-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; flex-shrink: 0; }
+    .end-bar div { background: #17171a; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px 18px; }
+    .end-bar small { display: block; color: #71717a; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+    .end-bar b { font-size: 17px; color: #fff; }
+
+    @media screen {
+      body { background: #18181b; padding: 24px 0 50px; }
+      .page { margin: 0 auto 24px; box-shadow: 0 28px 70px rgba(0,0,0,.5); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 01 COVER -->
+  <section class="page dark cover">
+    <div class="pad">
+      <div class="glow"></div>
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg"><b>01</b> / 46</div>
+      </div>
+      <div class="cover-grid">
+        <div>
+          <p class="kicker">Commercial proposal · September 2026</p>
+          <h1>SkillTrixa assessment platform.</h1>
+          <p class="lead">One tenant, two workspaces. Vendor admins create every assessment type, assign classrooms and review results. Students take only what is assigned — coding, aptitude, MCQ, mixed, English, theory, SQL, system design, interviews and projects — in a secure exam.</p>
+          <div class="chips">
+            <span class="chip">Part 02 · Vendor admin</span>
+            <span class="chip">Part 03 · Student panel</span>
+            <span class="chip">10 test types</span>
+            <span class="chip">Coding judge</span>
+            <span class="chip">System design</span>
+          </div>
+          <div class="cover-meta">
+            <div>Platform licence · ₹399 / student / year · GST extra</div>
+            <div>If any test uses AI, that cost is paid by the vendor</div>
+            <div>Live product · test.skilltrixa.com</div>
+          </div>
+        </div>
+        <div class="hero-stack">
+          <div class="shot v">
+            <div class="chrome"><i></i><i></i><i></i><span>Vendor admin · Dashboard</span></div>
+            <div class="stage" style="background-image:url(screenshots/02-vendor-dashboard.png)"><img src="screenshots/02-vendor-dashboard.png" alt="Vendor dashboard" /></div>
+          </div>
+          <div class="shot s">
+            <div class="chrome"><i></i><i></i><i></i><span>Student panel · Live coding exam</span></div>
+            <div class="stage" style="background-image:url(screenshots/26-student-exam-taking.png)"><img src="screenshots/26-student-exam-taking.png" alt="Live coding exam" /></div>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><span>SkillTrixa Ed-Tech Solutions · Vadodara · Confidential</span><span>Screenshots from test.skilltrixa.com</span></div>
+    </div>
+  </section>
+
+  <!-- 02 CONTENTS -->
+  <section class="page">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg"><b>02</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:12px">How this proposal is organised</p>
+      <h2 style="font-size:42px;margin-bottom:4px">Four parts. Vendor admin and student panel are separate chapters.</h2>
+      <p class="intro" style="margin-top:6px">Pages 07–28 are the college / training-partner workspace (red). Pages 29–41 are every student exam type (blue). Commercials sit after both product chapters.</p>
+      <div class="toc">
+        <article>
+          <span class="pill n">Part 01</span>
+          <h3>Overview</h3>
+          <ol>
+            <li><b>01</b> Cover</li>
+            <li><b>02</b> Contents</li>
+            <li><b>03</b> Vendor analytics</li>
+            <li><b>04</b> Vendor vs student on one tenant</li>
+            <li><b>05</b> All assessment types</li>
+            <li><b>06</b> Login and three roles</li>
+          </ol>
+          <p class="hint">Context before any product screenshot chapter.</p>
+        </article>
+        <article class="vcol">
+          <span class="pill v">Part 02 · Vendor admin</span>
+          <h3 class="vh">College / partner workspace</h3>
+          <ol>
+            <li><b>07</b> Chapter divider</li>
+            <li><b>08</b> Dashboard</li>
+            <li><b>09</b> All assessments</li>
+            <li><b>10–14</b> Every test type (coding → projects)</li>
+            <li><b>15</b> Create / edit test</li>
+            <li><b>16–17</b> Question bank + coding item</li>
+            <li><b>18–20</b> Roster, classrooms, assign</li>
+            <li><b>21–22</b> Results + student analysis</li>
+            <li><b>23–25</b> Analytics (overview, tests, classrooms)</li>
+            <li><b>26</b> AI interviews</li>
+            <li><b>27–28</b> Practice, contests, settings, announcements</li>
+          </ol>
+          <p class="hint">Pages 10–14: coding, aptitude, MCQ, English, theory, mixed, SQL, system, projects.</p>
+        </article>
+        <article class="scol">
+          <span class="pill s">Part 03 · Student panel</span>
+          <h3 class="sh">Enrolled student workspace</h3>
+          <ol>
+            <li><b>29</b> Chapter divider</li>
+            <li><b>30</b> Dashboard</li>
+            <li><b>31</b> Assigned coding tests</li>
+            <li><b>32</b> Aptitude exam + MCQ exam</li>
+            <li><b>33</b> Taking a mixed exam</li>
+            <li><b>34</b> Theory exam + SQL exam</li>
+            <li><b>35</b> Taking an English exam</li>
+            <li><b>36</b> Practice hub + problem list</li>
+            <li><b>37</b> Live AI interview</li>
+            <li><b>38</b> System design exam</li>
+            <li><b>39</b> Project exam</li>
+            <li><b>40</b> Taking a coding exam</li>
+            <li><b>41</b> Test result</li>
+          </ol>
+          <p class="hint">Same live tenant. Student sees only assigned papers — never the question bank.</p>
+        </article>
+      </div>
+      <div class="combar">
+        <div>
+          <span class="pill c">Part 04</span>
+          <h3 style="margin-top:8px">Commercials</h3>
+        </div>
+        <ul>
+          <li><b>42</b> Vendor and student flow</li>
+          <li><b>43</b> ₹399 licence · AI paid by vendor</li>
+          <li><b>44</b> New vendor enrolment</li>
+          <li><b>45</b> Contact</li>
+          <li><b>46</b> Recap</li>
+        </ul>
+      </div>
+      <div class="foot"><span>Red pages = vendor admin · Blue pages = student panel</span><span>02 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 03 LIVE -->
+  <section class="page">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Overview · <b>03</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">Vendor analytics</p>
+      <h2 style="font-size:42px">What the vendor sees on a running tenant.</h2>
+      <div class="stats">
+        <div class="stat"><b>Students</b><span>Enrolled on this vendor</span></div>
+        <div class="stat"><b>Tests</b><span>Coding, mixed, aptitude, English</span></div>
+        <div class="stat"><b>Submissions</b><span>Auto-scored attempts</span></div>
+        <div class="stat"><b>Scores</b><span>Average and completion</span></div>
+        <div class="stat"><b>Rooms</b><span>Progress by classroom</span></div>
+      </div>
+      <div class="frame" style="flex:1;min-height:0">
+          <div class="chrome"><i></i><i></i><i></i><span>Vendor admin · Analytics overview · score bands, top tests, top classrooms</span></div>
+          <div class="stage" style="background-image:url(screenshots/09-vendor-analytics.png)"><img src="screenshots/09-vendor-analytics.png" alt="Analytics overview" /></div>
+        </div>
+      <div class="foot"><span>Overview · tests · classrooms</span><span>03 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 04 PLATFORM -->
+  <section class="page">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Overview · <b>04</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">Platform</p>
+      <h2 style="font-size:42px;margin-bottom:14px">Vendor admin and student panel on one tenant.</h2>
+      <div class="cols">
+        <article class="panel">
+          <h3>Without SkillTrixa</h3>
+          <ul>
+            <li>Coding on a public judge, MCQs in Forms, attendance in Excel</li>
+            <li>Batches managed in WhatsApp and shared sheets</li>
+            <li>Results arrive late; answer keys leak in review mode</li>
+            <li>No single view of who completed which assessment</li>
+            <li>Mock interviews stay 1:1 and do not scale</li>
+            <li>No fullscreen / tab-switch policy on the exam itself</li>
+          </ul>
+        </article>
+        <article class="panel win">
+          <h3>On SkillTrixa</h3>
+          <ul>
+            <li>Vendor admin and student logins on the same tenant</li>
+            <li>Classrooms map to real sections; assign tests from the roster</li>
+            <li>Fullscreen exam, 5-violation cap, score-only or full review</li>
+            <li>Results, export, analytics and per-student analysis</li>
+            <li>Practice, contests and courses in the same student panel</li>
+            <li>AI interviews and project eval optional — billed only when used</li>
+          </ul>
+        </article>
+      </div>
+      <div class="who3">
+        <div class="who"><small>Role</small><h4>Super Admin</h4><p>Creates vendors, allocates platform courses and tests, manages the global question bank and AI credits. Not shown in the rest of this deck.</p></div>
+        <div class="who v"><small>Part 02 · this proposal</small><h4>Vendor Admin</h4><p>College or training partner. Question bank, every test type, classrooms, assign, results, analytics, branding. Pages 07–28.</p></div>
+        <div class="who s"><small>Part 03 · this proposal</small><h4>Student</h4><p>Sees only assigned tests of every type, practice, interviews and results. Cannot see another vendor’s content or the question bank. Pages 29–41.</p></div>
+      </div>
+      <div class="foot"><span>Red chapter = vendor · Blue chapter = student · never mixed in this deck</span><span>04 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 05 MODULES -->
+  <section class="page">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Overview · <b>05</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">Modules</p>
+      <h2 style="font-size:38px;margin-bottom:10px">Every assessment type — vendor creates it, student takes it.</h2>
+      <div class="grid10">
+        <div class="tile"><div class="ic" style="background:#dbeafe">⟨⟩</div><h4>Coding</h4><p>Java, C++, C, Python. Visible and hidden cases on sandboxed workers. Same editor for practice and exams.</p><div class="inc">Included in ₹399</div></div>
+        <div class="tile"><div class="ic" style="background:#dcfce7">∑</div><h4>Aptitude</h4><p>Quantitative, logical and analytical papers. Auto-marked on submit. Used alone or inside mixed placement tests.</p><div class="inc">Included in ₹399</div></div>
+        <div class="tile"><div class="ic" style="background:#ede9fe">☑</div><h4>MCQ</h4><p>Single and multiple-choice objective items. Instant scoring. Domain CS or custom vendor banks.</p><div class="inc">Included in ₹399</div></div>
+        <div class="tile"><div class="ic" style="background:#fce7f3">Aa</div><h4>English</h4><p>Grammar, vocabulary, reading in the seat. Writing, speaking and listening use AI only when the vendor enables them.</p><div class="inc">Core in ₹399 · AI extra</div></div>
+        <div class="tile"><div class="ic" style="background:#e2e8f0">¶</div><h4>Theory</h4><p>OS, DBMS, networks and conceptual answers. Auto-marked MCQ items or written-style theory papers.</p><div class="inc">Included in ₹399</div></div>
+        <div class="tile"><div class="ic" style="background:#e0e7ff">⧉</div><h4>Mixed</h4><p>Combine coding, MCQ, aptitude and theory in one timed assessment. Typical for weekly labs and campus drives.</p><div class="inc">Included in ₹399</div></div>
+        <div class="tile"><div class="ic" style="background:#fef9c3">SQL</div><h4>SQL / tools</h4><p>Dataset templates. Student queries checked against expected output. Git / Linux-style tool tasks in the same list.</p><div class="inc">Included in ₹399</div></div>
+        <div class="tile"><div class="ic" style="background:#ffedd5">▦</div><h4>System design</h4><p>Architecture, capacity and trade-off prompts. Included in the seat — not an AI module.</p><div class="inc">Included in ₹399</div></div>
+        <div class="tile"><div class="ic" style="background:#f3e8ff">🎙</div><h4>Interviews <span class="ai">AI EXTRA</span></h4><p>Voice interviews by topic and difficulty. Assign like a test. Transcript and AI score after the session.</p><div class="inc x">Billed on usage</div></div>
+        <div class="tile"><div class="ic" style="background:#ede9fe">⌘</div><h4>Projects <span class="ai">AI EXTRA</span></h4><p>GitHub and live URL submission, scored against a rubric. Company-specific templates are on the sidebar (coming soon).</p><div class="inc x">Billed on usage</div></div>
+      </div>
+      <div class="foot"><span>Vendor sidebar and student sidebar list the same types · company-specific templates coming soon</span><span>05 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 06 LOGIN -->
+  <section class="page">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Overview · <b>06</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">Access</p>
+      <h2 style="font-size:42px">One login page. Role decides the workspace.</h2>
+      <div class="roles3">
+        <div class="rbox"><h4>Super Admin</h4><p>Creates vendors, allocates platform courses and tests, manages the global question bank and AI credits. Not shown in the rest of this deck.</p></div>
+        <div class="rbox"><h4>Vendor Admin · Part 02</h4><p>College or training partner. After login: dashboard, every test type, question bank, students, classrooms, analytics, settings. Pages 07–28.</p></div>
+        <div class="rbox"><h4>Student · Part 03</h4><p>After login: assigned coding, aptitude, MCQ, mixed, English, theory, SQL, system, interviews, projects. Cannot open vendor screens. Pages 29–41.</p></div>
+      </div>
+      <div class="frame" style="flex:1;min-height:0;margin-top:12px">
+          <div class="chrome"><i></i><i></i><i></i><span>Shared login · HTTPS · JWT · role-based redirect to vendor admin or student panel</span></div>
+          <div class="stage" style="background-image:url(screenshots/01-login.png)"><img src="screenshots/01-login.png" alt="Login" /></div>
+        </div>
+      <div class="foot"><span>Live tenant: test.skilltrixa.com</span><span>06 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 07 VENDOR DIVIDER -->
+  <section class="page wine">
+    <div class="pad">
+      <div class="glow"></div>
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg"><b>07</b> / 46</div>
+      </div>
+      <div class="div-grid">
+        <div class="div-left">
+          <p class="part">Part 02 · pages 08–28</p>
+          <h1>Vendor admin</h1>
+          <p class="lead">The college / training-partner workspace. Create questions and every test type, enroll students, assign classrooms, and review results. Red bar on every following page.</p>
+          <div class="steps">
+            <div><small>01</small>Question bank</div>
+            <div><small>02</small>Create a test</div>
+            <div><small>03</small>Assign classroom</div>
+            <div><small>04</small>Students sit exam</div>
+            <div><small>05</small>Results + analytics</div>
+          </div>
+          <div class="cat" style="margin-top:18px">
+            <h3>Who logs in here</h3>
+            <ol class="one">
+            <li>College exam cell / training partner — not the student</li>
+            <li>Owns the question bank, roster, classrooms and result policy</li>
+            <li>Students never see these screens; they get assigned work only</li>
+            <li>Same tenant as the student panel after login</li>
+            </ol>
+          </div>
+        </div>
+        <div class="cat">
+          <h3>Screens in this chapter</h3>
+          <ol>
+            <li><b>08</b> Dashboard</li>
+            <li><b>09</b> All assessments</li>
+            <li><b>10</b> Coding tests</li>
+            <li><b>11</b> Aptitude + MCQ</li>
+            <li><b>12</b> English + Theory</li>
+            <li><b>13</b> Mixed + SQL</li>
+            <li><b>14</b> System + Projects</li>
+            <li><b>15</b> Create / edit test</li>
+            <li><b>16</b> Question bank</li>
+            <li><b>17</b> Create coding question</li>
+            <li><b>18</b> Student roster</li>
+            <li><b>19</b> Classrooms</li>
+            <li><b>20</b> Assign a test</li>
+            <li><b>21</b> Test results</li>
+            <li><b>22</b> Student analysis</li>
+            <li><b>23–25</b> Analytics</li>
+            <li><b>26</b> AI interviews</li>
+            <li><b>27–28</b> Practice, contests, settings, announcements</li>
+          </ol>
+        </div>
+      </div>
+      <div class="foot"><span>Who logs in: college exam cell / training partner · not the student</span><span>07 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 08 DASHBOARD -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>08</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Home after login · counts and shortcuts for every assessment type</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Dashboard</h2>
+          <p class="why">First screen after login. Totals, then jump to create test, analytics or a test type.</p>
+          <ul class="pts">
+            <li>Live totals: tests, students, classrooms, submissions</li>
+            <li>Create test, view analytics, practice analytics</li>
+            <li>Sidebar: Coding, Aptitude, MCQ, English, Theory, Mixed, Projects, Interview, System, SQL</li>
+            <li>Quick actions: new classroom, question bank, announcements</li>
+            <li>Assessment-type cards for every paper the vendor can author</li>
+          </ul>
+          <p class="note">Student dashboard is a different screen — Part 03, page 30.</p>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Vendor admin · Dashboard</span></div>
+          <div class="stage" style="background-image:url(screenshots/02-vendor-dashboard.png)"><img src="screenshots/02-vendor-dashboard.png" alt="Vendor dashboard" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Vendor admin · live SkillTrixa tenant</span><span>08 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 09 TESTS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>09</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Tests · one list for every paper on the account</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>All assessments</h2>
+          <p class="why">Filter by type, then copy the link, assign a classroom, or open results. Students never see this list — only papers assigned to them.</p>
+          <ul class="pts">
+            <li>One list for coding, aptitude, MCQ, English, theory, mixed, projects, interviews, system and SQL</li>
+            <li>Each row: copy link, assign, results</li>
+            <li>Status (active), duration, question count, score-only flag</li>
+            <li>New test from the top-right action</li>
+            <li>Type filters in the sidebar match the student assessment menu</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Vendor admin · All assessments</span></div>
+          <div class="stage" style="background-image:url(screenshots/03-vendor-tests.png)"><img src="screenshots/03-vendor-tests.png" alt="Vendor tests" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Filter by type from the left sidebar</span><span>09 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 10 CODING -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>10</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Tests · coding filter</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Coding tests</h2>
+          <p class="why">Coding-only assessments. Student code is judged against visible and hidden test cases on sandboxed workers.</p>
+          <ul class="pts">
+            <li>Languages: Java, C++, C, Python</li>
+            <li>Duration, exam window, assign, results</li>
+            <li>Hidden cases run on sandboxed workers — not the API process</li>
+            <li>Same list pattern as mixed / aptitude / English</li>
+            <li>Included in the ₹399 seat — no per-run judge fee</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · coding</span></div>
+          <div class="stage" style="background-image:url(screenshots/04-vendor-coding-tests.png)"><img src="screenshots/04-vendor-coding-tests.png" alt="Coding tests" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Included in the ₹399 seat</span><span>10 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 11 APTITUDE + MCQ -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>11</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Tests · aptitude filter and MCQ filter</span></div>
+      <p class="intro">Two auto-marked banks. Aptitude covers quantitative / logical papers. MCQ covers objective CS and domain items. Both are created from the question bank and assigned like coding tests.</p>
+      <div class="duo">
+        <article>
+          <h3>Aptitude tests</h3>
+          <ul class="mini">
+            <li>Quantitative, logical and analytical papers</li>
+            <li>Auto-marked on submit — no manual keying</li>
+            <li>Assign, copy link, open results from the row</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · aptitude</span></div>
+          <div class="stage" style="background-image:url(screenshots/29-vendor-aptitude.png)"><img src="screenshots/29-vendor-aptitude.png" alt="Vendor aptitude tests" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>MCQ tests</h3>
+          <ul class="mini">
+            <li>Single and multiple-choice objective items</li>
+            <li>Reuse the vendor MCQ bank across later papers</li>
+            <li>Included in the ₹399 seat — same as coding</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · mcq</span></div>
+          <div class="stage" style="background-image:url(screenshots/30-vendor-mcq.png)"><img src="screenshots/30-vendor-mcq.png" alt="Vendor MCQ tests" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Included in the ₹399 seat</span><span>11 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 12 ENGLISH + THEORY -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>12</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Tests · English / verbal and theory / core CS</span></div>
+      <p class="intro">English core (grammar, vocabulary, reading) sits in the seat. Writing, speaking and listening use AI only when enabled. Theory papers cover OS, DBMS, networks and conceptual answers.</p>
+      <div class="duo">
+        <article>
+          <h3>English &amp; verbal</h3>
+          <ul class="mini">
+            <li>Grammar, vocabulary and reading in ₹399</li>
+            <li>Speaking / essay / listening = AI extra if used</li>
+            <li>Own question pool plus create-test flow</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · english</span></div>
+          <div class="stage" style="background-image:url(screenshots/31-vendor-english.png)"><img src="screenshots/31-vendor-english.png" alt="Vendor English tests" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>Theory / core CS</h3>
+          <ul class="mini">
+            <li>OS, DBMS, networks, conceptual answers</li>
+            <li>Items live in the theory bank, reused later</li>
+            <li>Same assign / results pattern as MCQ</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · theory</span></div>
+          <div class="stage" style="background-image:url(screenshots/32-vendor-theory.png)"><img src="screenshots/32-vendor-theory.png" alt="Vendor theory tests" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>English core in ₹399 · speaking / essay / listening billed if AI is used</span><span>12 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 13 MIXED + SQL -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>13</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Tests · mixed papers and practical SQL</span></div>
+      <p class="intro">Mixed papers combine coding, MCQ, aptitude and theory in one timed window — typical for labs and campus drives. SQL tests use dataset templates; student queries are checked against expected output.</p>
+      <div class="duo">
+        <article>
+          <h3>Mixed tests</h3>
+          <ul class="mini">
+            <li>One paper, several question types</li>
+            <li>Same exam shell the student uses for coding</li>
+            <li>Score-only option for placement mixed papers</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · mixed</span></div>
+          <div class="stage" style="background-image:url(screenshots/33-vendor-mixed.png)"><img src="screenshots/33-vendor-mixed.png" alt="Vendor mixed tests" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>Practical tools (SQL)</h3>
+          <ul class="mini">
+            <li>Dataset templates owned by the vendor</li>
+            <li>Queries validated against expected output</li>
+            <li>Included in the ₹399 seat</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · sql</span></div>
+          <div class="stage" style="background-image:url(screenshots/36-vendor-sql.png)"><img src="screenshots/36-vendor-sql.png" alt="Vendor SQL tests" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Included in the ₹399 seat</span><span>13 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 14 SYSTEM + PROJECTS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>14</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">System design in the seat · project evaluation is AI extra</span></div>
+      <p class="intro">System design is architecture, capacity and trade-offs — included in ₹399. Project evaluation scores GitHub / live URLs against a rubric and is billed only when used. Company-specific templates are on the sidebar (coming soon).</p>
+      <div class="duo">
+        <article>
+          <h3>System design</h3>
+          <ul class="mini">
+            <li>Architecture and scalability prompts</li>
+            <li>Create a problem, assign like any other test</li>
+            <li>Not an AI module — in the seat</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · system</span></div>
+          <div class="stage" style="background-image:url(screenshots/35-vendor-system.png)"><img src="screenshots/35-vendor-system.png" alt="Vendor system design" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>Project evaluation · AI extra</h3>
+          <ul class="mini">
+            <li>GitHub and live URL submission</li>
+            <li>Rubric scoring billed only when used</li>
+            <li>Off unless the vendor starts this line</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/tests · project</span></div>
+          <div class="stage" style="background-image:url(screenshots/34-vendor-project.png)"><img src="screenshots/34-vendor-project.png" alt="Vendor project evaluation" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>System design in ₹399 · project AI billed on usage · company templates coming soon</span><span>14 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 15 CREATE TEST -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>15</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Create / edit a paper from the question bank</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Create / edit test</h2>
+          <p class="why">Build a paper in one sitting — duration, window, result policy and questions from the bank.</p>
+          <ul class="pts">
+            <li>Title, duration, schedule (start / end window)</li>
+            <li>Result policy: full review or score only</li>
+            <li>Add questions from the bank; total marks update live</li>
+            <li>Auto-submit in-progress attempts when the window ends</li>
+            <li>Score-only is typical for placement tests</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Create / edit test · DSA Questions</span></div>
+          <div class="stage" style="background-image:url(screenshots/05-vendor-create-test.png)"><img src="screenshots/05-vendor-create-test.png" alt="Create test" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Score-only option for placement tests</span><span>15 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 12 QUESTIONS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>16</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Question bank · vendor-owned, reused across later tests</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Question bank</h2>
+          <p class="why">Items live here, not inside a single paper. Students never open this screen.</p>
+          <ul class="pts">
+            <li>Vendor-owned question bank, reused across later tests</li>
+            <li>Coding, MCQ, aptitude, theory and English item types</li>
+            <li>Filter by type and tags</li>
+            <li>Create coding, MCQ, aptitude, theory or English items</li>
+            <li>My questions vs allocated global pool</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/questions</span></div>
+          <div class="stage" style="background-image:url(screenshots/06-vendor-questions.png)"><img src="screenshots/06-vendor-questions.png" alt="Question bank" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>My questions vs global pool</span><span>16 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 13 CREATE CODING Q -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>17</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Author a coding item the judge will use in the exam</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Create coding question</h2>
+          <p class="why">The student editor and judge use this same data during the exam — statement, starter code, visible and hidden cases.</p>
+          <ul class="pts">
+            <li>Problem statement and constraints</li>
+            <li>Starter code per language (Java, C++, C, Python)</li>
+            <li>Visible sample cases and hidden cases</li>
+            <li>Difficulty, tags, marks</li>
+            <li>Save once, reuse in any later coding or mixed test</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/questions/coding/create</span></div>
+          <div class="stage" style="background-image:url(screenshots/17-vendor-create-coding-question.png)"><img src="screenshots/17-vendor-create-coding-question.png" alt="Create coding question" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Sandboxed workers</span><span>17 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 14 STUDENTS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>18</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Roster · enroll, filter, open analysis</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Student roster</h2>
+          <p class="why">The vendor’s enrolled learners. Filter by classroom, bulk enroll, or open a per-student analysis file.</p>
+          <ul class="pts">
+            <li>Enrolled learners for this vendor only</li>
+            <li>Search by name, email or enrollment number</li>
+            <li>Bulk enroll and add student</li>
+            <li>Edit or open Analysis on every row</li>
+            <li>Filter by classroom</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/students</span></div>
+          <div class="stage" style="background-image:url(screenshots/07-vendor-students.png)"><img src="screenshots/07-vendor-students.png" alt="Students" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Filter by classroom</span><span>18 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 15 CLASSROOMS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>19</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Map real college sections, then assign a test to the whole room</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Classrooms</h2>
+          <p class="why">Map real college sections. Each card holds faculty, roster and assigned tests.</p>
+          <ul class="pts">
+            <li>One classroom per real section (department × batch)</li>
+            <li>Faculty, roster and assigned tests on each card</li>
+            <li>Manage students per classroom</li>
+            <li>Used as the target when assigning tests</li>
+            <li>Analytics can be sliced by the same classroom</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/classrooms</span></div>
+          <div class="stage" style="background-image:url(screenshots/08-vendor-classrooms.png)"><img src="screenshots/08-vendor-classrooms.png" alt="Classrooms" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Live tenant classrooms</span><span>19 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 16 ASSIGN -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>20</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Push a paper to classrooms and/or named students</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Assign a test</h2>
+          <p class="why">Send an assessment to classrooms and/or named students. Assigned students then see the paper on their dashboard — they do not pick it from a public list.</p>
+          <ul class="pts">
+            <li>Select one or more classrooms</li>
+            <li>Optionally add individual students</li>
+            <li>Same flow for coding, mixed, interviews, contests</li>
+            <li>Assigned students see the test on their dashboard</li>
+            <li>Unassigned students never see the paper</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Assign a test · classrooms and named students</span></div>
+          <div class="stage" style="background-image:url(screenshots/15-vendor-assign.png)"><img src="screenshots/15-vendor-assign.png" alt="Assign" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Classroom + individual assignment</span><span>20 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 17 RESULTS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>21</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Live submissions · used to shortlist after a mixed or coding test</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Test results</h2>
+          <p class="why">Live submissions for a paper. Export or open details per attempt. Used to shortlist after a mixed or coding test.</p>
+          <ul class="pts">
+            <li>Columns: student, score, %, status, submitted time</li>
+            <li>View details per attempt · Export report</li>
+            <li>Sort and scan completed vs in-progress rows</li>
+            <li>Used to shortlist after a mixed or coding test</li>
+            <li>Student result screen is Part 03, page 33</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Test results · submissions table</span></div>
+          <div class="stage" style="background-image:url(screenshots/16-vendor-results.png)"><img src="screenshots/16-vendor-results.png" alt="Results" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Export report</span><span>21 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 18 ANALYSIS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>22</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Per-student file for mentoring — opened from the roster</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Student analysis</h2>
+          <p class="why">One profile per learner: assigned vs completed, scores, attempt history, interviews.</p>
+          <ul class="pts">
+            <li>Tests assigned vs completed</li>
+            <li>Average score, best score, total points</li>
+            <li>Attempt history with type and last attempt date</li>
+            <li>Interviews and recent attempts on separate tabs</li>
+            <li>Used after a placement paper or mock-interview week</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Student analysis · opened from the roster</span></div>
+          <div class="stage" style="background-image:url(screenshots/18-vendor-student-analysis.png)"><img src="screenshots/18-vendor-student-analysis.png" alt="Student analysis" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Per-student file for mentoring</span><span>22 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 19 ANALYTICS OV -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>23</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Analytics · Overview tab</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Analytics overview</h2>
+          <p class="why">Account-level signal: students, scores, completion, tests and classrooms. Tabs: Overview, Tests, Classrooms.</p>
+          <ul class="pts">
+            <li>Students, active count, average score, completion</li>
+            <li>Submissions and tests for the whole account</li>
+            <li>Score bands across attempts</li>
+            <li>Top classrooms by average score</li>
+            <li>Students do not see this analytics workspace</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/analytics · Overview</span></div>
+          <div class="stage" style="background-image:url(screenshots/09-vendor-analytics.png)"><img src="screenshots/09-vendor-analytics.png" alt="Analytics overview" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Top classrooms by average score</span><span>23 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 20 ANALYTICS TESTS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>24</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Analytics · Tests tab</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Analytics by test</h2>
+          <p class="why">Every assessment with submissions, student count and average score. Open Results from any row.</p>
+          <ul class="pts">
+            <li>Every assessment with submissions and average score</li>
+            <li>Student count per paper</li>
+            <li>Sort by submissions or score</li>
+            <li>Open Results from any row</li>
+            <li>Use this to pick which paper to rerun next week</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/analytics · Tests</span></div>
+          <div class="stage" style="background-image:url(screenshots/09b-vendor-analytics-tests.png)"><img src="screenshots/09b-vendor-analytics-tests.png" alt="Analytics tests" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Tests tab inside Analytics</span><span>24 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 21 ANALYTICS CLASS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>25</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Analytics · Classrooms tab</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Analytics by classroom</h2>
+          <p class="why">Select a section to see assigned-test progress, score distribution and roster.</p>
+          <ul class="pts">
+            <li>Pick a section to see assigned-test progress</li>
+            <li>Score distribution and roster for that classroom</li>
+            <li>Assigned test progress for the section</li>
+            <li>Manage students / assigned tests from this view</li>
+            <li>Compare sections after the same mixed paper</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/analytics · Classrooms</span></div>
+          <div class="stage" style="background-image:url(screenshots/09c-vendor-analytics-classrooms.png)"><img src="screenshots/09c-vendor-analytics-classrooms.png" alt="Analytics classrooms" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Classrooms tab inside Analytics</span><span>25 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 22 INTERVIEWS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>26</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin · AI extra</span><span class="crumb">Not in the ₹399 seat — billed only when used</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>AI interviews</h2>
+          <p class="why">Voice interviews assigned like a test. Minutes are billed only when used. Turn interviews off and this line never appears on the invoice.</p>
+          <ul class="pts">
+            <li>Templates by topic: MERN, Java, C++, Python, DBMS and others</li>
+            <li>Assign to classrooms; students take a voice session</li>
+            <li>Transcript and AI score after the session</li>
+            <li>Student live interview is Part 03, page 37</li>
+            <li>Optional for the semester — not required to go live</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/interviews · AI extra</span></div>
+          <div class="stage" style="background-image:url(screenshots/14-vendor-interviews.png)"><img src="screenshots/14-vendor-interviews.png" alt="Interviews" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Billed on usage</span><span>26 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 23 PRACTICE + CONTESTS -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>27</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">Two modules included in the ₹399 seat</span></div>
+      <p class="intro">Practice analytics for enrolled students, and public contests that do not mix with the roster. Practice can be hidden in Settings. Contest registrations stay separate from enrolled students.</p>
+      <div class="duo">
+        <article>
+          <h3>Practice analytics</h3>
+          <ul class="mini">
+            <li>Solved counts, streak and difficulty mix for the vendor’s students</li>
+            <li>Same judge as official coding tests</li>
+            <li>Hide practice from Settings if the college wants exam-only</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Practice analytics</span></div>
+          <div class="stage" style="background-image:url(screenshots/12-vendor-practice.png)"><img src="screenshots/12-vendor-practice.png" alt="Practice" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>Contests</h3>
+          <ul class="mini">
+            <li>Attach an assessment, publish a public link</li>
+            <li>Registrations do not land on the enrolled-student roster</li>
+            <li>Close the window and publish ranks</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Contests</span></div>
+          <div class="stage" style="background-image:url(screenshots/13-vendor-contests.png)"><img src="screenshots/13-vendor-contests.png" alt="Contests" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Practice can be hidden in Settings · contest registrations stay separate from enrolled students</span><span>27 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 24 SETTINGS + COURSES -->
+  <section class="page vnd">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Vendor admin · <b>28</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill v">Vendor admin</span><span class="crumb">End of vendor chapter · branding, courses and announcements</span></div>
+      <p class="intro">Logo and colours apply to the student UI. Announcements reach the student inbox and notification bell. Courses open in the same student panel as tests — no second LMS login. All three are included in ₹399.</p>
+      <div class="duo">
+        <article>
+          <h3>Settings and branding</h3>
+          <ul class="mini">
+            <li>Vendor logo and brand colours on the student panel</li>
+            <li>Practice toggle and daily goal</li>
+            <li>Courses in the same sidebar — allocate or author, students open them next to tests</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Settings</span></div>
+          <div class="stage" style="background-image:url(screenshots/10-vendor-settings.png)"><img src="screenshots/10-vendor-settings.png" alt="Settings" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>Announcements</h3>
+          <ul class="mini">
+            <li>Publish to all students or selected classrooms</li>
+            <li>Students see it in the inbox and the bell</li>
+            <li>Included in the ₹399 seat</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/vendor-admin/announcements</span></div>
+          <div class="stage" style="background-image:url(screenshots/37-vendor-announcements.png)"><img src="screenshots/37-vendor-announcements.png" alt="Announcements" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Next page starts Part 03 · Student panel (blue)</span><span>28 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 25 STUDENT DIVIDER -->
+  <section class="page navy">
+    <div class="pad">
+      <div class="glow blue"></div>
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg"><b>29</b> / 46</div>
+      </div>
+      <div class="div-grid">
+        <div class="div-left">
+          <p class="part">Part 03 · pages 30–41</p>
+          <h1>Student panel</h1>
+          <p class="lead">What the enrolled student sees after they open a paper: coding, aptitude, MCQ, mixed, theory, SQL, English, system design, projects and a live AI interview — plus practice and results. Blue bar on every following page.</p>
+          <div class="steps">
+            <div><small>01</small>Login</div>
+            <div><small>02</small>Assigned tests</div>
+            <div><small>03</small>Open the paper</div>
+            <div><small>04</small>Write in the exam</div>
+            <div><small>05</small>Result (if allowed)</div>
+          </div>
+          <div class="cat" style="margin-top:18px">
+            <h3>Who logs in here</h3>
+            <ol class="one">
+              <li>Enrolled learner on this vendor — not the exam cell</li>
+              <li>Sees only papers assigned to them or their classroom</li>
+              <li>Same tenant as vendor screens; different workspace after login</li>
+              <li>Commercials start on page 42 — they are not this chapter</li>
+            </ol>
+          </div>
+        </div>
+        <div class="cat-stack">
+          <div class="cat">
+            <h3>Screens in this chapter</h3>
+            <ol>
+              <li><b>30</b> Dashboard</li>
+              <li><b>31</b> Assigned coding tests</li>
+              <li><b>32</b> Aptitude exam + MCQ exam</li>
+              <li><b>33</b> Taking a mixed exam</li>
+              <li><b>34</b> Theory exam + SQL exam</li>
+              <li><b>35</b> Taking an English exam</li>
+              <li><b>36</b> Practice hub + problems</li>
+              <li><b>37</b> Live AI interview</li>
+              <li><b>38</b> System design exam</li>
+              <li><b>39</b> Project exam</li>
+              <li><b>40</b> Taking a coding exam</li>
+              <li><b>41</b> Test result</li>
+            </ol>
+          </div>
+          <div class="cat single">
+            <h3>Students cannot open</h3>
+            <ol class="one">
+              <li>Question bank or create-test screens</li>
+              <li>Vendor analytics / classrooms / roster</li>
+              <li>Another vendor’s tests or students</li>
+              <li>Score review when the paper is score-only</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><span>Who logs in: enrolled learner on this vendor · not the exam cell</span><span>29 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 26 STUDENT DASH -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>30</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student panel</span><span class="crumb">Home after student login · assigned work only</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Dashboard</h2>
+          <p class="why">First screen after student login. Only assigned work from this vendor — not the vendor dashboard on page 08.</p>
+          <ul class="pts">
+            <li>Readiness %, upcoming, in progress, ready to start</li>
+            <li>Continue cards for unfinished tests</li>
+            <li>Sidebar lists every type: coding, aptitude, MCQ, mixed, English, theory, projects, interview, system, tools, company</li>
+            <li>Cannot see another vendor’s tests or question bank</li>
+            <li>Courses and announcements sit in the same panel</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>/student · Hello, Demo</span></div>
+          <div class="stage" style="background-image:url(screenshots/19-student-dashboard.png)"><img src="screenshots/19-student-dashboard.png" alt="Student dashboard" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Same tenant as the vendor admin screens</span><span>30 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 27 STUDENT CODING -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>31</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student panel</span><span class="crumb">Assigned coding tests · opened exam is on page 40</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Assigned coding tests</h2>
+          <p class="why">Only papers the vendor assigned to this student. Duration and exam window on each card.</p>
+          <ul class="pts">
+            <li>Duration and exam window on each card</li>
+            <li>Start test, or review if the vendor allows it</li>
+            <li>Opened coding exam is page 40</li>
+            <li>Pending vs completed filters</li>
+            <li>Vendor’s full test list is never shown here</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Student · coding tests</span></div>
+          <div class="stage" style="background-image:url(screenshots/20-student-coding-tests.png)"><img src="screenshots/20-student-coding-tests.png" alt="Student coding tests" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Assigned work only</span><span>31 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 32 APTITUDE + MCQ EXAMS -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>32</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student · Exam</span><span class="crumb">Opened papers — aptitude numeric answer and MCQ options</span></div>
+      <p class="intro">After Start test and the fullscreen gate, this is the exam the student actually sits. Question navigator on the left, answer area in the centre. Auto-marked on submit.</p>
+      <div class="duo">
+        <article>
+          <h3>Aptitude exam</h3>
+          <ul class="mini">
+            <li>Numeric / logical items with an answer box</li>
+            <li>Q1, Q2 navigator and section header</li>
+            <li>Timer and 5-violation cap in the exam chrome</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened aptitude paper · answer box</span></div>
+          <div class="stage" style="background-image:url(screenshots/44-student-exam-aptitude.png)"><img src="screenshots/44-student-exam-aptitude.png" alt="Aptitude exam" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>MCQ exam</h3>
+          <ul class="mini">
+            <li>Single-choice options, one question at a time</li>
+            <li>Full question list (Q1–Q20) on the left</li>
+            <li>Same exam shell as aptitude and theory</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened MCQ paper · options</span></div>
+          <div class="stage" style="background-image:url(screenshots/45-student-exam-mcq.png)"><img src="screenshots/45-student-exam-mcq.png" alt="MCQ exam" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Assigned list → Start test → this interface</span><span>32 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 33 MIXED EXAM -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>33</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student · Exam</span><span class="crumb">Opened mixed paper — coding section then MCQ in the same attempt</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Taking a mixed exam</h2>
+          <p class="why">One timed attempt, several question types. Screenshot: coding Q1 with the Java editor, plus MCQ items in the same navigator.</p>
+          <ul class="pts">
+            <li>Section 1 coding, section 2 MCQ (same paper)</li>
+            <li>Statement, constraints and sample cases on the left</li>
+            <li>Java / C++ / C / Python editor on the right</li>
+            <li>Student switches Qs without leaving the exam</li>
+            <li>Included in the ₹399 seat</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened mixed paper · coding Q1 + MCQ in the navigator</span></div>
+          <div class="stage" style="background-image:url(screenshots/46-student-exam-mixed.png)"><img src="screenshots/46-student-exam-mixed.png" alt="Mixed exam" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Same exam shell as a coding-only paper</span><span>33 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 34 THEORY + SQL EXAMS -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>34</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student · Exam</span><span class="crumb">Opened theory (written) and SQL (schema + query editor)</span></div>
+      <p class="intro">Theory uses a written answer box with a word-count hint. SQL shows the dataset schema and a query editor — Run checks output against the expected result.</p>
+      <div class="duo">
+        <article>
+          <h3>Theory exam</h3>
+          <ul class="mini">
+            <li>Conceptual OS / DBMS / networks prompts</li>
+            <li>Written answer, expected word count</li>
+            <li>Same Q navigator as MCQ papers</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened theory paper · written answer</span></div>
+          <div class="stage" style="background-image:url(screenshots/47-student-exam-theory.png)"><img src="screenshots/47-student-exam-theory.png" alt="Theory exam" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>SQL / tools exam</h3>
+          <ul class="mini">
+            <li>Schema diagram for the dataset</li>
+            <li>Write SQL on the right; Run to check output</li>
+            <li>Included in the ₹399 seat</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened SQL paper · schema + query editor</span></div>
+          <div class="stage" style="background-image:url(screenshots/48-student-exam-sql.png)"><img src="screenshots/48-student-exam-sql.png" alt="SQL exam" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Assigned list → Start test → this interface</span><span>34 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 35 ENGLISH EXAM -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>35</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student · Exam</span><span class="crumb">Opened English paper — Grammar, Vocabulary, Reading, Essay, Speaking</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Taking an English exam</h2>
+          <p class="why">A different exam shell from coding. Tabs for each skill. Grammar / vocabulary / reading sit in the ₹399 seat. Essay and speaking use AI only if the vendor enables them.</p>
+          <ul class="pts">
+            <li>Grammar, vocabulary, reading, essay, speaking tabs</li>
+            <li>Question navigator and flag-for-review</li>
+            <li>Fill-in / options depending on the item</li>
+            <li>Timer and 5-violation cap still apply</li>
+            <li>Core English in ₹399 · AI extra if used</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened English paper · Grammar tab</span></div>
+          <div class="stage" style="background-image:url(screenshots/49-student-exam-english.png)"><img src="screenshots/49-student-exam-english.png" alt="English exam" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Grammar / vocabulary / reading in ₹399 · essay / speaking = AI extra</span><span>35 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 36 PRACTICE DUO -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>36</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student panel</span><span class="crumb">Practice · same editor and judge as official coding tests</span></div>
+      <p class="intro">Practice hub and problem list. Vendor can hide practice from Settings. Not a separate product — included in ₹399.</p>
+      <div class="duo">
+        <article>
+          <h3>Practice hub</h3>
+          <ul class="mini">
+            <li>Daily goal, streak, solved counts</li>
+            <li>Jump into the problem list by topic</li>
+            <li>Does not mix with assigned exam scores</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Practice hub</span></div>
+          <div class="stage" style="background-image:url(screenshots/22-student-practice.png)"><img src="screenshots/22-student-practice.png" alt="Practice hub" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>Problem list</h3>
+          <ul class="mini">
+            <li>Difficulty filters and tags</li>
+            <li>Same Java / C++ / C / Python editor as exams</li>
+            <li>Run against visible cases; hidden cases on submit</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Problem list</span></div>
+          <div class="stage" style="background-image:url(screenshots/27-student-practice-problems.png)"><img src="screenshots/27-student-practice-problems.png" alt="Problems" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Daily goal, streak, difficulty filters · included in ₹399</span><span>36 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 37 INTERVIEWS -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>37</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student panel · AI extra</span><span class="crumb">After Start interview — live room with the AI interviewer</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Live AI interview</h2>
+          <p class="why">The student starts from the assigned interview list. This is the session: interviewer on the main screen, student camera beside it, current question underneath.</p>
+          <ul class="pts">
+            <li>Assigned like a test, then Start interview</li>
+            <li>AI interviewer asks out loud (topic + difficulty)</li>
+            <li>Question card under the video while they answer</li>
+            <li>Transcript and AI score after the session</li>
+            <li>Minutes billed to the vendor on usage — not in ₹399</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>After Start interview · Java backend · live room</span></div>
+          <div class="stage" style="background-image:url(screenshots/51-student-interview-live.png)"><img src="screenshots/51-student-interview-live.png" alt="Live AI interview" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Interview minutes billed on usage</span><span>37 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 38 SYSTEM DESIGN -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>38</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student · Exam</span><span class="crumb">Opened system design — 12-step paper, architecture canvas</span></div>
+      <p class="intro">After Start test. Overview states the problem and constraints. Architecture is a drag-and-drop canvas (DNS, CDN, load balancer, databases) plus a written explanation. Included in the ₹399 seat.</p>
+      <div class="duo">
+        <article>
+          <h3>Problem overview</h3>
+          <ul class="mini">
+            <li>URL shortener (or any vendor problem)</li>
+            <li>Users, QPS, storage, latency, availability</li>
+            <li>12 steps from overview to review</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened system design · problem overview</span></div>
+          <div class="stage" style="background-image:url(screenshots/52b-student-exam-system-overview.png)"><img src="screenshots/52b-student-exam-system-overview.png" alt="System design overview" /></div>
+        </div>
+        </article>
+        <article>
+          <h3>Architecture canvas</h3>
+          <ul class="mini">
+            <li>Component palette and dotted canvas</li>
+            <li>Networking, compute, storage, caching</li>
+            <li>Written explanation under the diagram</li>
+          </ul>
+          <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened system design · architecture step</span></div>
+          <div class="stage" style="background-image:url(screenshots/52-student-exam-system.png)"><img src="screenshots/52-student-exam-system.png" alt="System design architecture" /></div>
+        </div>
+        </article>
+      </div>
+      <div class="foot"><span>Assigned list → Start test → this interface · included in ₹399</span><span>38 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 39 PROJECT -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>39</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student panel · AI extra</span><span class="crumb">After Start assignment — brief, feature checklist, timer, GitHub submit</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Taking a project exam</h2>
+          <p class="why">After Start assignment the timer runs. The student builds against the feature checklist and submits a GitHub (and live) URL. AI evaluation is billed to the vendor on usage.</p>
+          <ul class="pts">
+            <li>Timed window from the moment they start</li>
+            <li>Feature requirements with marks on each item</li>
+            <li>GitHub repo, branch, optional live URL</li>
+            <li>No late commits after the timer ends</li>
+            <li>AI review billed to the vendor — not in ₹399</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Opened project · Full Stack Task Manager</span></div>
+          <div class="stage" style="background-image:url(screenshots/53-student-exam-project.png)"><img src="screenshots/53-student-exam-project.png" alt="Project exam" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Project AI billed on usage</span><span>39 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 40 CODING EXAM -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>40</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student · Exam</span><span class="crumb">Live paper · DSA Questions · Equal Row and Column Pairs</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Taking a coding exam</h2>
+          <p class="why">Statement on the left, Java editor on the right. Same judge as practice. Timer and violations in the header.</p>
+          <ul class="pts">
+            <li>Question statement on the left, editor on the right</li>
+            <li>Java, C++, C or Python · Run · custom input · submit question</li>
+            <li>Timer and violation count (0/5) in the header</li>
+            <li>Question navigator (Q1, Q2) and next question</li>
+            <li>Mixed papers use the same shell for MCQ / aptitude items</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Live exam · DSA Questions · Java</span></div>
+          <div class="stage" style="background-image:url(screenshots/26-student-exam-taking.png)"><img src="screenshots/26-student-exam-taking.png" alt="Live exam" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Same judge as practice</span><span>40 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 41 RESULT -->
+  <section class="page stu">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Student panel · <b>41</b> / 46</div>
+      </div>
+      <div class="chapbar"><span class="pill s">Student panel</span><span class="crumb">End of student chapter · shown only if the vendor allows full review</span></div>
+      <div class="split">
+        <aside class="sideh">
+          <h2>Test result</h2>
+          <p class="why">Shown when the vendor allows full review. For placement tests, set the assessment to score only — answers and per-question review stay hidden.</p>
+          <ul class="pts">
+            <li>Total score, time spent, question count, violations</li>
+            <li>Section performance (coding / MCQ / aptitude)</li>
+            <li>Per-question marks and auto-submit reason if any</li>
+            <li>Vendor results table is Part 02, page 21</li>
+            <li>Score-only mode hides answers and per-question review</li>
+          </ul>
+        </aside>
+        <div class="frame">
+          <div class="chrome"><i></i><i></i><i></i><span>Student result · full review</span></div>
+          <div class="stage" style="background-image:url(screenshots/24-student-test-result.png)"><img src="screenshots/24-student-test-result.png" alt="Result" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>Next pages are commercials — not student screens</span><span>41 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 34 USE -->
+  <section class="page">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Part 04 · Commercials · <b>42</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">How the product is used</p>
+      <h2 style="font-size:42px;margin-bottom:14px">Vendor creates the paper. Student takes it. Vendor reviews it.</h2>
+      <div class="use-grid">
+        <article class="flow" style="border-color:#e8cfc6;background:#fdf6f3">
+          <span class="pill v">Vendor admin</span>
+          <h4 style="margin-top:12px">Create, assign, review</h4>
+          <p class="why">The college or training partner owns the question bank, the roster and the result policy.</p>
+          <div class="rail">
+            <div><b>01</b>Add questions to the bank</div>
+            <div><b>02</b>Create coding, mixed, aptitude, MCQ…</div>
+            <div><b>03</b>Assign to a classroom</div>
+            <div><b>04</b>Open results and export</div>
+          </div>
+        </article>
+        <article class="flow" style="border-color:#c7d7f0;background:#f4f7fc">
+          <span class="pill s">Student panel</span>
+          <h4 style="margin-top:12px">Take only assigned work</h4>
+          <p class="why">The student never sees the question bank. Only papers assigned to them appear after login.</p>
+          <div class="rail">
+            <div><b>01</b>Open the assigned type</div>
+            <div><b>02</b>Enter fullscreen</div>
+            <div><b>03</b>Write in the editor</div>
+            <div><b>04</b>Submit · see result if allowed</div>
+          </div>
+        </article>
+      </div>
+      <div class="use-note"><span>AI is optional.</span> If any test uses AI (voice interview, project evaluation, or AI English speaking / essay / listening), that cost is paid by the vendor. Coding, aptitude, MCQ, theory, mixed, SQL, system design, practice and contests stay in the ₹399 seat.</div>
+      <div class="foot"><span>Same tenant · two logins</span><span>42 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 35 PRICING -->
+  <section class="page ink">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Part 04 · Commercials · <b>43</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">Commercials</p>
+      <h2 style="font-size:42px;margin-bottom:16px;color:#fff">Platform licence and AI cost.</h2>
+      <div class="price">
+        <div class="price-card">
+          <div style="font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f87171;margin-bottom:10px">Platform licence</div>
+          <div class="amt">₹399 <span>per student / year</span></div>
+          <p>GST extra. Charged on enrolled students for the year. Covers the vendor admin and student panel.</p>
+          <ul class="checks">
+            <li>Coding judge — Java, C++, C, Python</li>
+            <li>MCQ, aptitude, theory, mixed, SQL, system design</li>
+            <li>English core — grammar, vocabulary, reading</li>
+            <li>Classrooms, bulk enroll, assign</li>
+            <li>Practice hub and public contests</li>
+            <li>Courses in the same student login</li>
+            <li>Fullscreen exam + 5-violation cap</li>
+            <li>Results, export, analytics, analysis</li>
+            <li>Vendor logo and brand colours</li>
+            <li>Vendor admin + student logins</li>
+          </ul>
+        </div>
+        <div class="ai-pay">
+          <div class="kicker">Paid by the vendor</div>
+          <h3>If any test uses AI, the vendor pays that cost.</h3>
+          <p>AI is not in ₹399. The vendor turns it on only if they want it. Students are not billed.</p>
+          <ul>
+            <li>Voice interviews (AI score and transcript)</li>
+            <li>AI project evaluation (GitHub / live URL)</li>
+            <li>AI English — speaking, essay, listening</li>
+            <li>Billed to the vendor on actual usage</li>
+            <li>Never added to the student fee</li>
+          </ul>
+          <p class="gst">No AI used = no AI charge. GST extra on the platform licence.</p>
+        </div>
+      </div>
+      <div class="foot"><span>₹399 / student / year · GST extra · AI paid by the vendor</span><span>43 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 36 ENROL -->
+  <section class="page">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg">Part 04 · Commercials · <b>44</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">New vendor</p>
+      <h2 style="font-size:42px;margin-bottom:14px">What enrolment looks like.</h2>
+      <div class="tl">
+        <div class="t">
+          <b>01</b>
+          <h4>Vendor account</h4>
+          <p>SkillTrixa creates the vendor on the platform. Logo and colours go on the student UI. Admin users get vendor-admin login.</p>
+          <ul>
+            <li>Tenant name and branding</li>
+            <li>Vendor-admin users</li>
+            <li>AI off until the vendor asks</li>
+          </ul>
+        </div>
+        <div class="t">
+          <b>02</b>
+          <h4>Students &amp; classrooms</h4>
+          <p>Vendor bulk-enrolls the roster and maps classrooms to real sections. Students get their own login on the same tenant.</p>
+          <ul>
+            <li>Seat count = enrolled students</li>
+            <li>Classroom per section</li>
+            <li>Student cannot see vendor screens</li>
+          </ul>
+        </div>
+        <div class="t">
+          <b>03</b>
+          <h4>Question bank</h4>
+          <p>Vendor adds their own items, or uses allocated platform questions. Papers are built from this bank, not from a public list.</p>
+          <ul>
+            <li>Coding, MCQ, aptitude, English</li>
+            <li>Create test from the bank</li>
+            <li>Score-only or full review</li>
+          </ul>
+        </div>
+        <div class="t">
+          <b>04</b>
+          <h4>First assessment</h4>
+          <p>Vendor assigns a coding or mixed test to a classroom. Students sit the fullscreen exam. Vendor opens results and export.</p>
+          <ul>
+            <li>Assign → student dashboard</li>
+            <li>Fullscreen + 5-violation cap</li>
+            <li>Results, analysis, analytics</li>
+          </ul>
+        </div>
+      </div>
+      <div class="two">
+        <article class="panel">
+          <h3>Vendor sends</h3>
+          <ul>
+            <li>Enrolled student count for the year (seats)</li>
+            <li>Logo, brand colours, admin names</li>
+            <li>Classroom list (section / batch)</li>
+            <li>Whether any test will use AI (vendor pays that cost)</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>SkillTrixa sets up</h3>
+          <ul>
+            <li>Vendor tenant, branding, admin logins</li>
+            <li>Walkthrough: question bank → test → assign → results</li>
+            <li>Student login and fullscreen exam policy</li>
+            <li>AI stays off unless the vendor enables it</li>
+          </ul>
+        </article>
+      </div>
+      <div class="foot"><span>New vendor enrolment · same product for every tenant</span><span>44 / 46</span></div>
+    </div>
+  </section>
+
+  <!-- 37 CLOSE -->
+  <section class="page dark close">
+    <div class="pad">
+      <div class="glow"></div>
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg"><b>45</b> / 46</div>
+      </div>
+      <div class="close-grid">
+        <div>
+          <p class="kicker">Next step</p>
+          <h1>Open a vendor account on SkillTrixa.</h1>
+          <p>Licence is ₹399 per enrolled student per year, GST extra. If any test uses AI, that cost is paid by the vendor. Confirm seat count and we set up the tenant.</p>
+          <div class="contact">
+            <div><small>Email</small><b>support@skilltrixa.com</b></div>
+            <div><small>Phone</small><b>+91 92136 52596</b></div>
+            <div><small>Live product</small><b>test.skilltrixa.com</b></div>
+            <div><small>Studio</small><b>Phoenix Resicom, Vadodara 390019</b></div>
+          </div>
+        </div>
+        <div class="frame" style="border:1px solid rgba(255,255,255,.12)">
+          <div class="chrome"><i></i><i></i><i></i><span>Vendor admin · test results</span></div>
+          <div class="stage" style="background-image:url(screenshots/16-vendor-results.png)"><img src="screenshots/16-vendor-results.png" alt="Live results" /></div>
+        </div>
+      </div>
+      <div class="foot"><span>SkillTrixa Ed-Tech Solutions · Confidential · September 2026</span><span>GST extra</span></div>
+    </div>
+  </section>
+
+  <!-- 38 BACK -->
+  <section class="page dark">
+    <div class="pad">
+      <div class="top">
+        <div class="brand"><span class="mark">&lt;/&gt;</span> SkillTrixa</div>
+        <div class="pg"><b>46</b> / 46</div>
+      </div>
+      <p class="kicker" style="margin-top:10px">Close</p>
+      <h2 style="font-size:44px;color:#fff;margin-bottom:8px">₹399 per student per year. GST extra.</h2>
+      <p style="color:#a1a1aa;font-size:20px;font-weight:500;max-width:62ch;line-height:1.4">If any test uses AI, that cost is paid by the vendor. Confirm enrolled student count and we open the tenant.</p>
+      <div class="end-grid">
+        <div class="end v">
+          <span class="pill v">Vendor admin</span>
+          <h3>College / partner workspace</h3>
+          <p>Create questions and tests, enroll students, assign classrooms, and review results. Students never see these screens.</p>
+          <ul>
+            <li>Question bank and every test type</li>
+            <li>Classrooms and bulk enroll</li>
+            <li>Assign to a section or named students</li>
+            <li>Results table and export</li>
+            <li>Per-student analysis</li>
+            <li>Analytics by test and classroom</li>
+            <li>Branding, practice, contests</li>
+            <li>Score-only or full review per paper</li>
+          </ul>
+        </div>
+        <div class="end s">
+          <span class="pill s">Student panel</span>
+          <h3>Enrolled learner workspace</h3>
+          <p>Same tenant, different login. Only assigned work. No question bank, no other vendor’s tests.</p>
+          <ul>
+            <li>Assigned coding, aptitude, MCQ, mixed</li>
+            <li>English, theory, SQL / tools, system design</li>
+            <li>Interviews and projects when assigned</li>
+            <li>Practice hub, same coding judge</li>
+            <li>Fullscreen gate · 5-violation auto-submit</li>
+            <li>Java / C++ / C / Python editor</li>
+            <li>Result review only if allowed</li>
+            <li>Courses next to assigned tests</li>
+          </ul>
+        </div>
+      </div>
+      <div class="end-bar">
+        <div><small>Email</small><b>support@skilltrixa.com</b></div>
+        <div><small>Phone</small><b>+91 92136 52596</b></div>
+        <div><small>Live product</small><b>test.skilltrixa.com</b></div>
+        <div><small>Studio</small><b>Phoenix Resicom, Vadodara</b></div>
+      </div>
+      <div class="foot"><span>Confidential · not for redistribution</span><span>46 / 46</span></div>
+    </div>
+  </section>
+
+</body>
+</html>

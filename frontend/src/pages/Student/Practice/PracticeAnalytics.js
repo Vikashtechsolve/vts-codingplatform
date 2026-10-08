@@ -7,6 +7,7 @@ import axiosInstance from '../../../utils/axios';
 import PracticePageLayout, { PracticeSection } from '../../../components/Practice/PracticePageLayout';
 import { PracticeStatCard, PracticeStatsGrid } from '../../../components/Practice/PracticeCards';
 import { capitalize } from '../../../components/Practice/practiceUtils';
+import PracticeProgressBoard from '../../../components/Practice/PracticeProgressBoard';
 import '../../../styles/practice-pages.css';
 
 const PracticeAnalytics = () => {
@@ -24,7 +25,7 @@ const PracticeAnalytics = () => {
 
   useEffect(() => { load(); }, []);
 
-  const { profile, topicStats, difficulty } = data || {};
+  const { profile, topicStats } = data || {};
   const weekly = (profile?.weeklyProgress || []).map((d) => ({
     name: d.date?.slice(5) || '',
     solved: d.solved,
@@ -51,15 +52,7 @@ const PracticeAnalytics = () => {
         <PracticeStatCard value={`${avgMin}m`} label="Avg solve time" icon={FiClock} />
       </PracticeStatsGrid>
 
-      <PracticeSection title="By difficulty">
-        <div style={{ maxWidth: 520 }}>
-          <PracticeStatsGrid>
-          <PracticeStatCard value={difficulty?.easy || 0} label="Easy solved" />
-          <PracticeStatCard value={difficulty?.medium || 0} label="Medium solved" />
-          <PracticeStatCard value={difficulty?.hard || 0} label="Hard solved" />
-          </PracticeStatsGrid>
-        </div>
-      </PracticeSection>
+      {data?.progress && <PracticeProgressBoard progress={data.progress} />}
 
       {weekly.length > 0 && (
         <PracticeSection title="Weekly progress">
@@ -80,21 +73,33 @@ const PracticeAnalytics = () => {
 
       <PracticeSection title="By topic">
         <div className="practice-problem-grid">
-          {(topicStats || []).map((t) => (
-            <article key={t.topicId} className="practice-stat-card">
-              <div className="practice-stat-body">
-                <strong style={{ fontSize: '0.95rem' }}>{t.label}</strong>
-                <p style={{ margin: '6px 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  {t.solved} solved · {t.attempted} attempted
-                </p>
-                <div style={{ marginTop: 8 }}>
+          {(topicStats || []).map((t) => {
+            const tried = t.attempted || 0;
+            const rate = tried ? Math.round((t.solved / tried) * 100) : 0;
+            return (
+              <article key={t.topicId} className={`practice-stat-card ps-topic-card is-${t.strength}`}>
+                <div className="practice-stat-body">
+                  <strong className="ps-topic-label">{t.label}</strong>
+                  <p className="ps-topic-meta">
+                    {t.solved} solved · {t.attempted} attempted
+                  </p>
+                  <div className="ps-progress-track" aria-hidden>
+                    <div
+                      className="ps-progress-fill"
+                      style={{
+                        width: `${t.masteryScore || 0}%`,
+                        background: t.strength === 'weak' ? '#dc2626' : t.strength === 'mastered' ? '#16a34a' : '#6366f1',
+                      }}
+                    />
+                  </div>
                   <span className={`practice-diff practice-diff-${t.strength === 'mastered' ? 'easy' : t.strength === 'weak' ? 'hard' : 'medium'}`}>
                     {t.masteryScore}% · {capitalize(t.strength)}
+                    {tried ? ` · ${rate}% success` : ''}
                   </span>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </PracticeSection>
     </PracticePageLayout>

@@ -1,53 +1,69 @@
 const CodingQuestion = require('../../models/CodingQuestion');
-const PracticeSubmission = require('../../models/PracticeSubmission');
 const PracticeDailyChallenge = require('../../models/PracticeDailyChallenge');
 const PracticeRoadmap = require('../../models/PracticeRoadmap');
 const { todayKey } = require('./practiceStatsService');
 
 async function getRecommendations(studentId, profile, limit = 10) {
-  const solvedSet = new Set((profile?.solvedQuestionIds || []).map(String));
+  const solvedIds = profile?.solvedQuestionIds || [];
   const attemptedSet = new Set((profile?.attemptedQuestionIds || []).map(String));
+  const weakTopicIds = profile?.weakTopics || [];
 
-  const baseFilter = { isGlobal: true, practiceEnabled: true };
-  const all = await CodingQuestion.find(baseFilter)
-    .select('title difficulty practiceTopics tags estimatedMinutes companyTags')
-    .populate('practiceTopics', 'slug label')
-    .lean();
+  const select = 'title difficulty practiceTopics tags estimatedMinutes companyTags';
+  const populate = { path: 'practiceTopics', select: 'slug label' };
+  const base = { isGlobal: true, practiceEnabled: true, _id: { $nin: solvedIds } };
 
-  const weakTopicIds = (profile?.weakTopics || []).map(String);
-  const scored = [];
+  const picks = [];
+  const seen = new Set();
 
-  for (const q of all) {
-    const id = String(q._id);
-    if (solvedSet.has(id)) continue;
+  const pushUnique = (docs) => {
+    for (const q of docs) {
+      const id = String(q._id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      picks.push(q);
+      if (picks.length >= limit) return;
+    }
+  };
 
-    let priority = 0;
-    const topicIds = (q.practiceTopics || []).map((t) => String(t._id || t));
-    if (topicIds.some((tid) => weakTopicIds.includes(tid))) priority += 50;
-    if (!attemptedSet.has(id)) priority += 20;
-    if (q.difficulty === 'easy') priority += 15;
-    if (q.difficulty === 'medium') priority += 10;
-    scored.push({ question: q, priority });
+  if (weakTopicIds.length) {
+    const weak = await CodingQuestion.find({ ...base, practiceTopics: { $in: weakTopicIds } })
+      .select(select)
+      .populate(populate)
+      .limit(limit)
+      .lean();
+    pushUnique(weak);
   }
 
-  scored.sort((a, b) => b.priority - a.priority);
-  const picks = scored.slice(0, limit).map((s) => s.question);
+  if (picks.length < limit) {
+    const rest = await CodingQuestion.find({
+      ...base,
+      _id: { $nin: [...solvedIds, ...picks.map((p) => p._id)] },
+    })
+      .select(select)
+      .populate(populate)
+      .sort({ createdAt: -1 })
+      .limit(limit - picks.length)
+      .lean();
+    pushUnique(rest);
+  }
 
   if (picks.length < limit) {
     const challenge = await PracticeDailyChallenge.findOne({ date: todayKey() })
       .populate({
         path: 'questionId',
-        select: 'title difficulty practiceTopics tags estimatedMinutes companyTags',
-        populate: { path: 'practiceTopics', select: 'slug label' },
+        select,
+        populate,
       })
       .lean();
-    if (challenge?.questionId && !solvedSet.has(String(challenge.questionId._id))) {
-      const exists = picks.some((p) => String(p._id) === String(challenge.questionId._id));
-      if (!exists) picks.unshift(challenge.questionId);
+    if (challenge?.questionId && !seen.has(String(challenge.questionId._id))) {
+      picks.unshift(challenge.questionId);
     }
   }
 
-  return picks.slice(0, limit);
+  return picks.slice(0, limit).map((q) => ({
+    ...q,
+    userStatus: attemptedSet.has(String(q._id)) ? 'attempted' : 'unsolved',
+  }));
 }
 
 async function getRoadmapProgress(studentId, profile) {

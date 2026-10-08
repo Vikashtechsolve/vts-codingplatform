@@ -63,6 +63,12 @@ router.delete('/topics/:id', async (req, res) => {
 // Practice questions (global + practiceEnabled) — default lists practice bank; ?source=global for all global
 router.get('/questions', async (req, res) => {
   const source = req.query.source === 'global' ? 'global' : 'practice';
+  const extraFilter = {};
+  const difficulty = String(req.query.difficulty || '').toLowerCase();
+  if (['easy', 'medium', 'hard'].includes(difficulty)) extraFilter.difficulty = difficulty;
+  if (req.query.practiceEnabled === 'true') extraFilter.practiceEnabled = true;
+  if (req.query.practiceEnabled === 'false') extraFilter.practiceEnabled = false;
+
   const payload = await fetchPaginatedQuestions({
     Model: CodingQuestion,
     vendorId: null,
@@ -71,6 +77,7 @@ router.get('/questions', async (req, res) => {
     listSelect: CODING_LIST_SELECT,
     searchFields: ['title', 'description', 'tags'],
     populateAll: [{ path: 'practiceTopics', select: 'slug label' }],
+    extraFilter,
   });
   res.json(payload);
 });

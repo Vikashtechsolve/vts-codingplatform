@@ -17,6 +17,7 @@ import {
 } from '../../../components/Practice/PracticeCards';
 import PracticeEmptyState from '../../../components/Practice/PracticeEmptyState';
 import PracticeProgressRing from '../../../components/Practice/PracticeProgressRing';
+import PracticeProgressBoard from '../../../components/Practice/PracticeProgressBoard';
 import { capitalize } from '../../../components/Practice/practiceUtils';
 import '../../../styles/practice-pages.css';
 
@@ -58,7 +59,16 @@ const PracticeHub = () => {
         <PracticeStatCard value={profile?.problemsAttempted || 0} label="Attempted" icon={FiTarget} />
         <PracticeStatCard value={`${profile?.successRate || 0}%`} label="Success rate" icon={FiTrendingUp} />
         <PracticeStatCard value={profile?.streak?.current || 0} label="Day streak" variant="streak" icon={FiZap} />
+        {data?.percentile && (
+          <PracticeStatCard
+            value={`#${data.percentile.rank}`}
+            label={`Top ${data.percentile.percentile}%`}
+            icon={FiAward}
+          />
+        )}
       </PracticeStatsGrid>
+
+      {data?.progress && <PracticeProgressBoard progress={data.progress} />}
 
       <div className="practice-bento-row">
         <div className="practice-goal-card">
@@ -110,21 +120,6 @@ const PracticeHub = () => {
           </div>
         )}
       </div>
-
-      {(profile?.difficulty || data?.percentile) && (
-        <PracticeStatsGrid columns={4}>
-          <PracticeStatCard value={profile?.difficulty?.easy || 0} label="Easy solved" />
-          <PracticeStatCard value={profile?.difficulty?.medium || 0} label="Medium solved" />
-          <PracticeStatCard value={profile?.difficulty?.hard || 0} label="Hard solved" />
-          {data?.percentile && (
-            <PracticeStatCard
-              value={`#${data.percentile.rank}`}
-              label={`Top ${data.percentile.percentile}% in batch`}
-              icon={FiAward}
-            />
-          )}
-        </PracticeStatsGrid>
-      )}
 
       <PracticeSection title="Recommended for you" linkLabel="View all" linkTo="/student/practice/problems">
         {(data?.recommendations || []).length ? (

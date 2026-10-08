@@ -22,6 +22,7 @@ async function fetchPaginatedQuestions({
   searchFields = ['title'],
   populateGlobal = null,
   populateAll = [],
+  extraFilter = {},
 }) {
   const { page, limit, skip, search } = parsePagination(query, {
     defaultLimit: 40,
@@ -43,7 +44,10 @@ async function fetchPaginatedQuestions({
         : { vendorId, ...VENDOR_SCOPE };
 
   const searchFilter = buildSearchFilter(search, searchFields);
-  const filter = searchFilter ? { $and: [baseFilter, searchFilter] } : baseFilter;
+  const clauses = [baseFilter];
+  if (extraFilter && Object.keys(extraFilter).length) clauses.push(extraFilter);
+  if (searchFilter) clauses.push(searchFilter);
+  const filter = clauses.length === 1 ? clauses[0] : { $and: clauses };
 
   let q = Model.find(filter).select(listSelect).sort({ createdAt: -1 }).skip(skip).limit(limit);
   populateAll.forEach((spec) => {

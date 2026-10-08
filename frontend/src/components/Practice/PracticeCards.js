@@ -1,13 +1,8 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FiChevronRight, FiClock } from 'react-icons/fi';
-import { capitalize, formatStatus, statusClass } from './practiceUtils';
-
-const STATUS_DOT = {
-  solved: 'practice-dot--solved',
-  attempted: 'practice-dot--attempted',
-  unsolved: 'practice-dot--unsolved',
-};
+import { capitalize, formatScore, formatStatus, statusClass } from './practiceUtils';
+import PracticeStatusIcon from './PracticeStatusIcon';
 
 export const PracticeStatCard = ({ value, label, variant, icon: Icon, color }) => (
   <article
@@ -37,11 +32,11 @@ export const PracticeStatsGrid = ({ children, className = '', columns }) => (
 
 export const PracticeProblemCard = ({ question, to }) => {
   const q = question;
-  const st = statusClass(q.userStatus || 'unsolved');
+  const href = to || `/student/practice/solve/${q._id}`;
   return (
-    <Link to={to || `/student/practice/solve/${q._id}`} className="practice-problem-card">
+    <Link to={href} className={`practice-problem-card is-${statusClass(q.userStatus)}`}>
       <div className="practice-problem-card-head">
-        <span className={`practice-dot ${STATUS_DOT[st]}`} aria-hidden />
+        <PracticeStatusIcon status={q.userStatus} size={18} />
         <h3>{q.title}</h3>
         <FiChevronRight className="practice-card-chevron" aria-hidden />
       </div>
@@ -49,6 +44,12 @@ export const PracticeProblemCard = ({ question, to }) => {
         <span className={`practice-diff practice-diff-${q.difficulty}`}>
           {capitalize(q.difficulty)}
         </span>
+        <span className={`practice-status practice-status-${statusClass(q.userStatus)}`}>
+          {formatStatus(q.userStatus)}
+        </span>
+        {q.bestScore != null && q.attempts > 0 && (
+          <span className="practice-meta-muted">{formatScore(q.bestScore)}</span>
+        )}
         {(q.practiceTopics || []).slice(0, 2).map((t) => (
           <span key={t._id || t.slug} className="practice-topic-chip">
             {t.label || t.slug}
@@ -64,63 +65,81 @@ export const PracticeProblemCard = ({ question, to }) => {
   );
 };
 
-export const PracticeProblemTable = ({ items }) => (
-  <div className="practice-table-wrap">
-    <table className="practice-table">
-      <thead>
-        <tr>
-          <th className="practice-th-status">Status</th>
-          <th>Problem</th>
-          <th>Difficulty</th>
-          <th>Topics</th>
-          <th className="practice-th-action" />
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((q) => {
-          const st = statusClass(q.userStatus);
-          return (
-            <tr key={q._id}>
-              <td>
-                <span className="practice-status-cell">
-                  <span className={`practice-dot ${STATUS_DOT[st]}`} aria-hidden />
-                  <span className="practice-status-text">{formatStatus(q.userStatus)}</span>
-                </span>
-              </td>
-              <td>
-                <Link to={`/student/practice/solve/${q._id}`} className="practice-table-title">
-                  {q.title}
-                </Link>
-              </td>
-              <td>
-                <span className={`practice-diff practice-diff-${q.difficulty}`}>
-                  {capitalize(q.difficulty)}
-                </span>
-              </td>
-              <td className="practice-table-topics">
-                {(q.practiceTopics || []).slice(0, 2).map((t) => (
-                  <span key={t._id} className="practice-topic-chip">{t.label}</span>
-                ))}
-              </td>
-              <td className="practice-th-action">
-                <Link to={`/student/practice/solve/${q._id}`} className="practice-table-action">
-                  Solve <FiChevronRight aria-hidden />
-                </Link>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
-);
+export const PracticeProblemTable = ({ items }) => {
+  const navigate = useNavigate();
+
+  return (
+    <div className="practice-table-wrap">
+      <table className="practice-table ps-problem-table">
+        <thead>
+          <tr>
+            <th className="ps-th-status">Status</th>
+            <th>Title</th>
+            <th>Score</th>
+            <th>Attempts</th>
+            <th>Difficulty</th>
+            <th>Topics</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((q) => {
+            const href = `/student/practice/solve/${q._id}`;
+            const st = statusClass(q.userStatus);
+            return (
+              <tr
+                key={q._id}
+                className={`ps-problem-row is-${st}`}
+                tabIndex={0}
+                onClick={() => navigate(href)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate(href);
+                  }
+                }}
+              >
+                <td>
+                  <PracticeStatusIcon status={q.userStatus} size={18} showLabel />
+                </td>
+                <td>
+                  <Link
+                    to={href}
+                    className={`practice-table-title ${st === 'solved' ? 'is-solved' : ''}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {q.title}
+                  </Link>
+                </td>
+                <td className="ps-score-cell">
+                  {q.attempts > 0 ? formatScore(q.bestScore) : '—'}
+                </td>
+                <td className="ps-attempts-cell">
+                  {q.attempts > 0 ? q.attempts : '—'}
+                </td>
+                <td>
+                  <span className={`practice-diff practice-diff-${q.difficulty}`}>
+                    {capitalize(q.difficulty)}
+                  </span>
+                </td>
+                <td className="practice-table-topics">
+                  {(q.practiceTopics || []).slice(0, 2).map((t) => (
+                    <span key={t._id} className="practice-topic-chip">{t.label}</span>
+                  ))}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 export const PracticeSubmissionRow = ({ submission, to }) => {
   const s = submission;
-  const st = statusClass(s.status);
   return (
     <Link to={to} className="practice-submission-row">
-      <span className={`practice-dot ${STATUS_DOT[st]}`} aria-hidden />
+      <PracticeStatusIcon status={s.status} size={18} />
       <div className="practice-submission-body">
         <strong>{s.title || s.questionId?.title || 'Question'}</strong>
         <span>{formatStatus(s.status)} · {new Date(s.submittedAt).toLocaleDateString()}</span>
