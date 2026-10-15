@@ -433,7 +433,7 @@ const MockInterviewRoom = () => {
         startListeningRef.current?.();
       }
     }
-  }, [sessionId, isInterviewActive, navigate, showModal, stopListening, stopAiAudio, feedbackPath]);
+  }, [sessionId, isInterviewActive, navigate, showModal, stopListening, feedbackPath]);
 
   const ensureMediaStream = useCallback(async () => {
     if (isStreamActive(micStreamRef.current)) {
@@ -881,7 +881,6 @@ const MockInterviewRoom = () => {
     }
     await ended;
   }, [
-    stopAiAudio,
     onAiSpeechFinished,
     speakWithBrowserFallback,
     playInterviewerAudio,
