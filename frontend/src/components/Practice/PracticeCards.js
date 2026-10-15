@@ -4,20 +4,37 @@ import { FiChevronRight, FiClock } from 'react-icons/fi';
 import { capitalize, formatScore, formatStatus, statusClass } from './practiceUtils';
 import PracticeStatusIcon from './PracticeStatusIcon';
 
-export const PracticeStatCard = ({ value, label, variant, icon: Icon, color }) => (
+export const PracticeStatCard = ({
+  value,
+  label,
+  hint,
+  variant,
+  icon: Icon,
+  color,
+  progress,
+}) => (
   <article
-    className={`practice-stat-card ${variant || ''}`}
+    className={`practice-stat-card ${variant || ''}`.trim()}
     style={color ? { '--practice-stat-color': color } : undefined}
   >
-    {Icon && (
-      <span className="practice-stat-icon" aria-hidden>
-        <Icon />
-      </span>
-    )}
-    <div className="practice-stat-body">
-      <span className="practice-stat-value">{value}</span>
+    <div className="practice-stat-top">
+      {Icon && (
+        <span className="practice-stat-icon" aria-hidden>
+          <Icon />
+        </span>
+      )}
       <span className="practice-stat-label">{label}</span>
     </div>
+    <span className="practice-stat-value">{value}</span>
+    {hint ? <span className="practice-stat-hint">{hint}</span> : null}
+    {progress != null && (
+      <div className="practice-stat-meter" aria-hidden>
+        <div
+          className="practice-stat-meter-fill"
+          style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+        />
+      </div>
+    )}
   </article>
 );
 

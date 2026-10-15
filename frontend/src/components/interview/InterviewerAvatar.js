@@ -1,14 +1,15 @@
 import React, { useMemo } from 'react';
-import LiveInterviewerVisual from './LiveInterviewerVisual';
+import AnimatedInterviewer from './AnimatedInterviewer';
 import './InterviewerAvatar.css';
 
 const BUBBLE_MAX = 140;
 
 const InterviewerAvatar = ({
-  lipLevel = 0,
+  frameStore = null,
   isSpeaking = false,
   isListening = false,
   isLoadingVoice = false,
+  isThinking = false,
   speakingText = '',
   speechProgress = 0,
   showSpeechBubble = false,
@@ -34,10 +35,30 @@ const InterviewerAvatar = ({
   }, [bubbleText, isSpeaking, speechProgress]);
 
   const showVideo = Boolean(videoSrc);
+  const thinking = !isSpeaking && (isLoadingVoice || isThinking);
+  const mode = isSpeaking
+    ? 'speaking'
+    : thinking
+      ? 'thinking'
+      : isListening
+        ? 'listening'
+        : 'idle';
+
+  const pillLabel = isSpeaking
+    ? 'Speaking'
+    : isLoadingVoice
+      ? 'Preparing question'
+      : isThinking
+        ? 'Thinking'
+        : isListening
+          ? 'Listening to you'
+          : 'In session';
+
+  const firstName = (name || '').split(' ')[0] || 'Interviewer';
 
   return (
     <div
-      className={`interviewer-call ${compact ? 'is-compact' : ''} ${isSpeaking ? 'is-speaking' : ''} ${isListening ? 'is-listening' : ''} ${isLoadingVoice ? 'is-loading' : ''}`}
+      className={`interviewer-call ${compact ? 'is-compact' : ''} is-${mode} ${isSpeaking ? 'is-speaking' : ''} ${isListening && !isSpeaking ? 'is-listening' : ''} ${thinking ? 'is-thinking' : ''}`}
     >
       <div className="interviewer-call-feed">
         {showVideo ? (
@@ -48,18 +69,14 @@ const InterviewerAvatar = ({
             playsInline
           />
         ) : (
-          <LiveInterviewerVisual
-            lipLevel={lipLevel}
-            isSpeaking={isSpeaking}
-            isListening={isListening && !isSpeaking}
-          />
+          <AnimatedInterviewer frameStore={frameStore} mode={mode} />
         )}
 
         <div className="interviewer-call-vignette" aria-hidden="true" />
 
         {showSpeechBubble && isSpeaking && visibleWords.length > 0 && (
           <div className="interviewer-speech-bubble" role="status" aria-live="polite">
-            <span className="interviewer-speech-label">Sarah asks</span>
+            <span className="interviewer-speech-label">{firstName} asks</span>
             <p className="interviewer-speech-text">
               {visibleWords.map((word, i) => (
                 <span
@@ -78,17 +95,29 @@ const InterviewerAvatar = ({
           </div>
         )}
 
-        {isLoadingVoice && (
-          <div className="interviewer-call-loading" aria-hidden="true">
-            <span className="interviewer-call-spinner" />
-            <span>Preparing question...</span>
-          </div>
-        )}
-
         <div className="interviewer-call-overlay">
-          <span className={`interviewer-call-live-pill ${isSpeaking ? 'on-air' : ''}`}>
-            <span className="interviewer-call-live-dot" />
-            {isSpeaking ? 'Asking question' : isListening ? 'Listening to you' : 'In session'}
+          <span
+            className={`interviewer-call-live-pill ${isSpeaking ? 'on-air' : ''} ${thinking ? 'is-thinking' : ''} ${isListening && !isSpeaking && !thinking ? 'is-listening' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            {isSpeaking ? (
+              <span className="interviewer-call-bars" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+            ) : thinking ? (
+              <span className="interviewer-call-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+            ) : (
+              <span className="interviewer-call-live-dot" aria-hidden="true" />
+            )}
+            {pillLabel}
           </span>
         </div>
       </div>

@@ -162,6 +162,7 @@ const PracticeSolve = () => {
         },
         ...prev,
       ]);
+      window.dispatchEvent(new CustomEvent('student-practice-updated'));
     } catch (err) {
       setSubmitResult({ accepted: false, error: err.response?.data?.message || 'Submit failed' });
     } finally {
@@ -222,7 +223,7 @@ const PracticeSolve = () => {
   if (loading) {
     return (
       <div className="psx">
-        <PracticeLoading message="Loading problem…" />
+        <PracticeLoading message="Loading problem…" variant="spinner" />
       </div>
     );
   }

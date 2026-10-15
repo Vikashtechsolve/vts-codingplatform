@@ -16,7 +16,13 @@ const defaultStats = {
   totalAssessments: 0,
   testsByType: {},
   sectionCounts: {},
-  questions: { coding: 0, mcq: 0, aptitude: 0, theory: 0 },
+  questions: {
+    coding: 0,
+    mcq: 0,
+    aptitude: 0,
+    theory: 0,
+    global: { coding: 0, mcq: 0, aptitude: 0, theory: 0 },
+  },
 };
 
 /** Same grouping as VendorAdmin TestList — derived from dashboard stats only. */

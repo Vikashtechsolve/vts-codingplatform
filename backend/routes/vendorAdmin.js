@@ -225,6 +225,10 @@ router.get('/dashboard/stats', async (req, res) => {
       mcqQuestions,
       aptitudeQuestions,
       theoryQuestions,
+      globalCodingQuestions,
+      globalMcqQuestions,
+      globalAptitudeQuestions,
+      globalTheoryQuestions,
     ] = await Promise.all([
       Test.find({ vendorId }).select('type').lean(),
       User.countDocuments({ vendorId, role: 'student' }),
@@ -235,10 +239,14 @@ router.get('/dashboard/stats', async (req, res) => {
       Assignment.countDocuments({ vendorId }),
       SystemDesignProblem.countDocuments({ vendorId }),
       DatasetTemplate.countDocuments({ vendorId }),
-      CodingQuestion.countDocuments({ vendorId }),
-      MCQQuestion.countDocuments({ vendorId }),
-      AptitudeQuestion.countDocuments({ vendorId }),
-      TheoryQuestion.countDocuments({ vendorId }),
+      CodingQuestion.countDocuments({ vendorId, $or: [{ isGlobal: false }, { isGlobal: { $exists: false } }] }),
+      MCQQuestion.countDocuments({ vendorId, $or: [{ isGlobal: false }, { isGlobal: { $exists: false } }] }),
+      AptitudeQuestion.countDocuments({ vendorId, $or: [{ isGlobal: false }, { isGlobal: { $exists: false } }] }),
+      TheoryQuestion.countDocuments({ vendorId, $or: [{ isGlobal: false }, { isGlobal: { $exists: false } }] }),
+      CodingQuestion.countDocuments({ isGlobal: true }),
+      MCQQuestion.countDocuments({ isGlobal: true }),
+      AptitudeQuestion.countDocuments({ isGlobal: true }),
+      TheoryQuestion.countDocuments({ isGlobal: true }),
     ]);
 
     const testsByType = {};
@@ -286,6 +294,12 @@ router.get('/dashboard/stats', async (req, res) => {
         mcq: mcqQuestions,
         aptitude: aptitudeQuestions,
         theory: theoryQuestions,
+        global: {
+          coding: globalCodingQuestions,
+          mcq: globalMcqQuestions,
+          aptitude: globalAptitudeQuestions,
+          theory: globalTheoryQuestions,
+        },
       },
     });
   } catch (error) {

@@ -18,10 +18,9 @@ import QuestionHubRow from '../../components/VendorAdmin/QuestionHubRow';
 import QuestionTagFilters from '../../components/VendorAdmin/QuestionTagFilters';
 import VendorLoadMore from '../../components/VendorAdmin/VendorLoadMore';
 import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
-import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 import { useVendorPanel } from '../../context/VendorPanelContext';
 import { useListFetchLoading } from '../../hooks/useListFetchLoading';
-import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import { buildQuestionTagFilters, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
 import { normalizePaginatedResponse, mergePaginatedPages } from '../../utils/paginatedApi';
 import { htmlToListPreview } from '../../components/RichTextDisplay';
 
@@ -31,6 +30,11 @@ const QUESTION_API = {
   aptitude: '/questions/aptitude',
   theory: '/questions/theory',
 };
+
+const QUESTION_TYPE_KEYS = ['coding', 'mcq', 'aptitude', 'theory'];
+const emptyTypeCounts = () => ({ coding: 0, mcq: 0, aptitude: 0, theory: 0 });
+const sumTypeCounts = (obj = {}) =>
+  QUESTION_TYPE_KEYS.reduce((sum, key) => sum + (Number(obj[key]) || 0), 0);
 
 const QUESTION_TYPES = [
   { id: 'coding', label: 'Coding', accent: '#2563eb', icon: FiCode, create: '/vendor-admin/questions/coding/create', edit: (id) => `/vendor-admin/questions/coding/edit/${id}` },
@@ -60,7 +64,8 @@ const QuestionList = () => {
   const [total, setTotal] = useState(0);
   const [vendorTotal, setVendorTotal] = useState(0);
   const [globalTotal, setGlobalTotal] = useState(0);
-  const { registryTags } = useQuestionTagRegistry();
+  const [vendorByType, setVendorByType] = useState(emptyTypeCounts);
+  const [globalByTypeState, setGlobalByTypeState] = useState(emptyTypeCounts);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -97,8 +102,18 @@ const QuestionList = () => {
         setPage(parsed.page);
         setHasMore(parsed.hasMore);
         setTotal(parsed.total);
-        if (parsed.vendorTotal != null) setVendorTotal(parsed.vendorTotal);
-        if (parsed.globalTotal != null) setGlobalTotal(parsed.globalTotal);
+        if (parsed.vendorTotal != null) {
+          setVendorTotal(parsed.vendorTotal);
+          if (questionType !== 'english') {
+            setVendorByType((prev) => ({ ...prev, [questionType]: parsed.vendorTotal }));
+          }
+        }
+        if (parsed.globalTotal != null) {
+          setGlobalTotal(parsed.globalTotal);
+          if (questionType !== 'english') {
+            setGlobalByTypeState((prev) => ({ ...prev, [questionType]: parsed.globalTotal }));
+          }
+        }
       } catch (error) {
         console.error('Error fetching questions:', error);
       } finally {
@@ -112,38 +127,37 @@ const QuestionList = () => {
     fetchQuestions({ pageNum: 1, append: false });
   }, [fetchQuestions]);
 
-  const counts = useMemo(() => {
+  useEffect(() => {
     const qStats = panelStats.questions || {};
-    const myByType = {
-      coding: vendorTotal || qStats.coding || 0,
-      mcq: vendorTotal || qStats.mcq || 0,
-      aptitude: vendorTotal || qStats.aptitude || 0,
-      theory: vendorTotal || qStats.theory || 0,
-    };
-    if (questionType !== 'english' && activeTab === 'my' && vendorTotal) {
-      myByType[questionType] = vendorTotal;
-    }
-    const globalByType = {
-      coding: globalTotal,
-      mcq: globalTotal,
-      aptitude: globalTotal,
-      theory: globalTotal,
-    };
-    if (questionType !== 'english' && activeTab === 'global' && globalTotal) {
-      globalByType[questionType] = globalTotal;
+    setVendorByType((prev) => ({
+      coding: qStats.coding != null ? Number(qStats.coding) : prev.coding,
+      mcq: qStats.mcq != null ? Number(qStats.mcq) : prev.mcq,
+      aptitude: qStats.aptitude != null ? Number(qStats.aptitude) : prev.aptitude,
+      theory: qStats.theory != null ? Number(qStats.theory) : prev.theory,
+    }));
+    const g = qStats.global || {};
+    setGlobalByTypeState((prev) => ({
+      coding: g.coding != null ? Number(g.coding) : prev.coding,
+      mcq: g.mcq != null ? Number(g.mcq) : prev.mcq,
+      aptitude: g.aptitude != null ? Number(g.aptitude) : prev.aptitude,
+      theory: g.theory != null ? Number(g.theory) : prev.theory,
+    }));
+  }, [panelStats.questions]);
+
+  const counts = useMemo(() => {
+    const myByType = { ...vendorByType };
+    const globalByType = { ...globalByTypeState };
+    if (questionType !== 'english') {
+      if (activeTab === 'my' && vendorTotal) myByType[questionType] = vendorTotal;
+      if (globalTotal) globalByType[questionType] = globalTotal;
     }
     return {
-      myTotal: Object.values(qStats).reduce((s, n) => s + (n || 0), 0),
-      globalTotal: globalTotal || 0,
-      myByType: {
-        coding: qStats.coding || 0,
-        mcq: qStats.mcq || 0,
-        aptitude: qStats.aptitude || 0,
-        theory: qStats.theory || 0,
-      },
+      myTotal: sumTypeCounts(myByType),
+      globalTotal: sumTypeCounts(globalByType),
+      myByType,
       globalByType,
     };
-  }, [panelStats.questions, vendorTotal, globalTotal, questionType, activeTab]);
+  }, [vendorByType, globalByTypeState, vendorTotal, globalTotal, questionType, activeTab]);
 
   const currentType = QUESTION_TYPES.find((t) => t.id === questionType) || QUESTION_TYPES[0];
   const rawQuestions = useMemo(
@@ -174,8 +188,8 @@ const QuestionList = () => {
   );
 
   const availableTags = useMemo(
-    () => buildTagFilterOptions(registryTags, rawQuestions.flatMap((q) => q.tags || [])),
-    [registryTags, rawQuestions]
+    () => buildQuestionTagFilters(rawQuestions.flatMap((q) => q.tags || [])),
+    [rawQuestions]
   );
 
   const filteredQuestions = useMemo(

@@ -29,6 +29,7 @@ const PracticeSubmissions = () => {
       subtitle="Review your recent practice attempts and revisit problems."
       compactHero
       loading={loading}
+      loadingVariant="list"
       error={error}
       onRetry={load}
     >

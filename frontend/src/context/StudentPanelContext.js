@@ -18,6 +18,7 @@ export function StudentPanelProvider({ children }) {
   const [systemDesigns, setSystemDesigns] = useState([]);
   const [courses, setCourses] = useState([]);
   const [englishTrends, setEnglishTrends] = useState(null);
+  const [practiceSummary, setPracticeSummary] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
   const hasLoadedRef = useRef(false);
@@ -29,7 +30,7 @@ export function StudentPanelProvider({ children }) {
     }
     setError(null);
     try {
-      const [testsRes, interviewsRes, assignmentsRes, systemRes, coursesRes, trendsRes] =
+      const [testsRes, interviewsRes, assignmentsRes, systemRes, coursesRes, trendsRes, practiceRes] =
         await Promise.all([
           axiosInstance.get('/students/tests'),
           axiosInstance.get('/interviews/assigned'),
@@ -39,6 +40,7 @@ export function StudentPanelProvider({ children }) {
             .get('/student/courses', { params: { page: 1, limit: 50 } })
             .catch(() => ({ data: { items: [] } })),
           axiosInstance.get('/students/english-trends').catch(() => ({ data: null })),
+          axiosInstance.get('/practice/summary').catch(() => ({ data: null })),
         ]);
 
       setTests(testsRes.data || []);
@@ -49,6 +51,7 @@ export function StudentPanelProvider({ children }) {
       setCourses(coursesRes.data?.items || []);
       if (trendsRes.data?.totalTests > 0) setEnglishTrends(trendsRes.data);
       else setEnglishTrends(null);
+      setPracticeSummary(practiceRes.data || null);
       hasLoadedRef.current = true;
     } catch (err) {
       console.error('Student panel data fetch failed:', err);
@@ -60,6 +63,13 @@ export function StudentPanelProvider({ children }) {
 
   useEffect(() => {
     refresh();
+    const onSilentRefresh = () => refresh({ silent: true });
+    window.addEventListener('focus', onSilentRefresh);
+    window.addEventListener('student-practice-updated', onSilentRefresh);
+    return () => {
+      window.removeEventListener('focus', onSilentRefresh);
+      window.removeEventListener('student-practice-updated', onSilentRefresh);
+    };
   }, [refresh]);
 
   const counts = useMemo(() => {
@@ -87,8 +97,9 @@ export function StudentPanelProvider({ children }) {
       tools: grouped.tools || 0,
       company: grouped.company || 0,
       courses: courses.length,
+      practice: practiceSummary?.problemsSolved || 0,
     };
-  }, [tests, interviews, assignments, systemDesigns, courses]);
+  }, [tests, interviews, assignments, systemDesigns, courses, practiceSummary]);
 
   const stats = useMemo(() => {
     const completedTests = tests.filter((t) => t.enrollmentStatus === 'completed');
@@ -149,6 +160,7 @@ export function StudentPanelProvider({ children }) {
       systemDesigns,
       courses,
       englishTrends,
+      practiceSummary,
       counts,
       stats,
       initialLoading,
@@ -164,6 +176,7 @@ export function StudentPanelProvider({ children }) {
       systemDesigns,
       courses,
       englishTrends,
+      practiceSummary,
       counts,
       stats,
       initialLoading,

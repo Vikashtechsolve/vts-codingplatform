@@ -15,8 +15,7 @@ import { useToast } from '../../context/ToastContext';
 import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import QuestionHubRow from '../../components/VendorAdmin/QuestionHubRow';
 import QuestionTagFilters from '../../components/VendorAdmin/QuestionTagFilters';
-import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
-import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import { buildQuestionTagFilters, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
 import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
 import './InterviewQuestionList.css';
 
@@ -42,7 +41,6 @@ const truncate = (text, max = 120) => {
 const InterviewQuestionList = () => {
   const { showToast } = useToast();
   const meta = QUESTION_FORM_META.interview;
-  const { registryTags } = useQuestionTagRegistry();
 
   const [myQuestions, setMyQuestions] = useState([]);
   const [globalQuestions, setGlobalQuestions] = useState([]);
@@ -94,8 +92,8 @@ const InterviewQuestionList = () => {
   );
 
   const availableTags = useMemo(
-    () => buildTagFilterOptions(registryTags, filteredByType.flatMap((q) => q.tags || [])),
-    [registryTags, filteredByType]
+    () => buildQuestionTagFilters(filteredByType.flatMap((q) => q.tags || [])),
+    [filteredByType]
   );
 
   const currentQuestions = useMemo(

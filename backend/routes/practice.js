@@ -37,6 +37,26 @@ async function isPracticeEnabledForVendor(vendorId) {
   return vendor?.settings?.practice?.enabled !== false;
 }
 
+// GET /api/practice/summary — lean counts for the student sidebar
+router.get('/summary', async (req, res) => {
+  try {
+    if (!(await isPracticeEnabledForVendor(req.user.vendorId))) {
+      return res.json({ enabled: false, problemsSolved: 0, problemsAttempted: 0, total: 0 });
+    }
+
+    const profile = await getProfileSummary(req.user._id);
+    const total = await CodingQuestion.countDocuments({ isGlobal: true, practiceEnabled: true });
+    res.json({
+      enabled: true,
+      problemsSolved: profile.problemsSolved || 0,
+      problemsAttempted: profile.problemsAttempted || 0,
+      total,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // GET /api/practice/dashboard
 router.get('/dashboard', async (req, res) => {
   try {

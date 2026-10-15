@@ -3,6 +3,13 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
 const OPENAI_EVAL_MODEL = process.env.OPENAI_EVAL_MODEL || 'gpt-4.1-mini';
 const { computeSessionMarksTotals } = require('./interviewScoring');
+const {
+  SPOKEN_INTERVIEW_RULES,
+  looksLikeUnspokenInterviewTask,
+  hasUnspokenInterviewSignals,
+  generateInterviewQuestion,
+  generateSpokenInterviewQuestions,
+} = require('./spokenInterviewQuestions');
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -508,13 +515,14 @@ const generateFollowUpQuestion = async ({
   const prompt = `
 You are a warm, professional interviewer. Create one concise follow-up question based on the student's answer.
 Probe unclear points, missing detail, or interesting claims — sound conversational, not robotic.
+${SPOKEN_INTERVIEW_RULES}
 Interview Type: ${interviewType || 'General'}
 Topic: ${topic || 'General'}
 Difficulty: ${difficulty || 'beginner'}
 Original Question: ${questionText}
 Student Answer: ${transcript}
 
-Return plain text only (the question itself, no preamble).
+Return one spoken question only, under 35 words. Refer to something they actually said. No preamble.
 `;
 
   const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
@@ -525,11 +533,12 @@ Return plain text only (the question itself, no preamble).
     },
     body: JSON.stringify({
       model: OPENAI_EVAL_MODEL,
-      temperature: 0.65,
-      messages: [
-        { role: 'system', content: 'You are an engaging human interviewer.' },
-        { role: 'user', content: prompt }
-      ]
+      temperature: 0.4,
+      max_tokens: 90,
+        messages: [
+          { role: 'system', content: 'You are an engaging human interviewer in a live voice interview. Never ask the candidate to write code or compute a numeric answer. One short question only.' },
+          { role: 'user', content: prompt }
+        ]
     })
   });
 
@@ -591,6 +600,8 @@ Write:
 3. spokenText — what you say aloud: acknowledgment + brief bridge ("Let me dig into that a bit," etc.) + followUpQuestion. Max 75 words.
 4. displayQuestionText — only the follow-up question for on-screen UI.
 
+${SPOKEN_INTERVIEW_RULES}
+
 Return JSON only:
 {
   "acknowledgment": string,
@@ -611,7 +622,7 @@ Return JSON only:
         model: OPENAI_EVAL_MODEL,
         temperature: 0.7,
         messages: [
-          { role: 'system', content: 'You are an attentive interviewer. Follow-ups must reference the candidate\'s actual answer. Return valid JSON only.' },
+          { role: 'system', content: 'You are an attentive interviewer in a live voice interview. Follow-ups must reference the candidate\'s actual answer. Never ask them to write code or calculate. Return valid JSON only.' },
           { role: 'user', content: prompt }
         ]
       })
@@ -630,6 +641,12 @@ Return JSON only:
     const ack = String(parsed.acknowledgment || acknowledgment).trim();
     const followUpQuestion = String(parsed.followUpQuestion).trim();
     const spokenText = String(parsed.spokenText || `${ack} ${followUpQuestion}`).trim();
+    if (
+      looksLikeUnspokenInterviewTask(followUpQuestion) ||
+      hasUnspokenInterviewSignals(spokenText)
+    ) {
+      return fallback;
+    }
 
     return {
       acknowledgment: ack,
@@ -684,7 +701,8 @@ Return JSON only:
 
 acknowledgment: one sentence reacting to something specific from their answer.
 spokenText: acknowledgment + natural transition + next question (max 80 words).
-displayQuestionText: only the next question text.
+displayQuestionText: only the next question text — do not rewrite it into a coding task, calculation, or new problem.
+Keep the provided next question wording. This is a spoken live interview.
 `;
 
   try {
@@ -714,12 +732,13 @@ displayQuestionText: only the next question text.
       return fallback;
     }
 
+    const spokenText = String(parsed.spokenText || fallback.spokenText).trim();
     return {
       acknowledgment: String(parsed.acknowledgment || acknowledgment).trim(),
       shouldFollowUp: false,
       followUpQuestion: null,
-      spokenText: String(parsed.spokenText || fallback.spokenText).trim(),
-      displayQuestionText: String(parsed.displayQuestionText || nextQueuedQuestionText).trim(),
+      spokenText: hasUnspokenInterviewSignals(spokenText) ? fallback.spokenText : spokenText,
+      displayQuestionText: nextQueuedQuestionText,
       isFollowUp: false
     };
   } catch (err) {
@@ -802,8 +821,8 @@ const generateInterviewOpener = async ({
 You are starting a live mock interview. Greet the candidate warmly in 2-3 short sentences, then ask the first question naturally.
 Interview: ${interviewTitle || interviewType || 'Mock Interview'}
 Type: ${interviewType || 'General'}, Topic: ${topic || 'General'}, Level: ${difficulty || 'beginner'}
-${brief ? `Interview brief: ${brief}` : ''}
-First question to ask: ${question}
+${brief ? `Interview brief (context only — do not invent a new question from it): ${brief}` : ''}
+First question to ask (use this question, do not replace it with a coding test or calculation): ${question}
 
 Return JSON only:
 {
@@ -811,7 +830,7 @@ Return JSON only:
   "displayQuestionText": string
 }
 
-spokenText must include a friendly greeting AND the first question. displayQuestionText is only the question for on-screen display.
+spokenText must include a friendly greeting AND the first question. displayQuestionText is only the given question for on-screen display. Do not ask them to write code or compute numbers.
 `;
 
   try {
@@ -825,7 +844,7 @@ spokenText must include a friendly greeting AND the first question. displayQuest
         model: OPENAI_EVAL_MODEL,
         temperature: 0.7,
         messages: [
-          { role: 'system', content: 'You are a friendly professional interviewer. Return valid JSON only.' },
+          { role: 'system', content: 'You are a friendly professional interviewer in a live voice interview. Return valid JSON only. Do not change the first question into a coding or calculation task.' },
           { role: 'user', content: prompt }
         ]
       })
@@ -839,71 +858,16 @@ spokenText must include a friendly greeting AND the first question. displayQuest
     if (!parsed?.spokenText) {
       return fallback;
     }
+    const spokenText = String(parsed.spokenText).trim();
     return {
       acknowledgment: '',
-      spokenText: String(parsed.spokenText).trim(),
-      displayQuestionText: String(parsed.displayQuestionText || question).trim(),
+      spokenText: hasUnspokenInterviewSignals(spokenText) ? fallback.spokenText : spokenText,
+      displayQuestionText: question,
       isFollowUp: false
     };
   } catch (err) {
     return fallback;
   }
-};
-
-const generateInterviewQuestion = async ({
-  interviewType,
-  topic,
-  difficulty,
-  description,
-  title,
-  previousQuestions = []
-}) => {
-  if (!OPENAI_API_KEY) {
-    return null;
-  }
-
-  const history = previousQuestions.length
-    ? previousQuestions.map((q, idx) => `${idx + 1}. ${q}`).join('\n')
-    : 'None';
-  const brief = String(description || '').trim();
-
-  const prompt = `
-Create one concise interview question.
-Interview Title: ${title || 'Mock Interview'}
-Interview Type: ${interviewType || 'General'}
-Topic: ${topic || 'General'}
-Difficulty: ${difficulty || 'beginner'}
-${brief ? `Interview Brief (use this to focus questions): ${brief}` : ''}
-Previous Questions:
-${history}
-
-The question must match the type, topic, difficulty${brief ? ', and follow the interview brief' : ''}.
-Do not repeat or closely paraphrase previous questions.
-Return plain text only.
-`;
-
-  const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: OPENAI_EVAL_MODEL,
-      temperature: 0.7,
-      messages: [
-        { role: 'system', content: 'You are an expert interviewer.' },
-        { role: 'user', content: prompt }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = await response.json();
-  return (data?.choices?.[0]?.message?.content || '').trim();
 };
 
 const generateInterviewFinalReport = async (session) => {
@@ -1017,6 +981,7 @@ module.exports = {
   normalizeInterviewEvaluation,
   generateFollowUpQuestion,
   generateInterviewQuestion,
+  generateSpokenInterviewQuestions,
   planInterviewerTurn,
   resolveInterviewerTurn,
   generateInterviewOpener,

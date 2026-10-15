@@ -319,8 +319,13 @@ const CreateInterview = () => {
                   value={formData.description}
                   onChange={handleChange}
                   rows={3}
-                  placeholder="Brief for students and AI context…"
+                  placeholder="Role, skills, and themes for the interviewer — e.g. backend intern, REST APIs, debugging production issues…"
                 />
+                <p className="vtf-section-hint">
+                  Used as spoken-interview context. Describe the role and topics. Do not paste coding
+                  problems, aptitude sums, or exam questions — the AI will not ask candidates to write
+                  code or calculate.
+                </p>
               </div>
               <div className="vtf-row">
                 <div className="vtf-field">
@@ -451,7 +456,9 @@ const CreateInterview = () => {
             <section className="vtf-section">
               <h2 className="vtf-section-title">Question pool (optional)</h2>
               <p className="vtf-section-hint">
-                Pin specific questions, or leave empty so AI selects by type, topic, difficulty, and description.
+                Pin specific questions, or leave empty so AI asks live spoken questions from type, topic,
+                difficulty, and description. The AI interviewer talks with the candidate — it will not
+                assign coding or calculation drills.
               </p>
               {!platformConfig.isPlatform && (
               <div className="vtf-segment">

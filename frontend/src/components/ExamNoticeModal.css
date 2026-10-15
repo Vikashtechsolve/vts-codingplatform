@@ -1,0 +1,338 @@
+.enm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: enm-fade 0.18s ease;
+}
+
+.enm-dialog {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 28px 24px 22px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #0f172a);
+  border: 1px solid color-mix(in srgb, var(--border-color, #e2e8f0) 80%, transparent);
+  box-shadow:
+    0 24px 64px rgba(15, 23, 42, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  animation: enm-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+
+.enm-dialog::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+
+.enm-dialog--warning::before {
+  background: linear-gradient(to right, #f59e0b, #c2410c);
+}
+
+.enm-dialog--error::before {
+  background: linear-gradient(to right, #ed0331, #87021c);
+}
+
+.enm-dialog--info::before {
+  background: linear-gradient(to right, #3b82f6, #1d4ed8);
+}
+
+.enm-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.enm-close:hover {
+  background: var(--bg-secondary, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+}
+
+.enm-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding-right: 28px;
+}
+
+.enm-head-copy {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.enm-kicker {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.enm-kicker--warning {
+  color: #c2410c;
+}
+
+.enm-kicker--error {
+  color: #ed0331;
+}
+
+.enm-kicker--info {
+  color: #1d4ed8;
+}
+
+.enm-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 1.2rem;
+}
+
+.enm-icon--warning {
+  color: #c2410c;
+  background: #fff7ed;
+}
+
+.enm-icon--error {
+  color: #ed0331;
+  background: color-mix(in srgb, #ed0331 10%, transparent);
+}
+
+.enm-icon--info {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.enm-title {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text-primary, #0f172a);
+}
+
+.enm-message {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text-secondary, #475569);
+}
+
+.enm-meter {
+  margin-top: 18px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-secondary, #f1f5f9);
+}
+
+.enm-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(to right, #f59e0b, #c2410c);
+  transition: width 0.28s ease;
+}
+
+.enm-dialog--error .enm-meter-fill {
+  background: linear-gradient(to right, #ed0331, #87021c);
+}
+
+.enm-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.enm-stat {
+  padding: 12px 8px;
+  border-radius: 12px;
+  text-align: center;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.enm-stat-value {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 750;
+  line-height: 1.1;
+  color: var(--text-primary, #0f172a);
+}
+
+.enm-stat-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #64748b);
+}
+
+.enm-stat--warn .enm-stat-value {
+  color: #c2410c;
+}
+
+.enm-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.enm-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.enm-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+
+.enm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 650;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.enm-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.enm-btn--primary {
+  background: #1e293b;
+  color: #fff;
+  border-color: #1e293b;
+}
+
+.enm-btn--primary:hover:not(:disabled) {
+  background: #334155;
+}
+
+.enm-btn--danger {
+  background: linear-gradient(to right, #ed0331, #87021c);
+  color: #fff;
+  box-shadow: 0 8px 18px color-mix(in srgb, #ed0331 28%, transparent);
+}
+
+.enm-btn--danger:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px color-mix(in srgb, #ed0331 36%, transparent);
+}
+
+@keyframes enm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes enm-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-theme='dark'] .enm-overlay {
+  background: rgba(2, 6, 23, 0.72);
+}
+
+[data-theme='dark'] .enm-dialog {
+  background: var(--bg-primary, #0f172a);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='dark'] .enm-icon--warning {
+  background: color-mix(in srgb, #c2410c 18%, transparent);
+  color: #fdba74;
+}
+
+[data-theme='dark'] .enm-icon--error {
+  background: color-mix(in srgb, #ed0331 18%, transparent);
+  color: #fca5a5;
+}
+
+[data-theme='dark'] .enm-icon--info {
+  background: color-mix(in srgb, #3b82f6 18%, transparent);
+  color: #93c5fd;
+}
+
+[data-theme='dark'] .enm-stat {
+  background: var(--bg-secondary, #1e293b);
+}
+
+[data-theme='dark'] .enm-meter {
+  background: var(--bg-secondary, #1e293b);
+}
+
+[data-theme='dark'] .enm-warning {
+  color: #fdba74;
+  background: color-mix(in srgb, #c2410c 16%, var(--bg-secondary, #1e293b));
+  border-color: color-mix(in srgb, #c2410c 35%, transparent);
+}
+
+[data-theme='dark'] .enm-btn--primary {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+@media (max-width: 520px) {
+  .enm-dialog {
+    padding: 24px 18px 18px;
+  }
+
+  .enm-btn {
+    width: 100%;
+  }
+}

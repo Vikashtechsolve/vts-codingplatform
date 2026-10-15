@@ -6,9 +6,8 @@ import VendorHubPage from '../../components/VendorAdmin/VendorHubPage';
 import QuestionHubRow from '../../components/VendorAdmin/QuestionHubRow';
 import QuestionTagFilters from '../../components/VendorAdmin/QuestionTagFilters';
 import VendorDataSection from '../../components/VendorAdmin/VendorDataSection';
-import useQuestionTagRegistry from '../../hooks/useQuestionTagRegistry';
 import { useListFetchLoading } from '../../hooks/useListFetchLoading';
-import { buildTagFilterOptions, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
+import { buildQuestionTagFilters, filterQuestionsBySearchAndTag } from '../../utils/tagUtils';
 import { QUESTION_FORM_META } from '../../utils/vendorQuestionFormMeta';
 
 const TABS = [
@@ -70,7 +69,6 @@ const EnglishQuestionList = ({ globalBankMode = false }) => {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
-  const { registryTags } = useQuestionTagRegistry();
 
   const meta = QUESTION_FORM_META.english;
 
@@ -150,8 +148,8 @@ const EnglishQuestionList = ({ globalBankMode = false }) => {
   );
 
   const availableTags = useMemo(
-    () => buildTagFilterOptions(registryTags, rawQuestions.flatMap((q) => q.tags || [])),
-    [registryTags, rawQuestions]
+    () => buildQuestionTagFilters(rawQuestions.flatMap((q) => q.tags || [])),
+    [rawQuestions]
   );
 
   const currentQuestions = useMemo(

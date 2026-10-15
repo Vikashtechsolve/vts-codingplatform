@@ -10,11 +10,15 @@ const User = require('../models/User');
 const Vendor = require('../models/Vendor');
 const {
   evaluateInterviewAnswer,
-  generateInterviewQuestion,
-  resolveInterviewerTurn,
-  generateInterviewOpener,
+  generateSpokenInterviewQuestions,
   generateInterviewFinalReport
 } = require('../utils/aiEvaluation');
+const { planNextInterviewTurn } = require('../utils/interviewTurn');
+const {
+  generateInterviewerReaction,
+  pickTransition,
+  closingLine,
+} = require('../utils/interviewReaction');
 const { percentToInterviewPoints, computeSessionMarksTotals } = require('../utils/interviewScoring');
 const { transcribeAudio } = require('../utils/sttService');
 const { synthesizeSpeech } = require('../utils/ttsService');
@@ -36,30 +40,118 @@ const {
 } = require('../utils/courseAssessmentAccess');
 const Contest = require('../models/Contest');
 
+const pendingEvalJobs = new Map();
+const queueFillInFlight = new Set();
+
+const toClientQuestion = (question) => {
+  if (!question?.questionText && !question?.spokenText) return null;
+  const segments = Array.isArray(question.speechSegments)
+    ? question.speechSegments.map((part) => String(part || '').trim()).filter(Boolean)
+    : undefined;
+  return {
+    questionId: question.questionId || null,
+    questionText: question.questionText || '',
+    spokenText: question.spokenText || question.questionText || '',
+    acknowledgment: question.acknowledgment || '',
+    isFollowUp: Boolean(question.isFollowUp),
+    speechSegments: segments?.length ? segments : undefined,
+  };
+};
+
+const spokenOpener = (interview, questionText) => {
+  const title = interview?.title ? ` for ${interview.title}` : '';
+  return `Hi, welcome to your mock interview${title}. I'll ask you a series of questions — answer naturally, and take your time. Let's begin. ${questionText}`;
+};
+
+const scoreAnswerInBackground = (sessionId, answerIndex, payload) => {
+  const job = (async () => {
+    try {
+      const evaluation = await evaluateInterviewAnswer(payload);
+      const points = percentToInterviewPoints(evaluation?.overall ?? 0, payload.maxPoints);
+      const stored = {
+        overall: evaluation?.overall ?? 0,
+        correctness: evaluation?.correctness ?? 0,
+        depth: evaluation?.depth ?? 0,
+        structure: evaluation?.structure ?? 0,
+        confidence: evaluation?.confidence ?? 0,
+        relevance: evaluation?.relevance ?? 0,
+        strengths: evaluation?.strengths || [],
+        weaknesses: evaluation?.weaknesses || [],
+        feedback: evaluation?.feedback || '',
+        resources: evaluation?.resources || [],
+      };
+      await InterviewSession.updateOne(
+        { _id: sessionId },
+        {
+          $set: {
+            [`answers.${answerIndex}.evaluation`]: stored,
+            [`answers.${answerIndex}.points`]: points,
+            [`answers.${answerIndex}.evaluationPending`]: false,
+          },
+        }
+      );
+    } catch (err) {
+      console.warn('Background interview scoring failed:', err.message);
+      await InterviewSession.updateOne(
+        { _id: sessionId },
+        { $set: { [`answers.${answerIndex}.evaluationPending`]: false } }
+      ).catch(() => {});
+    }
+  })();
+
+  const key = String(sessionId);
+  if (!pendingEvalJobs.has(key)) pendingEvalJobs.set(key, new Set());
+  const jobs = pendingEvalJobs.get(key);
+  jobs.add(job);
+  job.finally(() => jobs.delete(job));
+  return job;
+};
+
+const waitForPendingScores = async (sessionId, timeoutMs = 12000) => {
+  const jobs = pendingEvalJobs.get(String(sessionId));
+  if (!jobs?.size) return;
+  await Promise.race([
+    Promise.all([...jobs]),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+};
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 const buildFallbackQuestions = (interview, count) => {
-  const base = `Tell me about your experience with ${interview.topic || 'this topic'} in ${interview.interviewType || 'this role'}.`;
+  const topic = interview.topic || 'this topic';
+  const type = interview.interviewType || 'this role';
+  const templates = [
+    `Walk me through a situation where you used ${topic} in ${type}. What did you do, and what would you change now?`,
+    `How would you explain ${topic} to someone joining your team next week?`,
+    `Describe a realistic problem involving ${topic} that could go wrong at work. How would you notice and handle it?`,
+    `When two approaches to ${topic} both look reasonable, how do you decide which one to use?`,
+    `Tell me about a time ${topic} work did not go as planned. What did you learn?`,
+    `If a teammate disagreed with your approach to ${topic}, how would you work through that?`,
+  ];
   return Array.from({ length: count }).map((_, idx) => ({
     questionId: null,
-    questionText: idx === 0 ? base : `Let’s go deeper: ${base}`,
+    questionText: templates[idx % templates.length],
     isFollowUp: false
   }));
 };
 
 const getStaticQuestionList = async (interview, vendorId) => {
   if (interview.questions && interview.questions.length > 0) {
-    const populated = [];
-    for (const q of interview.questions.sort((a, b) => a.order - b.order)) {
-      const question = await InterviewQuestion.findById(q.questionId);
-      if (question) {
-        populated.push({
-          questionId: question._id,
-          questionText: question.question,
-          isFollowUp: false
-        });
-      }
-    }
+    const ordered = [...interview.questions].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const ids = ordered.map((q) => q.questionId).filter(Boolean);
+    const rows = ids.length
+      ? await InterviewQuestion.find({ _id: { $in: ids } }).select('question')
+      : [];
+    const byId = new Map(rows.map((row) => [String(row._id), row]));
+    const populated = ordered
+      .map((entry) => byId.get(String(entry.questionId)))
+      .filter(Boolean)
+      .map((question) => ({
+        questionId: question._id,
+        questionText: question.question,
+        isFollowUp: false,
+      }));
     if (populated.length > 0) return populated;
   }
 
@@ -85,27 +177,20 @@ const getStaticQuestionList = async (interview, vendorId) => {
 };
 
 const generateAiQuestionBatch = async (interview, count, previousTexts = []) => {
-  const generated = [...previousTexts];
-  const items = [];
-  for (let i = 0; i < count; i++) {
-    const questionText = await generateInterviewQuestion({
-      interviewType: interview.interviewType,
-      topic: interview.topic,
-      difficulty: interview.difficulty,
-      description: interview.description,
-      title: interview.title,
-      previousQuestions: generated
-    });
-    if (questionText) {
-      generated.push(questionText);
-      items.push({
-        questionId: null,
-        questionText,
-        isFollowUp: false
-      });
-    }
-  }
-  return items;
+  const texts = await generateSpokenInterviewQuestions({
+    interviewType: interview.interviewType,
+    topic: interview.topic,
+    difficulty: interview.difficulty,
+    description: interview.description,
+    title: interview.title,
+    previousQuestions: previousTexts,
+    count
+  });
+  return texts.map((questionText) => ({
+    questionId: null,
+    questionText,
+    isFollowUp: false
+  }));
 };
 
 /** Fast path for session start: static list or a single AI question (rest filled in background). */
@@ -120,39 +205,52 @@ const buildQuestionQueueForStart = async (interview, vendorId) => {
 };
 
 const fillQuestionQueueInBackground = async (sessionId, interviewId) => {
+  const key = String(sessionId);
+  if (queueFillInFlight.has(key)) return;
+  queueFillInFlight.add(key);
   try {
-    const session = await InterviewSession.findById(sessionId);
+    const session = await InterviewSession.findById(sessionId)
+      .select('questionQueue currentQuestion answers status vendorId');
     const interview = await Interview.findById(interviewId);
     if (!session || !interview || session.status !== 'in_progress') return;
 
-    const staticList = await getStaticQuestionList(interview, session.vendorId);
     const planned = interview.questionCount || 6;
     const knownTexts = new Set(
-      [session.currentQuestion?.questionText, ...(session.questionQueue || []).map((q) => q.questionText)]
-        .filter(Boolean)
+      [
+        session.currentQuestion?.questionText,
+        ...(session.questionQueue || []).map((q) => q.questionText),
+        ...(session.answers || []).map((a) => a.questionText),
+      ].filter(Boolean)
     );
-
-    if (staticList?.length) {
-      const toAdd = staticList.filter((q) => !knownTexts.has(q.questionText));
-      if (toAdd.length) {
-        session.questionQueue.push(...toAdd);
-        await session.save();
-      }
-      return;
-    }
-
-    const have = 1 + (session.questionQueue?.length || 0);
+    const mainAsked = (session.answers || []).filter((a) => !a.isFollowUp).length;
+    const currentIsMain = Boolean(session.currentQuestion?.questionText) && !session.currentQuestion?.isFollowUp;
+    const queuedMain = (session.questionQueue || []).filter((q) => q?.questionText && !q.isFollowUp).length;
+    const have = mainAsked + (currentIsMain ? 1 : 0) + queuedMain;
     const need = Math.max(0, planned - have);
     if (need <= 0) return;
 
-    const previous = [...knownTexts];
-    const batch = await generateAiQuestionBatch(interview, need, previous);
-    if (batch.length) {
-      session.questionQueue.push(...batch);
-      await session.save();
+    let batch = [];
+    const staticList = await getStaticQuestionList(interview, session.vendorId);
+    if (staticList?.length) {
+      batch = staticList.filter((q) => !knownTexts.has(q.questionText)).slice(0, need);
+    } else {
+      batch = await generateAiQuestionBatch(interview, need, [...knownTexts]);
     }
+    if (batch.length < need) {
+      const pad = buildFallbackQuestions(interview, need - batch.length);
+      batch = batch.concat(pad);
+    }
+    batch = batch.slice(0, need);
+    if (!batch.length) return;
+
+    await InterviewSession.updateOne(
+      { _id: sessionId, status: 'in_progress' },
+      { $push: { questionQueue: { $each: batch } } }
+    );
   } catch (err) {
     console.warn('Background question queue fill failed:', err.message);
+  } finally {
+    queueFillInFlight.delete(key);
   }
 };
 
@@ -339,22 +437,14 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
     }
 
     if (session.currentQuestion?.questionText && !session.currentQuestion?.spokenText) {
-      const opener = await generateInterviewOpener({
-        interviewTitle: interview.title,
-        interviewType: interview.interviewType,
-        topic: interview.topic,
-        difficulty: interview.difficulty,
-        description: interview.description,
-        firstQuestionText: session.currentQuestion.questionText
-      });
-      session.currentQuestion = {
-        questionId: session.currentQuestion.questionId || null,
-        questionText: opener.displayQuestionText || session.currentQuestion.questionText,
-        spokenText: opener.spokenText,
-        acknowledgment: opener.acknowledgment || '',
-        isFollowUp: false
-      };
-      await session.save();
+      const questionText = session.currentQuestion.questionText;
+      const spokenText = spokenOpener(interview, questionText);
+      await InterviewSession.updateOne(
+        { _id: session._id },
+        { $set: { 'currentQuestion.spokenText': spokenText, 'currentQuestion.questionText': questionText } }
+      );
+      session.currentQuestion.spokenText = spokenText;
+      session.currentQuestion.questionText = questionText;
     }
 
     const planned = interview.questionCount || 6;
@@ -367,7 +457,9 @@ router.post('/start/:interviewId', auth, authorize('student'), async (req, res) 
     const totalQuestions = interview.questionCount || Math.max(6, 1 + queueLen);
     res.json({
       sessionId: session._id,
-      currentQuestion: session.currentQuestion,
+      currentQuestion: toClientQuestion(session.currentQuestion),
+      upcomingQuestion: toClientQuestion(session.questionQueue?.[0]),
+      questionNumber: 1,
       timeLimit: interview.duration,
       totalQuestions,
       readyToJoin: Boolean(
@@ -458,91 +550,175 @@ router.post('/:sessionId/answer', auth, authorize('student'), async (req, res) =
 
     const transcript = (req.body.transcript || '').trim();
     const transcriptForEval = transcript || '(No verbal response)';
+    const isFollowUp = Boolean(session.currentQuestion?.isFollowUp);
+    const answerIndex = session.answers.length;
 
     let question = null;
     if (session.currentQuestion?.questionId) {
-      question = await InterviewQuestion.findById(session.currentQuestion.questionId);
+      question = await InterviewQuestion.findById(session.currentQuestion.questionId).select('points rubrics');
+    }
+    const maxPoints = Number(question?.points) > 0 ? Number(question.points) : 10;
+
+    const interview = await Interview.findById(session.interviewId).select('settings questionCount topic');
+    const settings = interview?.settings || {};
+    const allowFollowUp = settings.allowFollowUps !== false;
+    const maxFollowUps = Math.max(1, Number(settings.maxFollowUps) || 6);
+    const followUpsUsed = session.answers.filter((a) => a.isFollowUp).length;
+    const mainAskedBefore = session.answers.filter((a) => !a.isFollowUp).length;
+
+    const planned = interview?.questionCount || 6;
+    const topic = session.topic || interview?.topic || '';
+    const currentText = session.currentQuestion?.questionText || '';
+    const followUpsRemaining = Math.max(0, maxFollowUps - followUpsUsed);
+    const canFollowUp = !isFollowUp && allowFollowUp && followUpsRemaining > 0;
+    const mainsAfter = mainAskedBefore + (isFollowUp ? 0 : 1);
+    const isLastQuestion = mainsAfter >= planned;
+    const recentExchanges = session.answers
+      .slice(-2)
+      .map((a) => `Q: ${a.questionText}\nA: ${String(a.transcript || '').slice(0, 280)}`)
+      .join('\n\n');
+
+    const reaction = await generateInterviewerReaction({
+      questionText: currentText,
+      transcript: transcriptForEval,
+      interviewType: session.interviewType,
+      topic,
+      difficulty: session.difficulty,
+      recentExchanges,
+      isFollowUp,
+      canFollowUp,
+      isLastQuestion,
+    });
+
+    // Decide the next spoken turn from the reaction.
+    let turn;
+    const reAsk = (lead) => ({
+      completed: false,
+      consumeQueue: false,
+      usedFallback: false,
+      acknowledgment: reaction.reaction,
+      nextQuestion: {
+        questionId: session.currentQuestion?.questionId || null,
+        questionText: currentText,
+        spokenText: `${reaction.reaction} ${lead} ${currentText}`.replace(/\s+/g, ' ').trim(),
+        speechSegments: [`${reaction.reaction} ${lead}`.trim(), currentText],
+        isFollowUp: true,
+      },
+    });
+
+    if (canFollowUp && reaction.verdict === 'empty') {
+      turn = reAsk("Let me ask that again.");
+    } else if (canFollowUp && reaction.verdict === 'off_topic' && !reaction.followUpQuestion) {
+      turn = reAsk('So, coming back to the question:');
+    } else if (
+      canFollowUp
+      && (reaction.verdict === 'partial' || reaction.verdict === 'off_topic')
+      && reaction.followUpQuestion
+    ) {
+      turn = {
+        completed: false,
+        consumeQueue: false,
+        usedFallback: false,
+        acknowledgment: reaction.reaction,
+        nextQuestion: {
+          questionId: null,
+          questionText: reaction.followUpQuestion,
+          spokenText: `${reaction.reaction} ${reaction.followUpQuestion}`.replace(/\s+/g, ' ').trim(),
+          speechSegments: [reaction.reaction, reaction.followUpQuestion],
+          isFollowUp: true,
+        },
+      };
+    } else {
+      const base = planNextInterviewTurn({
+        transcript: transcriptForEval,
+        isFollowUp,
+        allowFollowUp: false,
+        followUpsRemaining: 0,
+        mainAskedBefore,
+        planned,
+        queueHead: session.questionQueue?.[0] || null,
+        topic,
+      });
+      const bridge = reaction.transition || pickTransition(mainsAfter);
+      turn = {
+        ...base,
+        acknowledgment: reaction.reaction,
+        nextQuestion: base.nextQuestion
+          ? {
+              ...base.nextQuestion,
+              spokenText: `${reaction.reaction} ${bridge} ${base.nextQuestion.questionText}`
+                .replace(/\s+/g, ' ')
+                .trim(),
+              speechSegments: [`${reaction.reaction} ${bridge}`.trim(), base.nextQuestion.questionText],
+            }
+          : null,
+      };
     }
 
-    const evaluation = await evaluateInterviewAnswer({
+    const closingText = turn.completed ? closingLine(reaction.reaction) : '';
+
+    const answerDoc = {
+      questionId: session.currentQuestion?.questionId || null,
+      questionText: currentText,
+      transcript: transcript || '(No verbal response)',
+      evaluation: {},
+      points: 0,
+      maxPoints,
+      isFollowUp,
+      evaluationPending: true,
+      interviewerReaction: reaction.reaction,
+      verdict: reaction.verdict,
+    };
+
+    const update = {
+      $push: { answers: answerDoc },
+      $set: {
+        currentQuestion: turn.nextQuestion || {
+          questionText: '',
+          spokenText: '',
+          acknowledgment: '',
+          isFollowUp: false,
+        },
+      },
+    };
+    if (turn.consumeQueue) update.$pop = { questionQueue: -1 };
+
+    const updated = await InterviewSession.findOneAndUpdate(
+      { _id: session._id, status: 'in_progress' },
+      update,
+      { new: true, projection: { questionQueue: 1 } }
+    );
+    if (!updated) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    scoreAnswerInBackground(session._id, answerIndex, {
       questionText: session.currentQuestion?.questionText || '',
       interviewType: session.interviewType,
       topic: session.topic,
       difficulty: session.difficulty,
       rubrics: question?.rubrics || [],
-      transcript: transcriptForEval
-    });
-
-    const maxPoints = Number(question?.points) > 0 ? Number(question.points) : 10;
-    const points = percentToInterviewPoints(evaluation?.overall ?? 0, maxPoints);
-
-    session.answers.push({
-      questionId: session.currentQuestion?.questionId || null,
-      questionText: session.currentQuestion?.questionText || '',
-      transcript: transcript || '(No verbal response)',
-      evaluation,
-      points,
-      maxPoints,
-      isFollowUp: session.currentQuestion?.isFollowUp || false
-    });
-
-    const interview = await Interview.findById(session.interviewId);
-    const settings = interview?.settings || {};
-    const allowFollowUp = settings.allowFollowUps !== false;
-    const maxFollowUps = Math.max(1, Number(settings.maxFollowUps) || 6);
-    const followUpsUsed = session.answers.filter(a => a.isFollowUp).length;
-    const followUpsRemaining = Math.max(0, maxFollowUps - followUpsUsed);
-    const nextQueued = session.questionQueue?.[0] || null;
-    const recentExchanges = session.answers
-      .slice(-3)
-      .map((a, i) => `Q${i + 1}: ${a.questionText}\nAnswer: ${a.transcript}`)
-      .join('\n\n');
-
-    const turn = await resolveInterviewerTurn({
-      evaluation,
-      questionText: session.currentQuestion?.questionText || '',
       transcript: transcriptForEval,
-      interviewType: session.interviewType,
-      topic: session.topic,
-      difficulty: session.difficulty,
-      nextQueuedQuestionText: nextQueued?.questionText || null,
-      followUpsRemaining,
-      allowFollowUp,
-      isFollowUpQuestion: Boolean(session.currentQuestion?.isFollowUp),
-      recentExchanges
+      maxPoints,
     });
 
-    let nextQuestion = null;
-    let lastAcknowledgment = turn?.acknowledgment || '';
-
-    if (turn?.shouldFollowUp && turn.followUpQuestion) {
-      nextQuestion = {
-        questionId: null,
-        questionText: turn.displayQuestionText || turn.followUpQuestion,
-        spokenText: turn.spokenText,
-        acknowledgment: turn.acknowledgment || '',
-        isFollowUp: true
-      };
-    } else if (session.questionQueue.length > 0) {
-      const queued = session.questionQueue.shift();
-      nextQuestion = {
-        questionId: queued.questionId || null,
-        questionText: turn?.displayQuestionText || queued.questionText,
-        spokenText: turn?.spokenText || queued.questionText,
-        acknowledgment: turn?.acknowledgment || '',
-        isFollowUp: false
-      };
+    if (turn.usedFallback) {
+      setImmediate(() => fillQuestionQueueInBackground(session._id, session.interviewId));
     }
 
-    session.currentQuestion = nextQuestion || { questionText: '', spokenText: '', acknowledgment: '', isFollowUp: false };
-    await session.save();
+    const questionNumber = turn.nextQuestion?.isFollowUp
+      ? Math.max(1, mainsAfter)
+      : mainsAfter + (turn.completed ? 0 : 1);
 
     res.json({
-      evaluation,
-      acknowledgment: lastAcknowledgment,
-      nextQuestion,
-      completed: !nextQuestion,
-      askedFollowUp: Boolean(nextQuestion?.isFollowUp)
+      acknowledgment: turn.acknowledgment,
+      nextQuestion: toClientQuestion(turn.nextQuestion),
+      upcomingQuestion: toClientQuestion(updated.questionQueue?.[0]),
+      completed: turn.completed,
+      askedFollowUp: Boolean(turn.nextQuestion?.isFollowUp),
+      questionNumber,
+      spokenClosing: closingText || null,
+      verdict: reaction.verdict,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -561,6 +737,13 @@ router.post('/:sessionId/submit', auth, authorize('student'), async (req, res) =
 
     if (session.status === 'completed') {
       return res.status(400).json({ message: 'Interview already submitted' });
+    }
+
+    await waitForPendingScores(session._id);
+    const scored = await InterviewSession.findById(session._id);
+    if (scored?.answers?.length) {
+      session.answers = scored.answers;
+      session.markModified('answers');
     }
 
     session.submittedAt = new Date();

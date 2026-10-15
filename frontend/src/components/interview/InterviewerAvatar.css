@@ -94,7 +94,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent 42%, rgba(0, 0, 0, 0.5) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, transparent 18%, transparent 62%, rgba(0, 0, 0, 0.42) 100%);
   z-index: 3;
 }
 
@@ -204,28 +204,9 @@
   transition: width 0.08s linear;
 }
 
-.interviewer-call-loading {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  background: rgba(8, 12, 18, 0.78);
-  color: #f1f5f9;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.interviewer-call-spinner {
-  width: 44px;
-  height: 44px;
-  border: 3px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
-  animation: ivrSpin 0.75s linear infinite;
+.interviewer-call.is-thinking .interviewer-call-feed {
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.14), 0 16px 36px rgba(15, 23, 42, 0.1);
 }
 
 .interviewer-call-overlay {
@@ -258,6 +239,16 @@
   background: color-mix(in srgb, var(--primary-color) 40%, rgba(0, 0, 0, 0.68));
 }
 
+.interviewer-call-live-pill.is-listening {
+  background: rgba(20, 83, 45, 0.72);
+  color: #dcfce7;
+}
+
+.interviewer-call-live-pill.is-thinking {
+  background: rgba(120, 53, 15, 0.72);
+  color: #fef3c7;
+}
+
 .interviewer-call-live-dot {
   width: 8px;
   height: 8px;
@@ -265,8 +256,58 @@
   background: #ef4444;
 }
 
-.interviewer-call-live-pill.on-air .interviewer-call-live-dot {
-  animation: ivrLivePulse 0.85s ease-in-out infinite;
+.interviewer-call-live-pill.is-listening .interviewer-call-live-dot {
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.8);
+  animation: ivrLivePulse 1.1s ease-in-out infinite;
+}
+
+.interviewer-call-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.interviewer-call-bars i {
+  display: block;
+  width: 3px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  animation: ivrBars 0.7s ease-in-out infinite;
+}
+
+.interviewer-call-bars i:nth-child(2) { animation-delay: 0.12s; }
+.interviewer-call-bars i:nth-child(3) { animation-delay: 0.24s; }
+.interviewer-call-bars i:nth-child(4) { animation-delay: 0.08s; }
+
+@keyframes ivrBars {
+  0%, 100% { height: 4px; opacity: 0.6; }
+  50% { height: 12px; opacity: 1; }
+}
+
+.interviewer-call-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.interviewer-call-dots i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: ivrDots 1.1s ease-in-out infinite;
+}
+
+.interviewer-call-dots i:nth-child(2) { animation-delay: 0.18s; }
+.interviewer-call-dots i:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes ivrDots {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-2px); }
 }
 
 @keyframes ivrLivePulse {

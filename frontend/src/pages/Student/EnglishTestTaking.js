@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axiosInstance from '../../utils/axios';
@@ -11,7 +11,8 @@ import ExamFullscreenPrompt from '../../components/ExamFullscreenPrompt';
 import ExamSecurityOverlay from '../../components/ExamSecurityOverlay';
 import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
-import Modal from '../../components/Modal';
+import ConfirmSubmitModal from '../../components/ConfirmSubmitModal';
+import ExamNoticeModal from '../../components/ExamNoticeModal';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './EnglishTestTaking.css';
@@ -47,6 +48,7 @@ const EnglishTestTaking = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Listening state
   const [audioPlayCount, setAudioPlayCount] = useState({});
@@ -75,18 +77,24 @@ const EnglishTestTaking = () => {
   const handleMaxViolations = useCallback(() => {
     setModal({
       isOpen: true,
-      title: 'Auto-Submission',
-      message: 'Maximum violations reached. Your test will be submitted.',
+      title: 'Test submitting',
+      message: 'You reached the violation limit. This test is being submitted automatically.',
       type: 'error',
+      blocking: true,
     });
+    setTimeout(() => {
+      handleSubmitTestRef.current?.(true);
+    }, 2000);
   }, []);
 
   const handleViolationWarning = useCallback((current, max) => {
     setModal({
       isOpen: true,
-      title: 'Violation Warning',
-      message: `You have ${current} of ${max} violations. Please follow exam rules.`,
+      title: 'Stay in the exam',
+      message: `You have ${current} of ${max} allowed violations. At ${max}, this test submits automatically. Stay in fullscreen and follow exam rules.`,
       type: 'warning',
+      current,
+      max,
     });
   }, []);
 
@@ -299,13 +307,14 @@ const EnglishTestTaking = () => {
       autoSubmitTriggeredRef.current = true;
       setModal({
         isOpen: true,
-        title: 'Time\'s up',
+        title: 'Time is up',
         message: contestId
           ? 'The contest attempt window has ended. Your test will be submitted automatically.'
           : attemptWindowEndRef.current
             ? 'The scheduled attempt window has ended. Your test will be submitted automatically.'
             : 'Your test time has ended. Your test will be submitted automatically.',
         type: 'warning',
+        blocking: true,
       });
       setTimeout(() => {
         handleSubmitTestRef.current?.(true);
@@ -332,11 +341,11 @@ const EnglishTestTaking = () => {
         const remaining = (prev[currentSectionIdx] || 0) - 1;
         if (remaining === 300 && !timeWarnedRef.current.five) {
           timeWarnedRef.current.five = true;
-          setModal({ isOpen: true, title: 'Time reminder', message: '5 minutes remaining in this section.', type: 'warning' });
+          setModal({ isOpen: true, title: '5 minutes left', message: 'This section ends in 5 minutes. Finish this part before time runs out.', type: 'info' });
         }
         if (remaining === 60 && !timeWarnedRef.current.one) {
           timeWarnedRef.current.one = true;
-          setModal({ isOpen: true, title: 'Time reminder', message: '1 minute remaining in this section.', type: 'warning' });
+          setModal({ isOpen: true, title: '1 minute left', message: 'This section ends in 1 minute. Save your answers now.', type: 'warning' });
         }
         if (remaining <= 0) {
           clearInterval(interval);
@@ -355,6 +364,30 @@ const EnglishTestTaking = () => {
   const questionData = currentQuestion?.questionId;
   const timeRemaining = sectionTimers[currentSectionIdx] || 0;
 
+  const submitProgress = useMemo(() => {
+    let answered = 0;
+    let flaggedCount = 0;
+    let total = 0;
+    sections.forEach((sec) => {
+      (sec.questions || []).forEach((q) => {
+        total += 1;
+        const qId = q.questionId?._id || q.questionId;
+        const isSpeaking = q.type === 'english_speaking';
+        const isAnswered = isSpeaking
+          ? !!(recordedBlobs[qId] || answers[qId])
+          : answers[qId] !== undefined;
+        if (isAnswered) answered += 1;
+        if (flagged[qId]) flaggedCount += 1;
+      });
+    });
+    return {
+      answered,
+      unanswered: Math.max(0, total - answered),
+      flagged: flaggedCount,
+      total,
+    };
+  }, [sections, answers, recordedBlobs, flagged]);
+
   const formatTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
   const handleSectionTimeout = () => {
@@ -362,7 +395,7 @@ const EnglishTestTaking = () => {
     if (currentSectionIdx < sections.length - 1) {
       moveToNextSection();
     } else {
-      handleSubmitTest();
+      handleSubmitTest(true);
     }
   };
   handleSectionTimeoutRef.current = handleSectionTimeout;
@@ -473,10 +506,11 @@ const EnglishTestTaking = () => {
     if (currentQuestionIdx > 0) setCurrentQuestionIdx(currentQuestionIdx - 1);
   };
 
-  const handleSubmitTest = async (autoSubmitted = false) => {
+  const performSubmit = async (autoSubmitted = false) => {
     if (submitting) return;
     const rid = result?._id || resultRef.current?._id;
     if (!rid) return;
+    setConfirmOpen(false);
     setSubmitting(true);
     setShowReview(false);
     try {
@@ -517,6 +551,15 @@ const EnglishTestTaking = () => {
       });
       setSubmitting(false);
     }
+  };
+
+  const handleSubmitTest = async (autoSubmitted = false) => {
+    if (submitting) return;
+    if (autoSubmitted === true) {
+      await performSubmit(true);
+      return;
+    }
+    setConfirmOpen(true);
   };
 
   // ===== GRAMMAR QUESTION RENDERER =====
@@ -920,7 +963,7 @@ const EnglishTestTaking = () => {
         ctx.fillStyle = 'var(--bg-secondary)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.lineWidth = 2;
-        ctx.strokeStyle = '#ED0331';
+        ctx.strokeStyle = '#3b82f6';
         ctx.beginPath();
         const sliceWidth = canvas.width / bufferLength;
         let x = 0;
@@ -963,10 +1006,10 @@ const EnglishTestTaking = () => {
 
           <div className="recording-buttons">
             {!isRecording && !recorded && attempts < maxAttempts && (
-              <button type="button" onClick={startRecording} className="btn btn-primary record-btn">Start Recording</button>
+              <button type="button" onClick={startRecording} className="exam-btn exam-btn-outline-danger">Start recording</button>
             )}
             {isRecording && (
-              <button type="button" onClick={stopRecording} className="btn btn-danger stop-btn">Stop Recording</button>
+              <button type="button" onClick={stopRecording} className="exam-btn exam-btn-outline-danger">Stop recording</button>
             )}
             {recorded && !isRecording && recordedUrls[qId] && (
               <div className="recording-playback">
@@ -977,12 +1020,12 @@ const EnglishTestTaking = () => {
                   {uploadStatus === 'failed' && (
                     <span className="upload-status failed">
                       Upload failed
-                      <button type="button" className="btn btn-sm btn-secondary" onClick={() => uploadSpeakingAudio(qId, recorded)}>Retry</button>
+                      <button type="button" className="exam-btn exam-btn-secondary exam-btn-sm" onClick={() => uploadSpeakingAudio(qId, recorded)}>Retry</button>
                     </span>
                   )}
                 </div>
                 {attempts < maxAttempts && (
-                  <button type="button" onClick={handleReRecord} className="btn btn-secondary">Re-record ({maxAttempts - attempts} left)</button>
+                  <button type="button" onClick={handleReRecord} className="exam-btn exam-btn-secondary">Re-record ({maxAttempts - attempts} left)</button>
                 )}
               </div>
             )}
@@ -1011,7 +1054,7 @@ const EnglishTestTaking = () => {
     return (
       <div className="practice-check-btn-wrap">
         <button
-          className="btn btn-primary practice-check-btn"
+          className="exam-btn exam-btn-primary practice-check-btn"
           onClick={() => setPracticeRevealed(prev => ({ ...prev, [qId]: true }))}
         >
           Check Answer
@@ -1074,6 +1117,44 @@ const EnglishTestTaking = () => {
     );
   };
 
+  const renderExamNotice = () => (
+    <ExamNoticeModal
+      isOpen={modal.isOpen}
+      onClose={() => setModal({ ...modal, isOpen: false })}
+      title={modal.title}
+      message={modal.message}
+      type={modal.type}
+      current={modal.current}
+      max={modal.max}
+      blocking={modal.blocking}
+    />
+  );
+
+  const renderSubmitConfirm = () => (
+    <ConfirmSubmitModal
+      isOpen={confirmOpen}
+      onClose={() => { if (!submitting) setConfirmOpen(false); }}
+      onConfirm={() => performSubmit(false)}
+      submitting={submitting}
+      title="Submit this test?"
+      message={
+        isCourseQuiz
+          ? 'Once submitted, this attempt is recorded for your course. You cannot change your answers.'
+          : 'Once submitted, you cannot change your answers.'
+      }
+      stats={[
+        { label: 'Answered', value: submitProgress.answered, tone: 'ok' },
+        { label: 'Unanswered', value: submitProgress.unanswered, tone: submitProgress.unanswered ? 'warn' : 'muted' },
+        { label: 'Flagged', value: submitProgress.flagged, tone: 'muted' },
+      ]}
+      warning={
+        submitProgress.unanswered > 0
+          ? `${submitProgress.unanswered} question${submitProgress.unanswered === 1 ? '' : 's'} still unanswered.`
+          : undefined
+      }
+    />
+  );
+
   // ===== REVIEW PANEL =====
   const renderReview = () => {
     const hasPendingSpeaking = Object.keys(recordedBlobs).some(
@@ -1081,86 +1162,129 @@ const EnglishTestTaking = () => {
     );
 
     return (
-      <div className="review-panel">
-        <h2>Review Your Answers</h2>
-        {sections.map((sec, sIdx) => (
-          <div key={sIdx} className="review-section">
-            <h3>{sec.sectionTitle}</h3>
-            <div className="review-questions">
-              {sec.questions.map((q, qIdx) => {
-                const qId = q.questionId?._id || q.questionId;
-                const isSpeaking = q.type === 'english_speaking';
-                const answered = isSpeaking
-                  ? !!(recordedBlobs[qId] || answers[qId])
-                  : answers[qId] !== undefined;
-                const isFlagged = flagged[qId];
-                const speakingStatus = isSpeaking ? speakingUploadStatus[qId] : null;
-                return (
-                  <div
-                    key={qIdx}
-                    className={`review-item ${answered ? 'answered' : 'unanswered'} ${isFlagged ? 'flagged' : ''} ${speakingStatus === 'failed' ? 'upload-failed' : ''}`}
-                    onClick={() => { setCurrentSectionIdx(sIdx); setCurrentQuestionIdx(qIdx); setShowReview(false); }}
-                  >
-                    <span>Q{qIdx + 1}</span>
-                    {isFlagged && <span className="flag-icon">!</span>}
-                    {speakingStatus === 'uploading' && <span className="upload-icon">...</span>}
-                    {speakingStatus === 'uploaded' && <span className="upload-icon done">ok</span>}
-                    {speakingStatus === 'failed' && <span className="upload-icon fail">!</span>}
-                  </div>
-                );
-              })}
+      <div className="english-test-taking">
+        <div className="ett-review">
+          <div className="ett-review-card">
+            <div className="ett-review-head">
+              <h2>Review your answers</h2>
+              <p>Jump to any question before you submit. Flagged items need a second look.</p>
+            </div>
+            {sections.map((sec, sIdx) => (
+              <div key={sIdx} className="review-section">
+                <h3>{sec.sectionTitle}</h3>
+                <div className="review-questions">
+                  {sec.questions.map((q, qIdx) => {
+                    const qId = q.questionId?._id || q.questionId;
+                    const isSpeaking = q.type === 'english_speaking';
+                    const answered = isSpeaking
+                      ? !!(recordedBlobs[qId] || answers[qId])
+                      : answers[qId] !== undefined;
+                    const isFlagged = flagged[qId];
+                    const speakingStatus = isSpeaking ? speakingUploadStatus[qId] : null;
+                    return (
+                      <button
+                        type="button"
+                        key={qIdx}
+                        className={`review-item ${answered ? 'answered' : 'unanswered'} ${isFlagged ? 'flagged' : ''} ${speakingStatus === 'failed' ? 'upload-failed' : ''}`}
+                        onClick={() => { setCurrentSectionIdx(sIdx); setCurrentQuestionIdx(qIdx); setShowReview(false); }}
+                      >
+                        <span>{qIdx + 1}</span>
+                        {isFlagged && <span className="flag-icon">!</span>}
+                        {speakingStatus === 'uploading' && <span className="upload-icon">...</span>}
+                        {speakingStatus === 'uploaded' && <span className="upload-icon done">ok</span>}
+                        {speakingStatus === 'failed' && <span className="upload-icon fail">!</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {hasPendingSpeaking && (
+              <div className="review-warning">
+                Some speaking recordings have not uploaded yet. They will upload when you submit.
+              </div>
+            )}
+            <div className="review-actions">
+              <button type="button" className="exam-btn exam-btn-secondary" onClick={() => setShowReview(false)}>Back to test</button>
+              <button type="button" className="exam-btn exam-btn-submit-final" disabled={submitting} onClick={() => handleSubmitTest()}>
+                {submitting ? 'Submitting…' : 'Submit test'}
+              </button>
             </div>
           </div>
-        ))}
-        {hasPendingSpeaking && (
-          <div className="review-warning">
-            Some speaking recordings haven't been uploaded yet. They will be uploaded when you submit.
-          </div>
-        )}
-        <div className="review-actions">
-          <button className="btn btn-secondary" onClick={() => setShowReview(false)}>Back to Test</button>
-          <button className="btn btn-primary" disabled={submitting} onClick={handleSubmitTest}>
-            {submitting ? 'Submitting...' : 'Submit Test'}
-          </button>
         </div>
+        {renderExamNotice()}
+        {renderSubmitConfirm()}
       </div>
     );
   };
 
-  if (loading) return <div className="english-test-loading">Loading test...</div>;
-
-  if (loadError) {
+  if (loading) {
     return (
-      <div className="english-test-loading english-test-loading--error">
-        <h3>Could not start test</h3>
-        <p>{loadError}</p>
-        <div className="english-test-loading-actions">
-          <button type="button" className="btn btn-primary" onClick={() => fetchTestAndStart()}>
-            Try again
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={() => navigate('/student/dashboard')}>
-            Back to Dashboard
-          </button>
+      <div className="english-test-taking">
+        <div className="english-test-loading" role="status" aria-live="polite">
+          <div className="english-test-loading-spinner" aria-hidden />
+          <p>Preparing your English test…</p>
         </div>
       </div>
     );
   }
 
-  if (!test) return <div className="english-test-loading">Test not found.</div>;
+  if (loadError) {
+    return (
+      <div className="english-test-taking">
+        <div className="english-test-loading english-test-loading--error">
+          <h3>Could not start test</h3>
+          <p>{loadError}</p>
+          <div className="english-test-loading-actions">
+            <button type="button" className="exam-btn exam-btn-primary" onClick={() => fetchTestAndStart()}>
+              Try again
+            </button>
+            <button type="button" className="exam-btn exam-btn-secondary" onClick={() => navigate('/student/dashboard')}>
+              Back to dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!test) {
+    return (
+      <div className="english-test-taking">
+        <div className="english-test-loading">
+          <p>Test not found.</p>
+        </div>
+      </div>
+    );
+  }
 
   const showFullscreenGate = result && !fullscreenReady && !isFullscreen;
 
   if (showSectionTransition && sections[currentSectionIdx + 1]) {
     const next = sections[currentSectionIdx + 1];
     return (
-      <div className="section-transition">
-        <div className="transition-card">
-          <h2>Next Section</h2>
-          <h1>{next.sectionTitle}</h1>
-          <p>{next.questions?.length} questions | {next.duration} minutes</p>
-          {next.instructions && <p className="transition-instructions">{next.instructions}</p>}
-          <button className="btn btn-primary" onClick={() => { setCurrentSectionIdx(currentSectionIdx + 1); setCurrentQuestionIdx(0); setSectionStarted(prev => ({ ...prev, [currentSectionIdx + 1]: true })); setShowSectionTransition(false); }}>Start Section</button>
+      <div className="english-test-taking">
+        <div className="section-transition">
+          <div className="transition-card">
+            <p className="transition-kicker">Next section</p>
+            <h1>{next.sectionTitle}</h1>
+            <p className="transition-meta">{next.questions?.length} questions · {next.duration} minutes</p>
+            {next.instructions && <p className="transition-instructions">{next.instructions}</p>}
+            <button
+              type="button"
+              className="exam-btn exam-btn-primary"
+              onClick={() => {
+                setCurrentSectionIdx(currentSectionIdx + 1);
+                setCurrentQuestionIdx(0);
+                setSectionStarted((prev) => ({ ...prev, [currentSectionIdx + 1]: true }));
+                setShowSectionTransition(false);
+              }}
+            >
+              Start section
+            </button>
+          </div>
         </div>
+        {renderExamNotice()}
       </div>
     );
   }
@@ -1186,64 +1310,122 @@ const EnglishTestTaking = () => {
         />
       )}
       <ExamSecurityOverlay mode={securityOverlay} onReenterFullscreen={onReenterFullscreen} />
-      <Modal isOpen={modal.isOpen} onClose={() => setModal({ ...modal, isOpen: false })} title={modal.title} type={modal.type}>
-        <p>{modal.message}</p>
-      </Modal>
+      {renderExamNotice()}
+      {renderSubmitConfirm()}
 
-      <div className="test-header">
+      <header className="test-header">
         <div className="test-header-left">
-          <h2 className="test-title">{test.title}</h2>
-          <span className="section-badge">{currentSection?.sectionTitle} ({currentQuestionIdx + 1}/{totalQuestionsInSection})</span>
+          <div className="test-header-brand">
+            <h2 className="test-title">{test.title}</h2>
+            <span className="test-type-badge">English</span>
+            {isPractice && <span className="practice-mode-badge">Practice</span>}
+            {isCourseQuiz && (
+              <span className={`test-attempt-pill ${result?.countsTowardScore === false ? 'is-practice' : 'is-official'}`}>
+                {result?.countsTowardScore === false ? 'Practice attempt' : 'Official attempt'}
+              </span>
+            )}
+          </div>
+          <span className="test-progress-pill">
+            {currentSection?.sectionTitle} · {currentQuestionIdx + 1} of {totalQuestionsInSection}
+          </span>
         </div>
         <div className="test-header-right">
-          {isPractice ? (
-            <div className="practice-mode-badge">Practice Mode</div>
-          ) : (
-            <div className={`timer ${timeRemaining < 60 ? 'danger' : timeRemaining < 300 ? 'warning' : ''}`}>
-              {formatTime(timeRemaining)}
+          <span
+            className={`test-violations-pill ${
+              violations >= maxViolations - 1 ? 'is-danger' : violations >= 1 ? 'is-warn' : 'is-ok'
+            }`}
+          >
+            Violations {violations}/{maxViolations}
+          </span>
+          {isPractice ? null : (
+            <div className={`test-timer ${timeRemaining < 60 ? 'is-danger' : timeRemaining < 300 ? 'is-warn' : ''}`}>
+              <span className="test-timer-icon" aria-hidden>⏱</span>
+              <span>{formatTime(timeRemaining)}</span>
             </div>
           )}
-          <div className="violations-indicator">Violations: {violations}/{maxViolations}</div>
+          <button
+            type="button"
+            className="exam-btn exam-btn-secondary"
+            onClick={() => {
+              const qId = questionData?._id;
+              if (qId && answers[qId] !== undefined) {
+                saveAnswer(qId, answers[qId], { note: notes[qId], flagged: flagged[qId] });
+              }
+              setShowReview(true);
+            }}
+          >
+            Review
+          </button>
+          <button
+            type="button"
+            className="exam-btn exam-btn-outline-danger"
+            disabled={submitting}
+            onClick={() => handleSubmitTest()}
+          >
+            {submitting ? 'Submitting…' : 'Submit test'}
+          </button>
         </div>
-      </div>
+      </header>
 
-      <div className="test-progress">
-        {sections.map((s, i) => (
-          <div key={i} className={`progress-section ${i === currentSectionIdx ? 'current' : i < currentSectionIdx ? 'completed' : 'upcoming'}`}>
-            {s.sectionTitle}
-          </div>
-        ))}
-      </div>
+      {sections.length > 1 && (
+        <nav className="ett-section-tabs" aria-label="Test sections">
+          {sections.map((s, i) => (
+            <div
+              key={i}
+              className={`ett-section-tab ${i === currentSectionIdx ? 'is-current' : i < currentSectionIdx ? 'is-done' : ''}`}
+            >
+              <span className="ett-section-index">{i + 1}</span>
+              {s.sectionTitle}
+            </div>
+          ))}
+        </nav>
+      )}
 
       <div className="test-body">
-        <div className="question-sidebar">
-          <h4>{currentSection?.sectionTitle}</h4>
+        <aside className="question-sidebar">
+          <div className="question-sidebar-head">
+            <h3>Questions</h3>
+            <span className="question-sidebar-count">{totalQuestionsInSection}</span>
+          </div>
           <div className="question-nav-grid">
             {currentSection?.questions?.map((q, i) => {
               const qId = q.questionId?._id || q.questionId;
-              const answered = answers[qId] !== undefined;
+              const isSpeaking = q.type === 'english_speaking';
+              const answered = isSpeaking
+                ? !!(recordedBlobs[qId] || answers[qId])
+                : answers[qId] !== undefined;
               const isFlagged = flagged[qId];
               return (
-                <button key={i} className={`q-nav-btn ${i === currentQuestionIdx ? 'active' : ''} ${answered ? 'answered' : ''} ${isFlagged ? 'flagged' : ''}`} onClick={() => setCurrentQuestionIdx(i)}>
+                <button
+                  type="button"
+                  key={i}
+                  className={`q-nav-btn ${i === currentQuestionIdx ? 'active' : ''} ${answered ? 'answered' : ''} ${isFlagged ? 'flagged' : ''}`}
+                  onClick={() => setCurrentQuestionIdx(i)}
+                  title={answered ? 'Answered' : 'Not answered'}
+                >
                   {i + 1}
                 </button>
               );
             })}
           </div>
           <div className="nav-legend">
-            <span><span className="legend-dot answered"></span>Answered</span>
-            <span><span className="legend-dot flagged"></span>Flagged</span>
-            <span><span className="legend-dot"></span>Not Attempted</span>
+            <span><span className="legend-dot answered" />Answered</span>
+            <span><span className="legend-dot flagged" />Flagged</span>
+            <span><span className="legend-dot" />Unanswered</span>
           </div>
-        </div>
+        </aside>
 
         <div className="question-main">
           <div className="question-main-scroll">
             <div className="question-number-bar">
               <span>Question {currentQuestionIdx + 1} of {totalQuestionsInSection}</span>
-              <span className="question-points">{currentQuestion?.points || 0} points</span>
-              <button className={`flag-btn ${flagged[questionData?._id] ? 'active' : ''}`} onClick={() => toggleFlag(questionData?._id)}>
-                {flagged[questionData?._id] ? 'Unflag' : 'Flag for Review'}
+              <span className="question-points">{currentQuestion?.points || 0} pts</span>
+              <button
+                type="button"
+                className={`flag-btn ${flagged[questionData?._id] ? 'active' : ''}`}
+                onClick={() => toggleFlag(questionData?._id)}
+              >
+                {flagged[questionData?._id] ? 'Flagged' : 'Flag'}
               </button>
             </div>
 
@@ -1264,15 +1446,17 @@ const EnglishTestTaking = () => {
           </div>
 
           <footer className="english-test-footer">
-            <button className="btn btn-secondary" onClick={handlePrev} disabled={currentQuestionIdx === 0}>Previous</button>
+            <button type="button" className="exam-btn exam-btn-secondary" onClick={handlePrev} disabled={currentQuestionIdx === 0}>
+              Previous
+            </button>
             <div className="english-test-footer-actions">
               {currentQuestionIdx < totalQuestionsInSection - 1 ? (
-                <button className="btn btn-primary" onClick={handleNext}>Save & Next</button>
+                <button type="button" className="exam-btn exam-btn-primary" onClick={handleNext}>Save & next</button>
               ) : currentSectionIdx < sections.length - 1 ? (
-                <button className="btn btn-primary" onClick={moveToNextSection}>Next Section</button>
+                <button type="button" className="exam-btn exam-btn-primary" onClick={moveToNextSection}>Next section</button>
               ) : (
-                <button className="btn btn-primary submit-test-btn" disabled={submitting} onClick={handleSubmitTest}>
-                  {submitting ? 'Submitting...' : 'Submit Test'}
+                <button type="button" className="exam-btn exam-btn-submit-final" disabled={submitting} onClick={() => handleSubmitTest()}>
+                  {submitting ? 'Submitting…' : 'Submit test'}
                 </button>
               )}
             </div>

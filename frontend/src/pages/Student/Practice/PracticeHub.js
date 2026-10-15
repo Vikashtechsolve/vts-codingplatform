@@ -39,14 +39,26 @@ const PracticeHub = () => {
   useEffect(() => { load(); }, []);
 
   const profile = data?.profile;
+  const progress = data?.progress;
   const goalTarget = profile?.dailyGoal?.target || 2;
   const goalDone = profile?.dailyGoal?.completedToday || 0;
+  const solved = profile?.problemsSolved || 0;
+  const attempted = profile?.problemsAttempted || 0;
+  const successRate = profile?.successRate || 0;
+  const streak = profile?.streak?.current || 0;
+  const bestStreak = profile?.streak?.longest || 0;
+  const bankTotal = progress?.total || 0;
+  const solvedPct = bankTotal ? Math.round((solved / bankTotal) * 100) : 0;
 
   return (
     <PracticePageLayout
       active="hub"
       title="Coding Practice"
-      subtitle={`Sharpen your DSA skills with ${data?.totalPracticeQuestions || 0} problems. Track mastery, streaks, and climb the leaderboard.`}
+      subtitle={
+        loading || !data
+          ? 'Sharpen your DSA skills. Track mastery, streaks, and climb the leaderboard.'
+          : `Sharpen your DSA skills with ${data.totalPracticeQuestions || 0} problems. Track mastery, streaks, and climb the leaderboard.`
+      }
       score={profile?.codingScore ?? 0}
       scoreLabel="Coding score"
       loading={loading}
@@ -55,20 +67,47 @@ const PracticeHub = () => {
       onRetry={load}
     >
       <PracticeStatsGrid>
-        <PracticeStatCard value={profile?.problemsSolved || 0} label="Solved" variant="accent" icon={FiCheckCircle} />
-        <PracticeStatCard value={profile?.problemsAttempted || 0} label="Attempted" icon={FiTarget} />
-        <PracticeStatCard value={`${profile?.successRate || 0}%`} label="Success rate" icon={FiTrendingUp} />
-        <PracticeStatCard value={profile?.streak?.current || 0} label="Day streak" variant="streak" icon={FiZap} />
+        <PracticeStatCard
+          value={solved}
+          label="Solved"
+          variant="success"
+          icon={FiCheckCircle}
+          hint={bankTotal ? `${solvedPct}% of ${bankTotal} problems` : 'Problems accepted'}
+          progress={solvedPct}
+        />
+        <PracticeStatCard
+          value={attempted}
+          label="Attempted"
+          icon={FiTarget}
+          hint={attempted ? `${Math.max(0, attempted - solved)} still in progress` : 'No attempts yet'}
+        />
+        <PracticeStatCard
+          value={`${successRate}%`}
+          label="Success rate"
+          variant="accent"
+          icon={FiTrendingUp}
+          hint={attempted ? 'Accepted vs attempted' : 'Solve to build a rate'}
+          progress={successRate}
+        />
+        <PracticeStatCard
+          value={streak}
+          label="Day streak"
+          variant="streak"
+          icon={FiZap}
+          hint={bestStreak ? `Best ${bestStreak} days` : 'Solve daily to start a streak'}
+        />
         {data?.percentile && (
           <PracticeStatCard
             value={`#${data.percentile.rank}`}
-            label={`Top ${data.percentile.percentile}%`}
+            label="Batch rank"
+            variant="rank"
             icon={FiAward}
+            hint={`Top ${data.percentile.percentile}% of your batch`}
           />
         )}
       </PracticeStatsGrid>
 
-      {data?.progress && <PracticeProgressBoard progress={data.progress} />}
+      {progress && <PracticeProgressBoard progress={progress} />}
 
       <div className="practice-bento-row">
         <div className="practice-goal-card">

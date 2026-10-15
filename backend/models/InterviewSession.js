@@ -37,6 +37,18 @@ const answerSchema = new mongoose.Schema({
   isFollowUp: {
     type: Boolean,
     default: false
+  },
+  evaluationPending: {
+    type: Boolean,
+    default: false
+  },
+  interviewerReaction: {
+    type: String,
+    default: ''
+  },
+  verdict: {
+    type: String,
+    default: ''
   }
 }, { _id: false });
 

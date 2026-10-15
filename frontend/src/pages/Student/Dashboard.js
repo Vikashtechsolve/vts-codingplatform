@@ -404,7 +404,9 @@ const StudentDashboard = () => {
                 </div>
                 <div className="student-category-meta">
                   <span className="student-category-count">{count}</span>
-                  <span className="student-category-unit">assigned</span>
+                  <span className="student-category-unit">
+                    {section.isPractice ? 'solved' : 'assigned'}
+                  </span>
                 </div>
               </Link>
             );

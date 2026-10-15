@@ -585,22 +585,8 @@ router.post('/:resultId/answer', auth, async (req, res) => {
         result.answers[answerIndex].points = 0;
       }
     } else if (result.answers[answerIndex].questionType === 'theory') {
-      try {
-        const theoryQuestion = await TheoryQuestion.findById(questionId);
-        if (!theoryQuestion) {
-          result.answers[answerIndex].points = 0;
-        } else {
-          const evaluation = await evaluateTheoryAnswer({
-            question: { ...theoryQuestion.toObject(), maxMarks: result.answers[answerIndex].maxPoints },
-            studentAnswer: answer || ''
-          });
-          result.answers[answerIndex].evaluation = evaluation;
-          result.answers[answerIndex].points = evaluation.finalMarks;
-        }
-      } catch (error) {
-        console.error('❌ Error evaluating theory question:', error);
-        result.answers[answerIndex].points = 0;
-      }
+      // Store the draft only. AI grading runs once on final submit so autosave stays fast.
+      result.answers[answerIndex].answer = answer;
     } else if (result.answers[answerIndex].questionType === 'english_grammar') {
       try {
         const grammarQ = await EnglishGrammarQuestion.findById(questionId);
@@ -668,6 +654,52 @@ router.post('/:resultId/answer', auth, async (req, res) => {
 
     await result.save();
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+const MAX_BULK_ANSWERS = 200;
+
+// Persist many in-progress drafts in one write. Scoring happens on final submit.
+router.post('/:resultId/answers', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const incoming = Array.isArray(req.body?.answers) ? req.body.answers : [];
+    if (!incoming.length) {
+      return res.status(400).json({ message: 'No answers to save' });
+    }
+    if (incoming.length > MAX_BULK_ANSWERS) {
+      return res.status(400).json({ message: `Cannot save more than ${MAX_BULK_ANSWERS} answers at once` });
+    }
+
+    const result = await Result.findOne({
+      _id: req.params.resultId,
+      studentId: req.user._id,
+      status: 'in_progress',
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: 'Result not found' });
+    }
+
+    const byId = new Map(
+      result.answers.map((row, index) => [row.questionId.toString(), index])
+    );
+
+    incoming.forEach((item) => {
+      if (!item || item.questionId == null || item.answer === undefined) return;
+      const index = byId.get(String(item.questionId));
+      if (index == null) return;
+      result.answers[index].answer = item.answer;
+      if (item.language) result.answers[index].language = item.language;
+    });
+
+    await result.save();
+    res.json({ saved: incoming.length });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

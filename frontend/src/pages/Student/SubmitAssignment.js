@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import ConfirmSubmitModal from '../../components/ConfirmSubmitModal';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import RichTextDisplay from '../../components/RichTextDisplay';
@@ -28,6 +29,7 @@ const SubmitAssignment = () => {
     liveUrl: '',
     studentNotes: ''
   });
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [showUpdateRepo, setShowUpdateRepo] = useState(false);
   const [updateRepoData, setUpdateRepoData] = useState({ githubRepoUrl: '', branchName: 'main' });
   const [submitSuccessMessage, setSubmitSuccessMessage] = useState('');
@@ -189,17 +191,10 @@ const SubmitAssignment = () => {
       return;
     }
 
-    if (!window.confirm(
-      '⚠️ IMPORTANT: Are you sure you want to submit?\n\n' +
-      '✓ Make sure all your code is pushed to GitHub\n' +
-      '✓ Double-check the repository URL\n' +
-      '✓ Ensure the branch name is correct\n' +
-      '✓ You cannot resubmit after this\n\n' +
-      'Click OK to submit your project.'
-    )) {
-      return;
-    }
+    setConfirmOpen(true);
+  };
 
+  const confirmAssignmentSubmit = async () => {
     setLoading(true);
 
     try {
@@ -210,6 +205,7 @@ const SubmitAssignment = () => {
       });
 
       if (data.success) {
+        setConfirmOpen(false);
         setSubmitSuccessMessage('Project submitted successfully. You can update your repository link until the timer ends.');
         if (courseIdParam && moduleIdParam && data.submission?._id) {
           try {
@@ -229,6 +225,7 @@ const SubmitAssignment = () => {
       }
     } catch (err) {
       console.error('Error submitting project:', err);
+      setConfirmOpen(false);
       setError('Failed to submit project. Please try again.');
     } finally {
       setLoading(false);
@@ -484,6 +481,7 @@ const SubmitAssignment = () => {
           )}
         </div>
       ) : (
+      <>
       <form onSubmit={handleSubmit} className="submit-form">
         <div className="form-section">
           <h3>📁 Repository Details</h3>
@@ -593,6 +591,25 @@ const SubmitAssignment = () => {
           </p>
         )}
       </form>
+      <ConfirmSubmitModal
+        isOpen={confirmOpen}
+        onClose={() => { if (!loading) setConfirmOpen(false); }}
+        onConfirm={confirmAssignmentSubmit}
+        submitting={loading}
+        title="Submit this project?"
+        message="Make sure your latest code is pushed. You cannot resubmit after this."
+        confirmLabel="Submit project"
+        cancelLabel="Keep editing"
+        notes={[
+          'All code is pushed to GitHub',
+          `Repository: ${formData.githubRepoUrl || 'not set'}`,
+          `Branch: ${formData.branchName || 'main'}`,
+          assignment?.repositoryRules?.requireDeploymentUrl
+            ? `Deployment URL: ${formData.liveUrl || 'required'}`
+            : 'You cannot change this submission later',
+        ]}
+      />
+      </>
       )}
     </div>
   );

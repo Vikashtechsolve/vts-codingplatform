@@ -60,12 +60,8 @@ async function fetchPaginatedQuestions({
   const [items, total, vendorTotal, globalTotal] = await Promise.all([
     q.lean(),
     Model.countDocuments(filter),
-    source === 'vendor'
-      ? Model.countDocuments({ vendorId, ...VENDOR_SCOPE })
-      : Promise.resolve(null),
-    source === 'global'
-      ? Model.countDocuments({ isGlobal: true })
-      : Promise.resolve(null),
+    Model.countDocuments({ vendorId, ...VENDOR_SCOPE }),
+    Model.countDocuments({ isGlobal: true }),
   ]);
 
   const mapped = items.map((row) => ({

@@ -87,7 +87,7 @@ const PracticeProblemList = () => {
       </div>
 
       {loading && !items.length ? (
-        <PracticeLoading message="Loading problems…" />
+        <PracticeLoading message="Loading problems…" variant="list" />
       ) : !items.length ? (
         <PracticeEmptyState
           title="No problems found"

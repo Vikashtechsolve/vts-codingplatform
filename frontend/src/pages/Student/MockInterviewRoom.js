@@ -6,6 +6,7 @@ import { buildCourseAssessmentQuery, buildAssessmentStartBody } from '../../util
 import Modal from '../../components/Modal';
 import InterviewerAvatar from '../../components/interview/InterviewerAvatar';
 import { attachAudioLipSync, runSimulatedLipSync } from '../../utils/audioLipSync';
+import { createSpeechFrameStore } from '../../utils/speechFrameStore';
 import { acquireInterviewMediaStream, isStreamActive, stopMediaStream } from '../../utils/interviewMedia';
 import {
   getSupportedRecorderMimeType,
@@ -66,6 +67,8 @@ const MockInterviewRoom = () => {
   const captureStartedAtRef = useRef(0);
   const transcribeInFlightRef = useRef(false);
   const finishCaptureRef = useRef(null);
+  const startListeningRef = useRef(null);
+  const speakQuestionRef = useRef(null);
   const submittedRef = useRef(false);
   const isListeningRef = useRef(false);
   const shouldListenRef = useRef(false);
@@ -79,16 +82,24 @@ const MockInterviewRoom = () => {
   const aiVideoUrlRef = useRef(null);
   const speechProgressUnbindRef = useRef(null);
   const speakAbortRef = useRef(null);
+  const speechGenerationRef = useRef(0);
+  const speechWaitResolveRef = useRef(null);
   const prefetchAbortRef = useRef(null);
   const prefetchedSpeechRef = useRef(null);
+  const speechCacheRef = useRef(new Map());
+  const upcomingQuestionRef = useRef(null);
+  const mainAskedRef = useRef(0);
+  const totalQuestionsRef = useRef(8);
   const sessionIdRef = useRef(null);
   const joinSpeakPendingRef = useRef(null);
   const cameraVideoRef = useRef(null);
   const [usesBrowserTts, setUsesBrowserTts] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [hasVideo, setHasVideo] = useState(true);
-  const [lipLevel, setLipLevel] = useState(0);
-  const [viseme, setViseme] = useState(0);
+  const speechFrameStoreRef = useRef(null);
+  if (!speechFrameStoreRef.current) {
+    speechFrameStoreRef.current = createSpeechFrameStore();
+  }
   const [speechProgress, setSpeechProgress] = useState(0);
   const [interviewerVideoUrl, setInterviewerVideoUrl] = useState('');
 
@@ -97,6 +108,7 @@ const MockInterviewRoom = () => {
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [totalQuestions, setTotalQuestions] = useState(8);
   const [answerCount, setAnswerCount] = useState(0);
+  const [questionNumber, setQuestionNumber] = useState(1);
   const [transcript, setTranscript] = useState('');
   const [loading, setLoading] = useState(true);
   const [isListening, setIsListening] = useState(false);
@@ -109,6 +121,8 @@ const MockInterviewRoom = () => {
   const [isPreparingSpeech, setIsPreparingSpeech] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [lastAcknowledgment, setLastAcknowledgment] = useState('');
+  const [spokenPhase, setSpokenPhase] = useState('idle');
+  const [upcomingQuestion, setUpcomingQuestion] = useState(null);
   const [errorStarting, setErrorStarting] = useState(null);
   const [isJoining, setIsJoining] = useState(false);
   const [prepareLabel, setPrepareLabel] = useState('');
@@ -132,6 +146,9 @@ const MockInterviewRoom = () => {
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+  useEffect(() => {
+    totalQuestionsRef.current = totalQuestions;
+  }, [totalQuestions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,7 +251,7 @@ const MockInterviewRoom = () => {
     stopVadLoop();
     lipSyncStopRef.current?.();
     lipSyncStopRef.current = null;
-    setLipLevel(0);
+    speechFrameStoreRef.current.reset();
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try { mediaRecorderRef.current.stop(); } catch (e) {}
     }
@@ -271,8 +288,7 @@ const MockInterviewRoom = () => {
   }, [stopVadLoop]);
 
   const handleSpeechFrame = useCallback(({ level, viseme: v }) => {
-    setLipLevel(level);
-    setViseme(v);
+    speechFrameStoreRef.current.set(level, v);
   }, []);
 
   const bindSpeechProgress = useCallback((mediaEl) => {
@@ -290,9 +306,13 @@ const MockInterviewRoom = () => {
     speechProgressUnbindRef.current = () => mediaEl.removeEventListener('timeupdate', onTime);
   }, []);
 
-  const stopAiAudio = useCallback(() => {
+  const stopAiAudio = useCallback((opts = {}) => {
+    if (opts.bump !== false) speechGenerationRef.current += 1;
     speakAbortRef.current?.abort();
     speakAbortRef.current = null;
+    const waiting = speechWaitResolveRef.current;
+    speechWaitResolveRef.current = null;
+    if (waiting) waiting();
     speechProgressUnbindRef.current?.();
     speechProgressUnbindRef.current = null;
     if (aiAudioRef.current) {
@@ -325,8 +345,7 @@ const MockInterviewRoom = () => {
     }
     lipSyncStopRef.current?.();
     lipSyncStopRef.current = null;
-    setLipLevel(0);
-    setViseme(0);
+    speechFrameStoreRef.current.reset();
     setSpeechProgress(0);
   }, []);
 
@@ -363,14 +382,17 @@ const MockInterviewRoom = () => {
     }
   }, [sessionId, showModal]);
 
-  const autoSubmitAnswer = useCallback(async (textOverride, allowEmpty = false) => {
-    if (isSubmitting || !isInterviewActive || submittedRef.current) return;
-    if (isAiSpeakingRef.current) return;
+  const autoSubmitAnswer = useCallback(async (textOverride, allowEmpty = false, meta = {}) => {
+    if (isSubmittingRef.current || !isInterviewActive || submittedRef.current) return;
     const raw = textOverride != null ? String(textOverride).trim() : (transcriptRef.current || '').trim();
     const finalAnswer = raw;
     if (!allowEmpty && (!finalAnswer || finalAnswer.length < MIN_TRANSCRIPT_LENGTH)) return;
+    const answeredFollowUp = meta.answeredFollowUp != null
+      ? meta.answeredFollowUp
+      : Boolean(currentQuestionRef.current?.isFollowUp);
     stopListening();
     try {
+      isSubmittingRef.current = true;
       setIsSubmitting(true);
       const response = await axiosInstance.post(`/interview-sessions/${sessionId}/answer`, { transcript: finalAnswer });
       setTranscript('');
@@ -378,22 +400,40 @@ const MockInterviewRoom = () => {
       if (response.data.acknowledgment) {
         setLastAcknowledgment(response.data.acknowledgment);
       }
+      if (!answeredFollowUp) {
+        mainAskedRef.current += 1;
+      }
+      if (response.data.questionNumber) {
+        setQuestionNumber(response.data.questionNumber);
+      }
+      const upcoming = response.data.upcomingQuestion || null;
+      upcomingQuestionRef.current = upcoming;
+      setUpcomingQuestion(upcoming);
       lastSpokenQuestionRef.current = '';
-      prefetchedSpeechRef.current = null;
       setAnswerCount(prev => prev + 1);
       if (response.data.completed) {
         submittedRef.current = true;
+        const closing = response.data.spokenClosing || response.data.acknowledgment;
+        if (closing) {
+          isAiSpeakingRef.current = true;
+          await speakQuestionRef.current?.(closing, sessionId);
+        }
         await axiosInstance.post(`/interview-sessions/${sessionId}/submit`);
         navigate(feedbackPath(sessionId));
         return;
       }
+      isAiSpeakingRef.current = true;
       setCurrentQuestion(response.data.nextQuestion);
     } catch (error) {
       showModal('Error', error.response?.data?.message || 'Failed to submit answer', 'error');
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
+      if (shouldListenRef.current && !isAiSpeakingRef.current && !isCapturingRef.current) {
+        startListeningRef.current?.();
+      }
     }
-  }, [sessionId, isInterviewActive, isSubmitting, navigate, showModal, stopListening, feedbackPath]);
+  }, [sessionId, isInterviewActive, navigate, showModal, stopListening, stopAiAudio, feedbackPath]);
 
   const ensureMediaStream = useCallback(async () => {
     if (isStreamActive(micStreamRef.current)) {
@@ -468,11 +508,13 @@ const MockInterviewRoom = () => {
           return;
         }
 
+        const answeredFollowUp = Boolean(currentQuestionRef.current?.isFollowUp);
+
         const text = await transcribeRecording(blob);
         if (text.length >= MIN_TRANSCRIPT_LENGTH) {
-          await autoSubmitAnswer(text);
+          await autoSubmitAnswer(text, false, { answeredFollowUp });
         } else {
-          await autoSubmitAnswer(text, true);
+          await autoSubmitAnswer(text, true, { answeredFollowUp });
         }
         resolve();
       };
@@ -601,10 +643,15 @@ const MockInterviewRoom = () => {
     }
   }, [sessionId, ensureMediaStream, runVadLoop, showModal, stopListening, setupVadAnalyser]);
 
+  useEffect(() => {
+    startListeningRef.current = startListening;
+  }, [startListening]);
+
   const onAiSpeechFinished = useCallback(() => {
     isAiSpeakingRef.current = false;
     setIsAiSpeaking(false);
     setIsPreparingSpeech(false);
+    setSpokenPhase('idle');
     if (shouldListenRef.current && !isSubmittingRef.current) {
       startListening();
     }
@@ -659,14 +706,21 @@ const MockInterviewRoom = () => {
     return { blob, mediaKind };
   }, []);
 
+  const prefetchingRef = useRef(new Set());
+
   const prefetchSpeech = useCallback(async (text, activeSessionId) => {
     const trimmed = text?.trim();
     const sid = activeSessionId || sessionId;
     if (!trimmed || !sid) return false;
 
-    if (prefetchedSpeechRef.current?.text === trimmed) {
+    if (
+      speechCacheRef.current.has(trimmed)
+      || prefetchedSpeechRef.current?.text === trimmed
+      || prefetchingRef.current.has(trimmed)
+    ) {
       return true;
     }
+    prefetchingRef.current.add(trimmed);
 
     prefetchAbortRef.current?.abort();
     const controller = new AbortController();
@@ -675,17 +729,24 @@ const MockInterviewRoom = () => {
     try {
       const response = await axiosInstance.post(
         `/interview-sessions/${sid}/speak`,
-        { text: trimmed, video: true },
+        { text: trimmed },
         { responseType: 'blob', signal: controller.signal }
       );
       if (controller.signal.aborted) return false;
       const { blob, mediaKind } = await parseSpeakResponse(response);
+      speechCacheRef.current.set(trimmed, { blob, mediaKind });
+      if (speechCacheRef.current.size > 8) {
+        const oldest = speechCacheRef.current.keys().next().value;
+        speechCacheRef.current.delete(oldest);
+      }
       prefetchedSpeechRef.current = { text: trimmed, blob, mediaKind };
       return true;
     } catch (error) {
       if (controller.signal.aborted) return false;
       prefetchedSpeechRef.current = null;
       return false;
+    } finally {
+      prefetchingRef.current.delete(trimmed);
     }
   }, [sessionId, parseSpeakResponse]);
 
@@ -727,7 +788,28 @@ const MockInterviewRoom = () => {
     return null;
   }, []);
 
-  const playSpeechFromBlob = useCallback(async (blob, mediaKind, text) => {
+  const playSpeechFromBlob = useCallback(async (blob, mediaKind, text, { finishTurn = true, generation = 0 } = {}) => {
+    const isLive = () => speechGenerationRef.current === generation;
+    const waitUntilDone = (media) => new Promise((resolve) => {
+      const done = () => {
+        if (speechWaitResolveRef.current === done) speechWaitResolveRef.current = null;
+        media.onended = null;
+        media.onerror = null;
+        lipSyncStopRef.current?.();
+        lipSyncStopRef.current = null;
+        speechProgressUnbindRef.current?.();
+        speechFrameStoreRef.current.reset();
+        setSpeechProgress(0);
+        if (finishTurn && isLive()) onAiSpeechFinished();
+        resolve();
+      };
+      speechWaitResolveRef.current = done;
+      media.onended = done;
+      media.onerror = done;
+    });
+
+    if (!isLive()) return;
+
     if (mediaKind === 'talking-video') {
       let videoBlob = blob;
       if (!videoBlob.type || videoBlob.type === 'application/octet-stream') {
@@ -739,37 +821,27 @@ const MockInterviewRoom = () => {
       setInterviewerVideoUrl(url);
       await new Promise((r) => requestAnimationFrame(r));
       await new Promise((r) => requestAnimationFrame(r));
+      if (!isLive()) return;
       const video = await waitForVideoElement();
-      if (!video) throw new Error('Video player not ready');
+      if (!video || !isLive()) return;
 
       video.src = url;
+      const ended = waitUntilDone(video);
       video.onplay = () => {
+        if (!isLive()) return;
         setIsPreparingSpeech(false);
         setIsAiSpeaking(true);
         lipSyncStopRef.current?.();
         lipSyncStopRef.current = attachAudioLipSync(video, handleSpeechFrame);
         bindSpeechProgress(video);
       };
-      video.onended = () => {
-        lipSyncStopRef.current?.();
-        lipSyncStopRef.current = null;
-        speechProgressUnbindRef.current?.();
-        setLipLevel(0);
-        setViseme(0);
-        setSpeechProgress(0);
-        onAiSpeechFinished();
-      };
-      video.onerror = () => {
-        stopAiAudio();
-        speakWithBrowserFallback(text);
-      };
-
       try {
         await video.play();
       } catch (playErr) {
-        stopAiAudio();
-        speakWithBrowserFallback(text);
+        if (isLive()) speakWithBrowserFallback(text);
+        return;
       }
+      await ended;
       return;
     }
 
@@ -780,11 +852,19 @@ const MockInterviewRoom = () => {
     setInterviewerVideoUrl('');
 
     const url = URL.createObjectURL(audioBlob);
+    if (aiAudioUrlRef.current) URL.revokeObjectURL(aiAudioUrlRef.current);
     aiAudioUrlRef.current = url;
+    if (aiAudioRef.current) {
+      aiAudioRef.current.onended = null;
+      aiAudioRef.current.onerror = null;
+      aiAudioRef.current.pause();
+    }
     const audio = new Audio(url);
     aiAudioRef.current = audio;
 
+    const ended = waitUntilDone(audio);
     audio.onplay = () => {
+      if (!isLive()) return;
       setIsPreparingSpeech(false);
       setIsAiSpeaking(true);
       setSpeechProgress(0);
@@ -792,25 +872,14 @@ const MockInterviewRoom = () => {
       lipSyncStopRef.current = attachAudioLipSync(audio, handleSpeechFrame);
       bindSpeechProgress(audio);
     };
-    audio.onended = () => {
-      lipSyncStopRef.current?.();
-      lipSyncStopRef.current = null;
-      speechProgressUnbindRef.current?.();
-      setLipLevel(0);
-      setViseme(0);
-      setSpeechProgress(0);
-      onAiSpeechFinished();
-    };
-    audio.onerror = () => {
-      stopAiAudio();
-      speakWithBrowserFallback(text);
-    };
 
+    if (!isLive()) return;
     const played = await playInterviewerAudio(audio);
     if (!played) {
-      stopAiAudio();
-      speakWithBrowserFallback(text);
+      if (isLive()) speakWithBrowserFallback(text);
+      return;
     }
+    await ended;
   }, [
     stopAiAudio,
     onAiSpeechFinished,
@@ -821,62 +890,81 @@ const MockInterviewRoom = () => {
     waitForVideoElement
   ]);
 
-  const speakQuestion = useCallback(async (text, activeSessionId) => {
+  const speakQuestion = useCallback(async (text, activeSessionId, options = {}) => {
     const trimmed = text?.trim();
     const sid = activeSessionId || sessionIdRef.current || sessionId;
     if (!trimmed || !sid) return;
 
-    stopAiAudio();
+    const finishTurn = options.finishTurn !== false;
+    const segments = Array.isArray(options.segments)
+      ? options.segments.map((part) => String(part || '').trim()).filter(Boolean)
+      : [];
+
+    const generation = ++speechGenerationRef.current;
+    stopAiAudio({ bump: false });
+
+    const isLive = () => speechGenerationRef.current === generation;
+
+    const speakOnce = async (clip, { finish } = { finish: true }) => {
+      if (!isLive() || !clip) return;
+      const cached = speechCacheRef.current.get(clip) || (
+        prefetchedSpeechRef.current?.text === clip ? prefetchedSpeechRef.current : null
+      );
+      if (cached?.blob) {
+        setIsPreparingSpeech(false);
+        await playSpeechFromBlob(cached.blob, cached.mediaKind, clip, {
+          finishTurn: finish,
+          generation,
+        });
+        return;
+      }
+      setIsPreparingSpeech(true);
+      const controller = new AbortController();
+      speakAbortRef.current = controller;
+      const response = await axiosInstance.post(
+        `/interview-sessions/${sid}/speak`,
+        { text: clip },
+        { responseType: 'blob', signal: controller.signal }
+      );
+      if (!isLive() || controller.signal.aborted) return;
+      const { blob, mediaKind } = await parseSpeakResponse(response);
+      if (!isLive()) return;
+      speechCacheRef.current.set(clip, { blob, mediaKind });
+      await playSpeechFromBlob(blob, mediaKind, clip, { finishTurn: finish, generation });
+    };
+
     setUsesBrowserTts(false);
     isAiSpeakingRef.current = true;
-    setIsAiSpeaking(false);
-    setLipLevel(0);
-    setViseme(0);
+    setIsAiSpeaking(true);
+    speechFrameStoreRef.current.reset();
     setSpeechProgress(0);
     stopListening();
 
-    const cached = prefetchedSpeechRef.current;
-    if (cached?.text === trimmed && cached.blob) {
-      prefetchedSpeechRef.current = null;
-      setIsPreparingSpeech(false);
-      try {
-        await playSpeechFromBlob(cached.blob, cached.mediaKind, trimmed);
-      } catch (error) {
-        isAiSpeakingRef.current = false;
-        stopAiAudio();
-        speakWithBrowserFallback(trimmed);
-      }
-      return;
-    }
-
-    setIsPreparingSpeech(true);
-    const controller = new AbortController();
-    speakAbortRef.current = controller;
-
     try {
-      const response = await axiosInstance.post(
-        `/interview-sessions/${sid}/speak`,
-        { text: trimmed, video: true },
-        { responseType: 'blob', signal: controller.signal }
-      );
-      if (controller.signal.aborted) {
-        isAiSpeakingRef.current = false;
+      if (segments.length >= 2) {
+        setSpokenPhase('reaction');
+        await speakOnce(segments[0], { finish: false });
+        if (!isLive()) return;
+        await new Promise((r) => setTimeout(r, 280));
+        if (!isLive()) return;
+        setSpokenPhase('question');
+        await speakOnce(segments.slice(1).join(' '), { finish: finishTurn });
         return;
       }
-      const { blob, mediaKind } = await parseSpeakResponse(response);
-      await playSpeechFromBlob(blob, mediaKind, trimmed);
+      setSpokenPhase('question');
+      await speakOnce(trimmed, { finish: finishTurn });
     } catch (error) {
-      if (controller.signal.aborted) {
-        isAiSpeakingRef.current = false;
+      if (!isLive() || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
         return;
       }
       const msg = error.response?.data?.message || error.message || 'Voice playback failed';
       if (error.response?.status) {
         showModal('Interviewer voice', msg, 'error');
       }
-      isAiSpeakingRef.current = false;
-      stopAiAudio();
-      speakWithBrowserFallback(trimmed);
+      if (isLive()) {
+        isAiSpeakingRef.current = false;
+        speakWithBrowserFallback(trimmed);
+      }
     }
   }, [
     sessionId,
@@ -887,6 +975,10 @@ const MockInterviewRoom = () => {
     parseSpeakResponse,
     showModal
   ]);
+
+  useEffect(() => {
+    speakQuestionRef.current = speakQuestion;
+  }, [speakQuestion]);
 
   useEffect(() => {
     if (!isInterviewActive) return;
@@ -905,8 +997,16 @@ const MockInterviewRoom = () => {
     if (!speechText) return;
     if (lastSpokenQuestionRef.current === speechText) return;
     lastSpokenQuestionRef.current = speechText;
-    speakQuestion(speechText, sid);
+    speakQuestion(speechText, sid, { segments: currentQuestion?.speechSegments });
   }, [currentQuestion, isInterviewActive, sessionId, speakQuestion]);
+
+  useEffect(() => {
+    const text = getQuestionSpeechText(upcomingQuestion);
+    const sid = sessionIdRef.current || sessionId;
+    if (!text || !sid || !isInterviewActive) return undefined;
+    prefetchSpeech(text, sid);
+    return undefined;
+  }, [upcomingQuestion, sessionId, isInterviewActive, prefetchSpeech]);
 
   const requestFullscreen = useCallback(() => {
     const el = document.documentElement;
@@ -962,8 +1062,7 @@ const MockInterviewRoom = () => {
         clearInterval(tick);
         lipSyncStopRef.current?.();
         lipSyncStopRef.current = null;
-        setLipLevel(0);
-        setViseme(0);
+        speechFrameStoreRef.current.reset();
         setSpeechProgress(0);
       };
     }
@@ -1004,6 +1103,12 @@ const MockInterviewRoom = () => {
         setPrepareLabel('Preparing interviewer voice…');
         await prefetchSpeech(speechText, sessionData.sessionId);
       }
+      if (sessionData.questionNumber) setQuestionNumber(sessionData.questionNumber);
+      const upcoming = sessionData.upcomingQuestion || null;
+      upcomingQuestionRef.current = upcoming;
+      setUpcomingQuestion(upcoming);
+      const upcomingText = getQuestionSpeechText(upcoming);
+      if (upcomingText) prefetchSpeech(upcomingText, sessionData.sessionId);
 
       requestFullscreen();
       shouldListenRef.current = true;
@@ -1117,7 +1222,7 @@ const MockInterviewRoom = () => {
     );
   }
 
-  const currentQuestionNum = answerCount + 1;
+  const currentQuestionNum = questionNumber || answerCount + 1;
   const displayTotal = Math.max(totalQuestions, currentQuestionNum);
   const isAiTalking = isAiSpeaking || isPreparingSpeech;
   const interviewerSpeechText = isAiSpeaking ? getQuestionSpeechText(currentQuestion) : '';
@@ -1208,11 +1313,11 @@ const MockInterviewRoom = () => {
               <div className="interview-call-main-inner">
                 <InterviewerAvatar
                   compact
-                  lipLevel={lipLevel}
-                  viseme={viseme}
+                  frameStore={speechFrameStoreRef.current}
                   speechProgress={speechProgress}
                   isSpeaking={isAiSpeaking}
                   isLoadingVoice={isPreparingSpeech}
+                  isThinking={isTranscribing || isSubmitting}
                   isListening={isListening && !isAiTalking}
                   speakingText={interviewerSpeechText}
                   showSpeechBubble={false}
@@ -1278,19 +1383,25 @@ const MockInterviewRoom = () => {
             className={`interview-question-bar ${isAiTalking ? 'is-speaking' : ''}`}
             aria-label="Current question"
           >
-            {lastAcknowledgment && !isAiTalking && (
+            {lastAcknowledgment && (
               <p className="interview-ack-strip">{lastAcknowledgment}</p>
             )}
             <div className="interview-question-meta">
               <span className="question-label">
-                {currentQuestion?.isFollowUp ? 'Follow-up' : `Question ${currentQuestionNum}`}
+                {spokenPhase === 'reaction'
+                  ? 'Responding to you'
+                  : currentQuestion?.isFollowUp
+                    ? 'Follow-up'
+                    : `Question ${currentQuestionNum}`}
               </span>
               <span className="interview-question-counter">
                 {currentQuestionNum} / {displayTotal}
               </span>
             </div>
             <p className="question-text">
-              {currentQuestion?.questionText || 'Preparing your next question...'}
+              {spokenPhase === 'reaction' && lastAcknowledgment
+                ? lastAcknowledgment
+                : (currentQuestion?.questionText || 'Preparing your next question...')}
             </p>
           </section>
 
@@ -1300,9 +1411,9 @@ const MockInterviewRoom = () => {
               {isListening
                 ? 'Speak naturally. When you finish, pause briefly or tap the button below.'
                 : isAiTalking
-                  ? 'Listen to your interviewer...'
+                  ? 'Listen — your interviewer is responding to you...'
                   : isTranscribing || isSubmitting
-                    ? 'Please wait...'
+                    ? 'Sarah is thinking about what you said...'
                     : 'Get ready for the next question.'}
             </p>
             <button

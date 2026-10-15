@@ -12,7 +12,8 @@ import {
   postCodeExecution,
   formatCodeExecutionError,
 } from '../../utils/codeExecutionClient';
-import Modal from '../../components/Modal';
+import ConfirmSubmitModal from '../../components/ConfirmSubmitModal';
+import ExamNoticeModal from '../../components/ExamNoticeModal';
 import { useToast } from '../../context/ToastContext';
 import { useExamSecurity } from '../../hooks/useExamSecurity';
 import { useRegisterExamLock } from '../../hooks/useRegisterExamLock';
@@ -24,6 +25,10 @@ import { isRichTextEmpty } from '../../utils/richTextUtils';
 import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import { parseSchemaSql } from '../../utils/schemaParser';
+import {
+  buildPendingAnswerPayloads,
+  mergePersistedAnswers,
+} from '../../utils/pendingTestAnswers';
 import './TestTaking.css';
 
 /** Stable string key for answer maps (avoids object vs string _id mismatches). */
@@ -361,16 +366,23 @@ const TestTaking = () => {
   
   // Modal states
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [confirmOpen, setConfirmOpen] = useState(false);
   
   const handleSubmitTestRef = useRef(null);
+  const flushAnswersRef = useRef(async () => {});
+  const persistPendingAnswersRef = useRef(async () => {});
+  const lastServerAnswersRef = useRef([]);
+  const draftSaveTimerRef = useRef(null);
+  const persistQueueRef = useRef(Promise.resolve());
 
   // Exam security - stable handlers so the timer does not reset proctoring every second
   const handleMaxViolations = useCallback(() => {
     setModal({
       isOpen: true,
-      title: 'Auto-Submission',
-      message: 'You have reached the maximum number of violations. Your test will be automatically submitted.',
+      title: 'Test submitting',
+      message: 'You reached the violation limit. This test is being submitted automatically.',
       type: 'error',
+      blocking: true,
     });
     setTimeout(() => {
       handleSubmitTestRef.current?.(true);
@@ -380,9 +392,11 @@ const TestTaking = () => {
   const handleViolationWarning = useCallback((currentViolations, maxViolations) => {
     setModal({
       isOpen: true,
-      title: 'Violation Warning',
-      message: `Warning: You have ${currentViolations} violation(s). After ${maxViolations} violations, your test will be automatically submitted. Please follow the exam rules.`,
+      title: 'Stay in the exam',
+      message: `You have ${currentViolations} of ${maxViolations} allowed violations. At ${maxViolations}, this test submits automatically. Stay in fullscreen and follow exam rules.`,
       type: 'warning',
+      current: currentViolations,
+      max: maxViolations,
     });
   }, []);
   
@@ -472,6 +486,30 @@ const TestTaking = () => {
     answersRef.current = answers;
   }, [answers]);
 
+  useEffect(() => {
+    if (Array.isArray(result?.answers)) {
+      lastServerAnswersRef.current = result.answers;
+    }
+  }, [result?.answers]);
+
+  const scheduleDraftSave = (question) => {
+    window.clearTimeout(draftSaveTimerRef.current);
+    if (!question) return;
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      persistPendingAnswersRef.current({ question }).catch((err) => {
+        console.error('Draft save failed:', err);
+      });
+    }, 900);
+  };
+
+  const syncAnswers = (updater) => {
+    setAnswers((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      answersRef.current = next;
+      return next;
+    });
+  };
+
   const resolveCodingCode = useCallback((qKey, lang, questionDoc) => {
     const editorValue = codeEditorRef.current?.getValue?.();
     if (typeof editorValue === 'string') {
@@ -560,24 +598,16 @@ const TestTaking = () => {
 
     if (submitting) return;
     
-    // Show confirmation modal instead of browser confirm
     if (!skipConfirmation) {
-      const practice = isCourseQuiz && result?.countsTowardScore === false;
-      showModal(
-        'Confirm Submission',
-        practice
-          ? 'Submit this practice attempt? It will not change your official course score from the first attempt.'
-          : isCourseQuiz
-            ? 'Submit this first attempt? This becomes your official course quiz score. You can practise again later, but later scores will not replace it.'
-            : 'Are you sure you want to submit the test? You cannot change your answers after submission.',
-        'warning'
-      );
+      setConfirmOpen(true);
       return;
     }
-    
-  // Actually submit the test
+
+    setConfirmOpen(false);
     try {
       setSubmitting(true);
+      window.clearTimeout(draftSaveTimerRef.current);
+      await flushAnswersRef.current();
       setPageLoading(true);
       console.log('📤 Submitting test:', result._id);
       const submitBody = {
@@ -635,13 +665,14 @@ const TestTaking = () => {
             setTimeExpired(true);
             setModal({
               isOpen: true,
-              title: 'Time\'s up',
+              title: 'Time is up',
               message: contestId
                 ? 'The contest attempt window has ended. Your test will be submitted automatically.'
                 : attemptWindowEndRef.current
                   ? 'The scheduled attempt window has ended. Your test will be submitted automatically.'
                   : 'Your test time has ended. Your test will be submitted automatically.',
               type: 'warning',
+              blocking: true,
             });
             setTimeout(() => {
               handleSubmitTestRef.current?.(true, true);
@@ -667,10 +698,6 @@ const TestTaking = () => {
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .join('\n');
-  };
-
-  const showModal = (title, message, type = 'info') => {
-    setModal({ isOpen: true, title, message, type });
   };
 
   const closeModal = () => {
@@ -856,13 +883,15 @@ const TestTaking = () => {
       if (!result?._id) return false;
       const qIdApi = questionKey(questionId);
       try {
-        await axiosInstance.post(`/results/${result._id}/answer`, {
+        const { data } = await axiosInstance.post(`/results/${result._id}/answer`, {
           questionId: qIdApi,
           answer,
           ...extra,
         });
-        const updatedResult = await axiosInstance.get(`/results/${result._id}`);
-        setResult(updatedResult.data);
+        if (data?._id) {
+          setResult(data);
+          lastServerAnswersRef.current = data.answers || lastServerAnswersRef.current;
+        }
         return true;
       } catch (error) {
         console.error('Error saving answer:', error);
@@ -871,6 +900,71 @@ const TestTaking = () => {
     },
     [result?._id]
   );
+
+  const persistPendingAnswers = async ({ question } = {}) => {
+    if (!result?._id) return;
+    const run = persistQueueRef.current.then(async () => {
+      window.clearTimeout(draftSaveTimerRef.current);
+      const current = getCurrentQuestion();
+      const codingQuestion =
+        question?.type === 'coding'
+          ? question
+          : current?.type === 'coding'
+            ? current
+            : null;
+      let currentCoding;
+      if (codingQuestion?.questionId) {
+        const qKey = questionKey(codingQuestion.questionId._id);
+        currentCoding = {
+          questionId: qKey,
+          language: selectedLanguage,
+          code: resolveCodingCode(qKey, selectedLanguage, codingQuestion.questionId),
+        };
+      }
+      const payloads = buildPendingAnswerPayloads({
+        sections: question ? [{ questions: [question] }] : sections,
+        answers: answersRef.current,
+        resultAnswers: lastServerAnswersRef.current,
+        currentCoding,
+      });
+      if (!payloads.length) return;
+      try {
+        await axiosInstance.post(`/results/${result._id}/answers`, { answers: payloads });
+      } catch (err) {
+        if (err.response?.status !== 404) throw err;
+        await Promise.all(
+          payloads.map((payload) =>
+            axiosInstance.post(`/results/${result._id}/answer`, payload)
+          )
+        );
+      }
+      lastServerAnswersRef.current = mergePersistedAnswers(
+        lastServerAnswersRef.current,
+        payloads
+      );
+    });
+    persistQueueRef.current = run.catch(() => {});
+    await run;
+  };
+
+  persistPendingAnswersRef.current = persistPendingAnswers;
+  flushAnswersRef.current = persistPendingAnswers;
+
+  useEffect(() => {
+    const flush = () => {
+      persistPendingAnswersRef.current().catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flush);
+      window.clearTimeout(draftSaveTimerRef.current);
+    };
+  }, []);
 
   // Restore per-question language when navigating the question list
   useEffect(() => {
@@ -925,7 +1019,7 @@ const TestTaking = () => {
     const code = value ?? '';
     codeDraftRef.current = code;
 
-    setAnswers((prev) => {
+    syncAnswers((prev) => {
       const entry = prev[qKey] || {};
       const codeByLanguage = { ...(entry.codeByLanguage || {}), [selectedLanguage]: code };
       return {
@@ -948,7 +1042,7 @@ const TestTaking = () => {
     if (!question?.questionId) return;
 
     const qKey = questionKey(question.questionId._id);
-    setAnswers((prev) => ({
+    syncAnswers((prev) => ({
       ...prev,
       [qKey]: {
         ...prev[qKey],
@@ -968,7 +1062,7 @@ const TestTaking = () => {
     if (!question?.questionId) return;
 
     const qKey = questionKey(question.questionId._id);
-    setAnswers((prev) => ({
+    syncAnswers((prev) => ({
       ...prev,
       [qKey]: {
         ...prev[qKey],
@@ -988,7 +1082,7 @@ const TestTaking = () => {
     if (!question?.questionId) return;
 
     const qKey = questionKey(question.questionId._id);
-    setAnswers((prev) => {
+    syncAnswers((prev) => {
       const current = prev[qKey]?.selectedOptions || [];
       const exists = current.includes(optionIndex);
       const updated = exists
@@ -1003,6 +1097,9 @@ const TestTaking = () => {
         },
       };
     });
+    persistPendingAnswersRef.current({ question }).catch((err) => {
+      console.error('Could not save multi-select answer:', err);
+    });
   };
 
   const handleAptitudeNumeric = (value) => {
@@ -1010,7 +1107,7 @@ const TestTaking = () => {
     if (!question?.questionId) return;
 
     const qKey = questionKey(question.questionId._id);
-    setAnswers((prev) => ({
+    syncAnswers((prev) => ({
       ...prev,
       [qKey]: {
         ...prev[qKey],
@@ -1018,6 +1115,7 @@ const TestTaking = () => {
         attempted: value !== '' && value !== null && value !== undefined,
       },
     }));
+    scheduleDraftSave(question);
   };
 
   const handleTheoryAnswerChange = (value) => {
@@ -1025,7 +1123,7 @@ const TestTaking = () => {
     if (!question?.questionId) return;
 
     const qKey = questionKey(question.questionId._id);
-    setAnswers((prev) => ({
+    syncAnswers((prev) => ({
       ...prev,
       [qKey]: {
         ...prev[qKey],
@@ -1033,6 +1131,7 @@ const TestTaking = () => {
         attempted: value.trim().length > 0,
       },
     }));
+    scheduleDraftSave(question);
   };
 
   const handleSqlChange = (value) => {
@@ -1040,7 +1139,7 @@ const TestTaking = () => {
     if (!question?.questionId) return;
 
     const qKey = questionKey(question.questionId._id);
-    setAnswers((prev) => ({
+    syncAnswers((prev) => ({
       ...prev,
       [qKey]: {
         ...prev[qKey],
@@ -1048,6 +1147,7 @@ const TestTaking = () => {
         attempted: (value || '').trim().length > 0,
       },
     }));
+    scheduleDraftSave(question);
   };
 
   const handleRunSql = async () => {
@@ -1445,7 +1545,16 @@ const TestTaking = () => {
   };
 
 
+  const persistCurrentDraft = () => {
+    window.clearTimeout(draftSaveTimerRef.current);
+    const question = getCurrentQuestion();
+    persistPendingAnswersRef.current(question ? { question } : {}).catch((err) => {
+      console.error('Could not save draft:', err);
+    });
+  };
+
   const navigateToQuestion = (sectionIdx, questionIdx) => {
+    persistCurrentDraft();
     setCurrentSectionIndex(sectionIdx);
     setCurrentQuestionIndex(questionIdx);
     setTestCaseResults([]);
@@ -1457,6 +1566,7 @@ const TestTaking = () => {
   };
 
   const navigatePrevious = () => {
+    persistCurrentDraft();
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     } else if (currentSectionIndex > 0) {
@@ -1472,6 +1582,7 @@ const TestTaking = () => {
   };
 
   const navigateNext = () => {
+    persistCurrentDraft();
     const currentSection = sections[currentSectionIndex];
     if (currentQuestionIndex < currentSection.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
@@ -1546,6 +1657,25 @@ const TestTaking = () => {
     !isCodingLayout &&
     ['mcq', 'aptitude', 'theory', 'sql'].includes(currentQuestion.type);
 
+  let answeredCount = 0;
+  sections.forEach((section) => {
+    section.questions.forEach((q) => {
+      if (getQuestionStatus(q.questionId._id, q.type) === 'attempted') answeredCount += 1;
+    });
+  });
+  const submitProgress = {
+    answered: answeredCount,
+    unanswered: Math.max(0, totalQuestions - answeredCount),
+    total: totalQuestions,
+  };
+
+  const practiceAttempt = isCourseQuiz && result?.countsTowardScore === false;
+  const submitMessage = practiceAttempt
+    ? 'This practice attempt will not replace your official course score from the first attempt.'
+    : isCourseQuiz
+      ? 'This first attempt becomes your official course quiz score. Later practice scores will not replace it.'
+      : 'Once submitted, you cannot change your answers.';
+
   return (
     <div
       className={`test-taking-container${isCodingLayout ? ' test-taking--coding' : ' test-taking--standard'}`}
@@ -1565,27 +1695,34 @@ const TestTaking = () => {
         />
       )}
       <ExamSecurityOverlay mode={securityOverlay} onReenterFullscreen={onReenterFullscreen} />
-      <Modal 
-        isOpen={modal.isOpen} 
-        onClose={modal.title === 'Confirm Submission' ? () => {} : closeModal}
+      <ExamNoticeModal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
         title={modal.title}
+        message={modal.message}
         type={modal.type}
-      >
-        {modal.title === 'Confirm Submission' ? (
-          <div>
-            <p>{modal.message}</p>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-              <button className="btn btn-primary" disabled={submitting} onClick={() => {
-                closeModal();
-                handleSubmitTest(true);
-              }}>{submitting ? 'Submitting…' : 'Submit'}</button>
-            </div>
-          </div>
-        ) : (
-          <p>{modal.message}</p>
-        )}
-      </Modal>
+        current={modal.current}
+        max={modal.max}
+        blocking={modal.blocking}
+      />
+      <ConfirmSubmitModal
+        isOpen={confirmOpen}
+        onClose={() => { if (!submitting) setConfirmOpen(false); }}
+        onConfirm={() => handleSubmitTest(true)}
+        submitting={submitting}
+        title="Submit this test?"
+        message={submitMessage}
+        stats={[
+          { label: 'Answered', value: submitProgress.answered, tone: 'ok' },
+          { label: 'Unanswered', value: submitProgress.unanswered, tone: submitProgress.unanswered ? 'warn' : 'muted' },
+          { label: 'Total', value: submitProgress.total, tone: 'muted' },
+        ]}
+        warning={
+          submitProgress.unanswered > 0
+            ? `${submitProgress.unanswered} question${submitProgress.unanswered === 1 ? '' : 's'} still unanswered.`
+            : undefined
+        }
+      />
 
       <header className="test-header">
         <div className="test-header-left">
@@ -1889,6 +2026,7 @@ const TestTaking = () => {
                   rows="8"
                   value={answerFor(answers, questionData._id).textAnswer || ''}
                   onChange={(e) => handleTheoryAnswerChange(e.target.value)}
+                  onBlur={persistCurrentDraft}
                   placeholder="Type your detailed answer here..."
                 />
                 <div style={{ marginTop: '8px', fontSize: '0.85em', color: 'var(--text-secondary)' }}>
@@ -1936,6 +2074,7 @@ const TestTaking = () => {
                     type="number"
                     value={answerFor(answers, questionData._id).numericAnswer ?? ''}
                     onChange={(e) => handleAptitudeNumeric(e.target.value)}
+                    onBlur={persistCurrentDraft}
                     className="numeric-input"
                   />
                   {questionData.numericTolerance > 0 && (

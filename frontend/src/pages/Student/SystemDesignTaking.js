@@ -36,6 +36,8 @@ import { isDocumentFullscreen } from '../../utils/fullscreen';
 import { isFromShareLink, clearShareLinkAttempt } from '../../utils/examShareLink';
 import ArchitectureBuilder from '../../components/SystemDesign/ArchitectureBuilder';
 import RichTextDisplay from '../../components/RichTextDisplay';
+import ConfirmSubmitModal from '../../components/ConfirmSubmitModal';
+import ExamNoticeModal from '../../components/ExamNoticeModal';
 import './SystemDesignTaking.css';
 
 const STEPS = [
@@ -56,6 +58,19 @@ const STEPS = [
 const DB_TYPES = ['PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Cassandra', 'DynamoDB', 'Neo4j', 'Elasticsearch'];
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 const METHOD_COLORS = { GET: '#27ae60', POST: '#2980b9', PUT: '#f39c12', DELETE: '#e74c3c', PATCH: '#8e44ad' };
+const WORK_STEPS = STEPS.filter((s) => s.id !== 'overview' && s.id !== 'review');
+
+const sectionHasContent = (sData) => {
+  if (!sData) return false;
+  if (Array.isArray(sData)) return sData.length > 0;
+  if (typeof sData === 'object') {
+    return Object.values(sData).some((v) =>
+      v && (typeof v === 'string' ? v.trim() : Array.isArray(v) ? v.length > 0 : true)
+    );
+  }
+  return Boolean(sData);
+};
+
 const SCALING_STRATEGIES = [
   'Horizontal Scaling', 'Vertical Scaling', 'Load Balancing', 'Database Sharding',
   'Read Replicas', 'Caching', 'CDN', 'Rate Limiting', 'Auto-scaling',
@@ -89,6 +104,7 @@ const SystemDesignTaking = () => {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(null);
   const [showHints, setShowHints] = useState(false);
   const [sectionTimers, setSectionTimers] = useState({});
@@ -105,9 +121,10 @@ const SystemDesignTaking = () => {
   // Exam security — anti-cheating
   const handleMaxViolations = useCallback(() => {
     setViolationModal({
-      title: 'Auto-Submission',
-      message: 'You have reached the maximum number of violations. Your test is being automatically submitted.',
-      type: 'error'
+      title: 'Test submitting',
+      message: 'You reached the violation limit. This test is being submitted automatically.',
+      type: 'error',
+      blocking: true,
     });
     setTimeout(() => {
       const sub = submissionRef.current;
@@ -120,11 +137,12 @@ const SystemDesignTaking = () => {
 
   const handleViolationWarning = useCallback((current, max) => {
     setViolationModal({
-      title: 'Violation Warning',
-      message: `Warning: You have ${current} of ${max} allowed violations. After ${max} violations your test will be automatically submitted. Please follow the exam rules.`,
-      type: 'warning'
+      title: 'Stay in the exam',
+      message: `You have ${current} of ${max} allowed violations. At ${max}, this test submits automatically. Stay in fullscreen and follow exam rules.`,
+      type: 'warning',
+      current,
+      max,
     });
-    setTimeout(() => setViolationModal(null), 5000);
   }, []);
 
   const {
@@ -316,7 +334,12 @@ const SystemDesignTaking = () => {
   };
 
   const handleSubmit = async (auto = false) => {
-    if (!auto && !window.confirm('Are you sure you want to submit? This cannot be undone.')) return;
+    if (!auto) {
+      setConfirmOpen(true);
+      return;
+    }
+
+    setConfirmOpen(false);
 
     // Save current section first
     const sectionKey = STEPS[currentStep]?.id;
@@ -373,6 +396,9 @@ const SystemDesignTaking = () => {
   const showFullscreenGate = submission && !fullscreenReady && !isFullscreen;
   const progressPct = Math.round(((currentStep + 1) / STEPS.length) * 100);
   const CurrentStepIcon = STEPS[currentStep]?.Icon || FiBox;
+  const completedSections = WORK_STEPS.filter((step) => sectionHasContent(sections[step.id])).length;
+  const incompleteSections = WORK_STEPS.length - completedSections;
+  const hintsUsed = (submission.hintsUsed || []).length;
 
   return (
     <div className="sdt-container">
@@ -442,23 +468,16 @@ const SystemDesignTaking = () => {
         </div>
       </header>
 
-      {/* Violation Modal Overlay */}
-      {violationModal && (
-        <div className="sdt-violation-overlay" onClick={() => violationModal.type !== 'error' && setViolationModal(null)}>
-          <div className={`sdt-violation-modal ${violationModal.type}`} onClick={(e) => e.stopPropagation()}>
-            <div className="sdt-violation-modal-icon">
-              {violationModal.type === 'error' ? <FiX /> : <FiAlertTriangle />}
-            </div>
-            <h3>{violationModal.title}</h3>
-            <p>{violationModal.message}</p>
-            {violationModal.type !== 'error' && (
-              <button type="button" className="sdt-violation-modal-close" onClick={() => setViolationModal(null)}>
-                I understand
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <ExamNoticeModal
+        isOpen={Boolean(violationModal)}
+        onClose={() => setViolationModal(null)}
+        title={violationModal?.title}
+        message={violationModal?.message}
+        type={violationModal?.type}
+        current={violationModal?.current}
+        max={violationModal?.max}
+        blocking={violationModal?.blocking}
+      />
 
       <div className="sdt-main">
         <aside className="sdt-sidebar">
@@ -993,15 +1012,10 @@ const SystemDesignTaking = () => {
             <div className="sdt-step-content">
               <h2>Review & Submit</h2>
               <div className="sdt-review-list">
-                {STEPS.filter(s => s.id !== 'overview' && s.id !== 'review').map((step, idx) => {
+                {WORK_STEPS.map((step, idx) => {
                   const sKey = step.id;
                   const sData = sections[sKey];
-                  const hasContent = sData && (
-                    Array.isArray(sData) ? sData.length > 0 :
-                    typeof sData === 'object' && Object.values(sData).some(v =>
-                      v && (typeof v === 'string' ? v.trim() : Array.isArray(v) ? v.length > 0 : true)
-                    )
-                  );
+                  const hasContent = sectionHasContent(sData);
                   return (
                     <div key={sKey} className={`sdt-review-item ${hasContent ? 'complete' : 'incomplete'}`}>
                       <span className="sdt-review-icon">
@@ -1035,6 +1049,26 @@ const SystemDesignTaking = () => {
               </button>
             </div>
           )}
+
+          <ConfirmSubmitModal
+            isOpen={confirmOpen}
+            onClose={() => { if (!submitting) setConfirmOpen(false); }}
+            onConfirm={() => handleSubmit(true)}
+            submitting={submitting}
+            title="Submit this design?"
+            message="Once submitted, you cannot edit your architecture. The AI follow-up interview starts next."
+            confirmLabel="Submit for evaluation"
+            stats={[
+              { label: 'Complete', value: completedSections, tone: 'ok' },
+              { label: 'Incomplete', value: incompleteSections, tone: incompleteSections ? 'warn' : 'muted' },
+              { label: 'Hints used', value: hintsUsed, tone: 'muted' },
+            ]}
+            warning={
+              incompleteSections > 0
+                ? `${incompleteSections} section${incompleteSections === 1 ? '' : 's'} still incomplete.`
+                : undefined
+            }
+          />
         </div>
       </div>
     </div>

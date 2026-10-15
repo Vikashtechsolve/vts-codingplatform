@@ -1,0 +1,36 @@
+.animated-interviewer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #d8d1c6;
+}
+
+.animated-interviewer-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* subtle "camera" grading so it reads as a video feed, not a flat illustration */
+.animated-interviewer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.18) 100%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px);
+  mix-blend-mode: soft-light;
+}
+
+.animated-interviewer.mode-listening .animated-interviewer-svg {
+  filter: saturate(1.04) brightness(1.01);
+}
+
+.animated-interviewer.mode-speaking .animated-interviewer-svg {
+  filter: saturate(1.06) brightness(1.03) contrast(1.02);
+}

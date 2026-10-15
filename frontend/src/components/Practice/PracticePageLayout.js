@@ -49,6 +49,7 @@ const PracticePageLayout = ({
   heroExtra,
   loading = false,
   loadingMessage,
+  loadingVariant = 'page',
   error,
   onRetry,
   children,
@@ -56,7 +57,19 @@ const PracticePageLayout = ({
   if (loading) {
     return (
       <div className="student-page practice-page">
-        <PracticeLoading message={loadingMessage} />
+        {(title || score != null) && (
+          <PracticeHero
+            title={title}
+            subtitle={subtitle}
+            eyebrow={eyebrow}
+            compact={compactHero}
+            extra={heroExtra}
+          />
+        )}
+        {active && <PracticeNav active={active} />}
+        <div className="practice-content">
+          <PracticeLoading message={loadingMessage} variant={loadingVariant} />
+        </div>
       </div>
     );
   }

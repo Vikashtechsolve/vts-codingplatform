@@ -33,6 +33,11 @@ const PracticeAnalytics = () => {
   }));
   const hours = Math.round((profile?.totalCodingTimeMs || 0) / 3600000);
   const avgMin = profile?.avgSolveTimeMs ? Math.round(profile.avgSolveTimeMs / 60000) : 0;
+  const solved = profile?.problemsSolved || 0;
+  const attempted = profile?.problemsAttempted || 0;
+  const successRate = profile?.successRate || 0;
+  const bankTotal = data?.progress?.total || 0;
+  const solvedPct = bankTotal ? Math.round((solved / bankTotal) * 100) : 0;
 
   return (
     <PracticePageLayout
@@ -45,11 +50,40 @@ const PracticeAnalytics = () => {
       onRetry={load}
     >
       <PracticeStatsGrid>
-        <PracticeStatCard value={profile?.problemsSolved || 0} label="Problems solved" variant="accent" icon={FiCheckCircle} />
-        <PracticeStatCard value={profile?.problemsAttempted || 0} label="Attempted" icon={FiTarget} />
-        <PracticeStatCard value={`${profile?.successRate || 0}%`} label="Success rate" icon={FiTrendingUp} />
-        <PracticeStatCard value={`${hours}h`} label="Total coding time" icon={FiClock} />
-        <PracticeStatCard value={`${avgMin}m`} label="Avg solve time" icon={FiClock} />
+        <PracticeStatCard
+          value={solved}
+          label="Problems solved"
+          variant="success"
+          icon={FiCheckCircle}
+          hint={bankTotal ? `${solvedPct}% of the bank` : 'Accepted solutions'}
+          progress={solvedPct}
+        />
+        <PracticeStatCard
+          value={attempted}
+          label="Attempted"
+          icon={FiTarget}
+          hint={attempted ? `${Math.max(0, attempted - solved)} not yet solved` : 'No attempts yet'}
+        />
+        <PracticeStatCard
+          value={`${successRate}%`}
+          label="Success rate"
+          variant="accent"
+          icon={FiTrendingUp}
+          hint="Accepted vs attempted"
+          progress={successRate}
+        />
+        <PracticeStatCard
+          value={`${hours}h`}
+          label="Coding time"
+          icon={FiClock}
+          hint="Total time in the editor"
+        />
+        <PracticeStatCard
+          value={avgMin ? `${avgMin}m` : '—'}
+          label="Avg solve time"
+          icon={FiClock}
+          hint={avgMin ? 'Mean time to first accept' : 'Need more solves'}
+        />
       </PracticeStatsGrid>
 
       {data?.progress && <PracticeProgressBoard progress={data.progress} />}

@@ -41,6 +41,8 @@ function isSecurityPaused() {
   return Boolean(
     document.querySelector('.exam-fullscreen-prompt') ||
     document.querySelector('.modal-overlay') ||
+    document.querySelector('.enm-overlay') ||
+    document.querySelector('.csm-overlay') ||
     document.querySelector('.sdt-violation-overlay')
   );
 }

@@ -59,6 +59,23 @@ export const filterQuestionsBySearchAndTag = (
     return questionMatchesSearch(item, term, textFieldsFor(item));
   });
 
+/** Tags that appear on the current question list, with usage counts (most used first). */
+export const buildQuestionTagFilters = (questionLabels = []) => {
+  const bySlug = new Map();
+  (questionLabels || []).forEach((raw) => {
+    const label = String(raw || '').trim().replace(/\s+/g, ' ');
+    const slug = tagSlug(label);
+    if (!slug) return;
+    const existing = bySlug.get(slug);
+    if (existing) existing.count += 1;
+    else bySlug.set(slug, { slug, label, count: 1 });
+  });
+  return [...bySlug.values()].sort((a, b) => {
+    if ((b.count || 0) !== (a.count || 0)) return (b.count || 0) - (a.count || 0);
+    return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+  });
+};
+
 /** Merge registry entries with labels seen on questions; dedupe by slug. */
 export const buildTagFilterOptions = (registryTags = [], questionLabels = []) => {
   const bySlug = new Map();
